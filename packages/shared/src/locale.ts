@@ -1345,6 +1345,24 @@ export const COPY_AR = {
     'Procedures marked as done to a tooth ask which one.': 'الإجراءات المحددة على سن تسأل عن السن.',
     'Tap a category to choose a variant.': 'اضغط على فئة لاختيار نوع.',
     'Off: once per visit.': 'عند الإيقاف: مرة واحدة لكل زيارة.',
+    'in the chair': 'على الكرسي',
+    'waiting, {count} ahead': 'في الانتظار، وقبله {count}',
+    '{name} is {standing}': '{name} {standing}',
+    '{name} marked as a no-show': 'سُجّل عدم حضور {name}',
+    '{name} is still waiting': '{name} لا يزال في الانتظار',
+    '{name} is at the desk': '{name} عند الاستقبال',
+    'Saved · {amount}': 'تم الحفظ · {amount}',
+    '{category} added': 'تمت إضافة {category}',
+    "{name}'s booking is unchanged": 'لم يتغير حجز {name}',
+    "{name}'s booking updated": 'تم تحديث حجز {name}',
+    '{name} moved to {day} at {time}': 'نُقل موعد {name} إلى {day} الساعة {time}',
+    '{name} — {day} at {time}': '{name} — {day} الساعة {time}',
+    '{name} is checked in': 'وصل {name}',
+    '{name} is checked in, seen at {time}': 'وصل {name}، والكشف الساعة {time}',
+    'Walk-in checked in': 'وصل مريض الحضور المباشر',
+    'Walk-in checked in, seen at {time}': 'وصل مريض الحضور المباشر، والكشف الساعة {time}',
+    '{count} appointment moved back': 'تأخّر موعد واحد',
+    '{count} appointments moved back': 'تأخّر {count} موعد',
 } as const;
 
 export type CopyKey = keyof typeof COPY_AR;
@@ -1440,6 +1458,13 @@ const PLURAL_AR: Partial<Record<CopyKey, ArabicForms>> = {
         few: 'النسخة الخارجية متوقفة منذ {days} أيام.',
         many: 'النسخة الخارجية متوقفة منذ {days} يومًا.',
         other: 'النسخة الخارجية متوقفة منذ {days} يوم.',
+    },
+    '{count} appointments moved back': {
+        one: 'تأخّر موعد واحد',
+        two: 'تأخّر موعدان',
+        few: 'تأخّرت {count} مواعيد',
+        many: 'تأخّر {count} موعدًا',
+        other: 'تأخّر {count} موعد',
     },
 };
 

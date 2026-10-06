@@ -315,7 +315,7 @@ function DoctorDayScreenView({ onOpenRecord, open, onReturn, goHome = 0 }: Docto
         setFinishing(appointment.id);
         finish.mutate(appointment.id, {
             onSuccess: () => {
-                setToast(`${appointment.patient.name} is at the desk`);
+                setToast(t('{name} is at the desk', { name: appointment.patient.name }));
                 day.refetch();
             },
         });
@@ -539,7 +539,9 @@ function DoctorDayScreenView({ onOpenRecord, open, onReturn, goHome = 0 }: Docto
                             onBack={routes.pop}
                             onConfirm={(priced) => {
                                 routes.popToRoot();
-                                setToast(`Saved · ${formatMoney(priced.chargedTotal ?? 0)}`);
+                                setToast(
+                                    t('Saved · {amount}', { amount: formatMoney(priced.chargedTotal ?? 0) }),
+                                );
                                 day.refetch();
                             }}
                             onSentToDesk={(message) => {

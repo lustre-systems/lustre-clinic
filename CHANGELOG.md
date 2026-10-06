@@ -8,6 +8,10 @@ listed.
 
 ## [Unreleased]
 
+### Fixed
+
+- With the app in Arabic, the short messages at the top of the screen after booking, moving, checking in, marking a no-show, finishing a visit or adding a procedure category now show in Arabic. They used to stay in English because they included the patient's name.
+
 ## [1.8.0] - 2026-10-02
 
 ### Added
