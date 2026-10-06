@@ -109,11 +109,10 @@ export function offsetAt(at: Instant): number {
     return spans[low]?.[1] ?? 0;
 }
 
-export function clinicWallClock(at: Instant): ClinicWallClock {
-    const time = epoch(at);
-    const wall = new Date(time + offsetAt(time) * MINUTE);
-    const hours = wall.getUTCHours();
-    const minutes = hours * 60 + wall.getUTCMinutes();
+/** `time` on a wall clock `offset` minutes east of UTC. */
+function wallClockAt(time: number, offset: number): ClinicWallClock {
+    const wall = new Date(time + offset * MINUTE);
+    const minutes = wall.getUTCHours() * 60 + wall.getUTCMinutes();
     const year = wall.getUTCFullYear();
     const month = wall.getUTCMonth() + 1;
     const day = wall.getUTCDate();
@@ -126,6 +125,11 @@ export function clinicWallClock(at: Instant): ClinicWallClock {
         minutes,
         seconds: minutes * 60 + wall.getUTCSeconds(),
     };
+}
+
+export function clinicWallClock(at: Instant): ClinicWallClock {
+    const time = epoch(at);
+    return wallClockAt(time, offsetAt(time));
 }
 
 /** The clinic's `YYYY-MM-DD` for an instant. Never `toISOString`, which is UTC. */
@@ -234,19 +238,7 @@ export function callerWallClock(
     now: number = clinicNow(),
 ): ClinicWallClock {
     const time = epoch(at);
-    if (onClinicTime(time, offsetMinutes, now)) return clinicWallClock(time);
-
-    const wall = new Date(time + offsetMinutes * MINUTE);
-    const minutes = wall.getUTCHours() * 60 + wall.getUTCMinutes();
-    return {
-        key: wall.toISOString().slice(0, 10),
-        year: wall.getUTCFullYear(),
-        month: wall.getUTCMonth() + 1,
-        day: wall.getUTCDate(),
-        weekday: wall.getUTCDay(),
-        minutes,
-        seconds: minutes * 60 + wall.getUTCSeconds(),
-    };
+    return wallClockAt(time, onClinicTime(time, offsetMinutes, now) ? offsetAt(time) : offsetMinutes);
 }
 
 /** The day a moment falls on, for a caller who sent its offset now; the same half-open range `dayRange` returns. */

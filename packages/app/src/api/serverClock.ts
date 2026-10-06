@@ -65,6 +65,11 @@ export function serverToday(): string {
     return todayKey(serverNow());
 }
 
+/** What the server's clock read when the phone's read `instant`: a stamp the phone took itself. */
+export function serverTimeOf(instant: number, now: ClockSample = clockSample()): number {
+    return instant + (serverNow(now) - now.wall);
+}
+
 /** When the phone's own clock will read `instant` on the server's: what an OS alarm is armed for. */
 export function phoneTimeOf(instant: number, now: ClockSample = clockSample()): number {
     return instant - (serverNow(now) - now.wall);

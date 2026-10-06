@@ -12,7 +12,7 @@
  */
 import { type Locale, minutesOfDay } from '@lustre/shared';
 import { useRef } from 'react';
-import { serverAddresses, useConnection, useDeviceBackend } from '../../../api';
+import { serverAddresses, serverTimeOf, useConnection, useDeviceBackend } from '../../../api';
 import { formatClock12 } from '../../../components/domain';
 import type { DotTone } from '../../../components/ui';
 import { useLocale, useT } from '../../../i18n';
@@ -90,5 +90,5 @@ export function useConnectionView(): ConnectionView {
 
 /** The probe stamp: a wall-clock timestamp on the same 12-hour clock the panes use. */
 function wallClock(at: number, locale: Locale): string {
-    return formatClock12(minutesOfDay(at), locale);
+    return formatClock12(minutesOfDay(serverTimeOf(at)), locale);
 }

@@ -10,10 +10,10 @@
 import { join } from 'node:path';
 import { zoneSpans } from '../src/zoneSpans.ts';
 
-export const BUNDLED_ZONE = 'Africa/Cairo';
-export const BUNDLED_FROM = Date.UTC(2014, 0, 1);
+const BUNDLED_ZONE = 'Africa/Cairo';
+const BUNDLED_FROM = Date.UTC(2014, 0, 1);
 
-export function bundledUntil(now: Date = new Date()): number {
+function bundledUntil(now: Date = new Date()): number {
     return Date.UTC(now.getUTCFullYear() + 6, 0, 1);
 }
 

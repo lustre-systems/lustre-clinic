@@ -29,7 +29,14 @@ export {
 } from './demo';
 export { classifyError, errorCodeOf, isOffline, isSlotOverlap } from './errors';
 export { onServerChange, onServerEvent } from './live';
-export { clockSample, noteServerClock, phoneTimeOf, serverNow, serverToday } from './serverClock';
+export {
+    clockSample,
+    noteServerClock,
+    phoneTimeOf,
+    serverNow,
+    serverTimeOf,
+    serverToday,
+} from './serverClock';
 export type { Area } from './serverEvents';
 export type { RouterOutput } from './types';
 export { useConnection } from './useConnection';
