@@ -95,7 +95,7 @@ services:
             BACKUP_S3_REGION: ${BACKUP_S3_REGION:-}
             BACKUP_S3_ACCESS_KEY_ID: ${BACKUP_S3_ACCESS_KEY_ID:-}
             BACKUP_S3_SECRET_ACCESS_KEY: ${BACKUP_S3_SECRET_ACCESS_KEY:-}
-            # The APK and OTA updates, copied in by the ansible `releases` tag (§15).
+            # The APK and OTA updates, copied in by scripts/pushReleases.ts (§15).
             RELEASES_DIR: /app/releases
             UPDATES_CHANNEL: ${LUSTRE_ENVIRONMENT:-development}
             # Reported by health.check; a dev build refuses anything but

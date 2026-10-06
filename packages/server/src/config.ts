@@ -59,8 +59,8 @@ const envSchema = z.object({
     PG_BIN_DIR: z.string().optional(),
 
     // The release APK and OTA updates the phones download (§15), staged by
-    // `packages/app/scripts/release.ts` and copied here by the ansible
-    // `releases` tag. Read on every request, so a new release needs no restart.
+    // `packages/app/scripts/release.ts` and copied here by
+    // `scripts/pushReleases.ts`. Read on every request, so a new release needs no restart.
     RELEASES_DIR: z.string().default('./releases'),
     UPDATES_CHANNEL: z.enum(['production', 'development']).default('production'),
     // Which stack this is, reported by `health.check` so a dev build can refuse

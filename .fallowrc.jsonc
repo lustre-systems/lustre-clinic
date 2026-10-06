@@ -4,7 +4,10 @@
         // Expo loads config plugins by the path string in app.json's "plugins".
         "packages/app/plugins/*.js",
         // Mounted by hand in place of <AppShell /> to review the design system (see App.tsx).
-        "packages/app/src/screens/dev/GalleryScreen.tsx"
+        "packages/app/src/screens/dev/GalleryScreen.tsx",
+        // Run by path from scripts/ship.ts and the Ansible play.
+        "scripts/pushBinary.ts",
+        "scripts/pushReleases.ts"
     ],
     // Props types are exported beside their component by convention; unused ones are not worth blocking on.
     "rules": { "unused-types": "warn" },

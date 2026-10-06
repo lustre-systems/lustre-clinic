@@ -12,7 +12,7 @@ type LatestApk = NonNullable<RouterOutput['release']['latestApk']>;
 export interface InstalledVersion {
     /** The release this launch runs: the update's number, or the APK's when it runs its own bundle. */
     version: string | null;
-    /** `versionName` of the installed APK: `X.Y.0`, or the patch it was restaged with. An OTA update does not change it. */
+    /** `versionName` of the installed APK: `X.Y.0`, or the patch it was rebuilt with (`--with-apk`). An OTA update does not change it. */
     apkVersion: string | null;
     /** The APK's versionCode. */
     build: string | null;
@@ -27,10 +27,12 @@ export interface InstalledVersion {
  * install that cannot say its own build number is not offered one, or the
  * banner would never go away.
  *
- * Every update restages the APK with its JavaScript built in, so a higher build
- * on this phone's own runtime is one the phone already has by OTA. Only an APK
- * with other native code is offered. A server that does not say its APK's
- * runtime, or a phone that cannot say its own, falls back to the build number.
+ * An APK on this phone's own runtime brings nothing an OTA update has not: the
+ * phone takes every update for that runtime, and the APK's own bundle is
+ * usually older than the update it runs (an update rebuilds the APK only with
+ * `bun ship --with-apk`). Only an APK with other native code is offered. A
+ * server that does not say its APK's runtime, or a phone that cannot say its
+ * own, falls back to the build number.
  */
 export function newerApk(
     installedBuild: string | null,
