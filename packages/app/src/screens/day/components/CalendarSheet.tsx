@@ -46,6 +46,7 @@ import { describeError } from '../errors';
 import { isClosed } from '../hours';
 import { type DayLoad, loadsFrom } from '../month';
 import { addMonths, formatDate, formatMonth, monthDays, parseKey, time12, todayKey } from '../time';
+import { WeekdayHeader, WeekRows } from './WeekRows';
 
 export type CalendarSheetProps = {
     visible: boolean;
@@ -67,7 +68,6 @@ export type CalendarSheetProps = {
     onClose: () => void;
 };
 
-const WEEKDAY_INITIALS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'] as const;
 const FULL_AT = 0.9;
 /** Two slots' worth — a track, not a reading, and never wider than a real bar. */
 const PENDING_LOAD_WIDTH = 8;
@@ -334,21 +334,7 @@ export function CalendarSheet({
                         </View>
                     </View>
 
-                    <View style={styles.weekdays}>
-                        {WEEKDAY_INITIALS.map((initial, index) => (
-                            <Text
-                                // biome-ignore lint/suspicious/noArrayIndexKey: two Ts and two Ss
-                                key={index}
-                                variant="caption"
-                                script="sans"
-                                weight="bold"
-                                tone="muted"
-                                style={styles.weekday}
-                            >
-                                {initial}
-                            </Text>
-                        ))}
-                    </View>
+                    <WeekdayHeader />
 
                     <View
                         style={styles.viewport}
@@ -490,18 +476,12 @@ const MonthPage = memo(function MonthPage({
     onPick,
 }: MonthPageProps) {
     const t = useT();
-    const days = monthDays(month);
-    const leading = parseKey(days[0] ?? month).getDay();
-    const cells: (string | null)[] = [...Array<null>(leading).fill(null), ...days];
 
     return (
-        <View style={styles.grid}>
-            {cells.map((day, index) => {
-                if (!day) {
-                    // biome-ignore lint/suspicious/noArrayIndexKey: blank leading cell
-                    return <View key={`blank-${index}`} style={styles.cell} />;
-                }
-
+        <WeekRows
+            month={month}
+            rowHeight={CELL + space[2]}
+            renderDay={(day) => {
                 const load = loads.get(day);
                 // Booking asks about the branch on the form: a day that branch
                 // is closed must look and read closed, not only refuse the tap.
@@ -601,8 +581,8 @@ const MonthPage = memo(function MonthPage({
                         </View>
                     </Pressable>
                 );
-            })}
-        </View>
+            }}
+        />
     );
 });
 
@@ -648,8 +628,6 @@ const styles = StyleSheet.create({
     },
     monthTitle: { flexDirection: 'row', alignItems: 'baseline', gap: space[2] },
     monthNav: { flexDirection: 'row', gap: space[1.5] },
-    weekdays: { flexDirection: 'row' },
-    weekday: { width: `${100 / 7}%`, textAlign: 'center' },
     // Out to the sheet's edges, so a month slides off the sheet rather than
     // vanishing at the gutter.
     // Six weeks whatever the month, so the sheet does not change height under
@@ -661,8 +639,7 @@ const styles = StyleSheet.create({
     },
     strip: { flex: 1 },
     page: { position: 'absolute', top: 0, start: 0, end: 0, paddingHorizontal: size.gutter },
-    grid: { flexDirection: 'row', flexWrap: 'wrap', marginTop: space[1] },
-    cell: { width: `${100 / 7}%`, height: CELL + space[2], padding: space[0.5] },
+    cell: { flex: 1, padding: space[0.5] },
     cellBox: {
         flex: 1,
         alignItems: 'center',

@@ -8,6 +8,10 @@ listed.
 
 ## [Unreleased]
 
+### Fixed
+
+- At some phone display sizes, the days in the calendar (the day view's calendar and the Old visit date picker) slipped out from under the weekday letters, so a date sat under the wrong day of the week. The days now line up at every display and font size.
+
 ## [1.8.0] - 2026-10-02
 
 ### Added
