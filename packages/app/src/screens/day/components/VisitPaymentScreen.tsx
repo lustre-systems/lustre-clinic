@@ -43,7 +43,7 @@ import {
     poundsEntry,
     procedureDiscount,
 } from '../money';
-import { dateKey, formatLongDate, monthShort } from '../time';
+import { dateKey, dayOfMonth, formatLongDate, monthShort } from '../time';
 import { CheckIcon } from './icons';
 
 export type VisitPaymentScreenProps = {
@@ -340,7 +340,7 @@ export function VisitPaymentScreen({
 
     const writeError = setPaidTotal.error ?? checkOut.error;
     const failure = writeError ? describeError(writeError, 'check-out') : null;
-    const day = dateKey(new Date(appointment.startsAt));
+    const day = dateKey(appointment.startsAt);
 
     return (
         <View style={styles.screen} testID="visit-payment-screen">
@@ -371,7 +371,7 @@ export function VisitPaymentScreen({
                 <View style={styles.identity}>
                     <View style={styles.tile}>
                         <Text variant="title3" script="sans" weight="semibold" tone="inverse">
-                            {new Date(appointment.startsAt).getDate()}
+                            {dayOfMonth(day)}
                         </Text>
                         <Text variant="tag" tone="inverse" style={styles.tileMonth}>
                             {monthShort(day).toUpperCase()}

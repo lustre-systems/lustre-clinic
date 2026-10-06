@@ -341,7 +341,7 @@ describe('the period labels read as the tail of both sentences', () => {
     });
 
     it('heads the stats with the month being read, not the period selected', () => {
-        expect(statsPeriodLabel(new Date('2026-06-15T10:00:00.000Z'))).toBe('Stats · June 2026');
+        expect(statsPeriodLabel(Date.parse('2026-06-15T10:00:00.000Z'))).toBe('Stats · June 2026');
     });
 });
 

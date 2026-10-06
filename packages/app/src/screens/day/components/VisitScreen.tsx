@@ -55,7 +55,7 @@ import { describeError } from '../errors';
 import { discountPercent, formatAmount, poundsEntry } from '../money';
 import { noteChanged, noteDraft, noteValue } from '../notes';
 import { asksTooth, chargeableTotal, checkupIsWaived, toothGroupsOf, toothPosition } from '../procedures';
-import { dateKey, formatLongDate, formatTime12, monthShort, todayKey } from '../time';
+import { dateKey, dayOfMonth, formatLongDate, formatTime12, monthShort, todayKey } from '../time';
 import { PlusIcon, XIcon } from './icons';
 import { type PickedProcedure, ProcedureSheet } from './ProcedureSheet';
 import { ToothSheet } from './ToothSheet';
@@ -461,7 +461,7 @@ export function VisitScreen({
     // desk makes most — looking idle for the whole round trip.
     const confirming = acting.current === 'confirm' && (price.pending || checkIn.pending);
     const handingOver = acting.current === 'desk' && (price.pending || sendToDesk.pending);
-    const day = dateKey(new Date(appointment.startsAt));
+    const day = dateKey(appointment.startsAt);
 
     return (
         <View style={styles.screen} testID="visit-screen">
@@ -483,7 +483,7 @@ export function VisitScreen({
             <View style={styles.identity}>
                 <View style={styles.tile}>
                     <Text variant="title3" script="sans" weight="semibold" tone="inverse">
-                        {new Date(appointment.startsAt).getDate()}
+                        {dayOfMonth(day)}
                     </Text>
                     <Text variant="tag" tone="inverse" style={styles.tileMonth}>
                         {monthShort(day)}

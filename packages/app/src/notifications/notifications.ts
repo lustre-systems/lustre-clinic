@@ -25,7 +25,7 @@
  * plan is cheap to recompute and a diff is how a phone ends up with two series
  * layered over each other, each buzzing on its own half-hour.
  */
-import { type Locale, localizeCopy, offsetForDate, todayKey } from '@lustre/shared';
+import { clinicOffsetNow, type Locale, localizeCopy, todayKey } from '@lustre/shared';
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 import {
@@ -217,7 +217,7 @@ function serverCheck(): AlarmCheck | null {
         lan,
         tailscale,
         today,
-        offsetMinutes: offsetForDate(today),
+        offsetMinutes: clinicOffsetNow(),
     });
 }
 

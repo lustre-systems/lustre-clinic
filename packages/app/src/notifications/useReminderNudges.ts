@@ -21,12 +21,12 @@
  * process that was alive at midnight.
  */
 
-import { offsetForDate, todayKey } from '@lustre/shared';
+import { clinicNow, clinicOffsetNow, todayKey } from '@lustre/shared';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 // biome-ignore lint/style/noRestrictedImports: two of them, both external — arming the OS notification scheduler, and the `AppState` subscription that re-arms it on foreground
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, useSyncExternalStore } from 'react';
 import { AppState } from 'react-native';
-import { api, useTRPC } from '../api';
+import { api, phoneTimeOf, skewMinutes, subscribeSkew, useTRPC } from '../api';
 import { useLocale } from '../i18n';
 import { useReminderAlarm } from './alarmStore';
 import { armNudges } from './notifications';
@@ -55,7 +55,7 @@ export function useReminderNudges(enabled: boolean): void {
 
     const settings = useQuery(trpc.settings.get.queryOptions(undefined, { enabled }));
     const pending = useQuery(
-        trpc.reminder.pending.queryOptions(nudgePendingInput(offsetForDate(todayKey())), { enabled }),
+        trpc.reminder.pending.queryOptions(nudgePendingInput(clinicOffsetNow()), { enabled }),
     );
 
     const notifyAt = settings.data?.reminderNotifyAt;
@@ -63,8 +63,11 @@ export function useReminderNudges(enabled: boolean): void {
     const dismissedOn = settings.data?.reminderDismissedOn ?? null;
     const pendingCount = pending.data?.length;
     const alarm = useReminderAlarm();
+    // The alarms are armed on the phone's clock, so a newly measured skew,
+    // usually the first one after launch, moves every one of them.
+    const skew = useSyncExternalStore(subscribeSkew, skewMinutes);
 
-    // biome-ignore lint/correctness/useExhaustiveDependencies: `foregrounded` and `locale` are triggers, not values — the arm reads the clock, the day, the OS permission and the language, none of which it is handed
+    // biome-ignore lint/correctness/useExhaustiveDependencies: `foregrounded`, `locale` and `skew` are triggers, not values — the arm reads the clock, the day, the OS permission and the language, none of which it is handed
     useEffect(() => {
         if (!enabled) {
             void armNudges({ at: [], silent: null }, { alarm: false });
@@ -82,18 +85,18 @@ export function useReminderNudges(enabled: boolean): void {
             return;
         }
 
-        // The phone's clock, not the server's: the OS fires what is armed by it.
-        const now = new Date();
-
+        // Planned on the clinic's clock, armed on the phone's: the OS fires by it.
+        const now = clinicNow();
+        const plan = planNudges({
+            notifyAt: minutesOfClock(notifyAt),
+            repeatMinutes,
+            pendingCount,
+            dismissedOn,
+            today: todayKey(now),
+            now,
+        });
         void armNudges(
-            planNudges({
-                notifyAt: minutesOfClock(notifyAt),
-                repeatMinutes,
-                pendingCount,
-                dismissedOn,
-                today: todayKey(now),
-                now,
-            }),
+            { ...plan, at: plan.at.map((at) => new Date(phoneTimeOf(at.getTime()))) },
             { alarm: alarm.enabled },
         );
     }, [
@@ -106,6 +109,7 @@ export function useReminderNudges(enabled: boolean): void {
         locale,
         alarm.hydrated,
         alarm.enabled,
+        skew,
     ]);
 
     useEffect(() => {

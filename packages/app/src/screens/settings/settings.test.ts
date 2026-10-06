@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'bun:test';
+import { instantAt } from '@lustre/shared';
 import { ageInDays, backupDetails, backupView, driveSignInError, formatAge } from './data/backups';
 import { patientNumberDigits, patientNumberError } from './data/clinic';
 import { minutesFromTime, TEMPLATE_MAX, templateDraft, timeFromMinutes } from './data/reminders';
@@ -304,11 +305,8 @@ describe('the Backups pane', () => {
 
     // The age sits beside a clock time, so it counts midnights, not 24-hour spans.
     test('a backup from before midnight is yesterday, however recent', () => {
-        const lastNight = new Date(2026, 8, 19, 23, 0).toISOString();
-        const details = backupDetails(
-            { ...linked, lastSuccessAt: lastNight },
-            new Date(2026, 8, 20, 1, 0).getTime(),
-        );
+        const lastNight = new Date(instantAt('2026-09-19', 23 * 60)).toISOString();
+        const details = backupDetails({ ...linked, lastSuccessAt: lastNight }, instantAt('2026-09-20', 60));
         expect(details.last.endsWith('· yesterday')).toBe(true);
     });
 

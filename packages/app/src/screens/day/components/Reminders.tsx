@@ -215,7 +215,7 @@ function ReminderRow({
 }) {
     const t = useT();
     const { time, meridiem } = time12(reminder.startsAt, useLocale());
-    const day = relativeDayLabel(dateKey(new Date(reminder.startsAt)));
+    const day = relativeDayLabel(dateKey(reminder.startsAt));
     const when = `${day} · ${time} ${meridiem}`;
 
     const who = (

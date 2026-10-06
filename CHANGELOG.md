@@ -8,6 +8,8 @@ listed.
 
 ## [Unreleased]
 
+- Bookings and times now always use the clinic's time, even on a phone whose time zone or clock is set wrong, so a 5:30 booking no longer lands at 6:30.
+
 ## [1.8.0] - 2026-10-02
 
 ### Added
