@@ -49,20 +49,47 @@ if (!(await stat(BINARY).catch(() => null)))
     fail(SCRIPT, 'dist/lustre is missing. Run `bun run build:server`.');
 
 const INSPECT = `set -eu
-[ -d ${DIR} ] || { echo "${DIR} does not exist. Set the stack up first: bun play app --stack=${stack}" >&2; exit 3; }
 cd ${DIR}/dist 2>/dev/null || exit 0
 if [ -f lustre ]; then echo "binary $(sha256sum < lustre | cut -d' ' -f1)"; fi
 if [ -d migrations ]; then cd migrations && find . -type f -exec sha256sum {} + | sed 's/^/migration /'; fi`;
 
-/** The remote scripts' code when another push to this stack holds the lock. */
-const BUSY = 75;
-
-/** One push at a time per stack, so no other run touches the `.incoming` files in between. */
-const LOCKED = `set -eu
+/**
+ * Held by one SSH session from before the inspection to after the last upload,
+ * and released when this script exits, so two pushes never mix one's binary
+ * with the other's migrations.
+ */
+const LOCK = `set -eu
+[ -d ${DIR} ] || { echo "${DIR} does not exist. Set the stack up first: bun play app --stack=${stack}" >&2; exit 3; }
 mkdir -p ${DIR}/dist
 exec 9>${DIR}/.binary.lock
-flock -n 9 || { echo "Another push to ${DIR}/dist is still running." >&2; exit ${BUSY}; }
+flock -n 9 || { echo "Another push to ${DIR}/dist is still running." >&2; exit 75; }
+echo locked
+cat > /dev/null`;
+
+const LOCKED = `set -eu
 cd ${DIR}/dist`;
+
+/** Resolves once the lock is held. Ending its stdin, or this process, releases it. */
+async function lockStack(): Promise<{ release(): Promise<void> }> {
+    const holder = Bun.spawn(['ssh', ...sshOptions(), host, LOCK], {
+        stdin: 'pipe',
+        stdout: 'pipe',
+        stderr: 'inherit',
+    });
+    let said = '';
+    for await (const chunk of holder.stdout) {
+        said += new TextDecoder().decode(chunk);
+        if (said.includes('locked\n')) {
+            return {
+                async release() {
+                    await holder.stdin.end();
+                    await holder.exited;
+                },
+            };
+        }
+    }
+    fail(SCRIPT, `could not lock the ${stack} stack (${await holder.exited}).`);
+}
 
 function applyBinary(sha256: string, delta: boolean): string {
     return `${LOCKED}
@@ -169,8 +196,6 @@ async function pushBinary(sha256: string, onServer: string | undefined): Promise
                 say(`Sent the binary as a delta: ${rate(sent)}.`);
                 return;
             }
-            if (sent.code === BUSY)
-                fail(SCRIPT, 'another push to this stack is running. Run it again once it is done.');
             say(`The delta did not apply (${sent.code}). Sending the whole binary instead.`);
         }
     }
@@ -179,6 +204,7 @@ async function pushBinary(sha256: string, onServer: string | undefined): Promise
     say(`Sent the whole binary: ${rate(sent)}.`);
 }
 
+const lock = await lockStack();
 let inspected: string;
 try {
     inspected = await remote(host, INSPECT);
@@ -218,4 +244,5 @@ if ((await localMigrations()).join('\n') === serverMigrations.join('\n')) {
     if (sent.code !== 0) fail(SCRIPT, `sending the migrations failed (${sent.code}). Run it again.`);
     say(`Sent the migrations: ${rate(sent)}.`);
 }
+await lock.release();
 say(`dist/lustre (${megabytes((await stat(BINARY)).size)}) and its migrations are on the ${stack} stack.`);
