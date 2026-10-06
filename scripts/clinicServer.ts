@@ -127,7 +127,7 @@ export async function remote(host: string, script: string): Promise<string> {
 }
 
 export interface Upload {
-    /** The remote script's exit code. */
+    /** The remote script's exit code, or the local command's when only that failed. */
     code: number;
     bytes: number;
     seconds: number;
@@ -166,13 +166,15 @@ export async function upload(
             }
         }
     } catch {
-        // The server end closed early. Its exit code says why.
+        // The server end closed early, and its exit code says why. Nothing reads
+        // the producer any more, so stop it before it blocks on a full pipe.
+        producer.kill();
     }
-    await ssh.stdin.end();
+    await Promise.resolve(ssh.stdin.end()).catch(() => undefined);
     const [made, code] = await Promise.all([producer.exited, ssh.exited]);
     if (progress && shown) process.stdout.write('\r\x1b[K');
     return {
-        code: made === 0 ? code : made || 1,
+        code: code || made,
         bytes,
         seconds: (performance.now() - started) / 1000,
     };
