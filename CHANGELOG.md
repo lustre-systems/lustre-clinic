@@ -11,6 +11,7 @@ listed.
 ### Fixed
 
 - With the app in Arabic, the short messages at the top of the screen after booking, moving, checking in, marking a no-show, finishing a visit or adding a procedure category now show in Arabic. They used to stay in English because they included the patient's name.
+- At some phone display sizes, the days in the calendar (the day view's calendar and the Old visit date picker) slipped out from under the weekday letters, so a date sat under the wrong day of the week. The days now line up at every display and font size.
 
 ## [1.8.0] - 2026-10-02
 
