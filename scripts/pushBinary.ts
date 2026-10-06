@@ -54,10 +54,18 @@ cd ${DIR}/dist 2>/dev/null || exit 0
 if [ -f lustre ]; then echo "binary $(sha256sum < lustre | cut -d' ' -f1)"; fi
 if [ -d migrations ]; then cd migrations && find . -type f -exec sha256sum {} + | sed 's/^/migration /'; fi`;
 
-function applyBinary(sha256: string, delta: boolean): string {
-    return `set -eu
+/** The remote scripts' code when another push to this stack holds the lock. */
+const BUSY = 75;
+
+/** One push at a time per stack, so no other run touches the `.incoming` files in between. */
+const LOCKED = `set -eu
 mkdir -p ${DIR}/dist
-cd ${DIR}/dist
+exec 9>${DIR}/.binary.lock
+flock -n 9 || { echo "Another push to ${DIR}/dist is still running." >&2; exit ${BUSY}; }
+cd ${DIR}/dist`;
+
+function applyBinary(sha256: string, delta: boolean): string {
+    return `${LOCKED}
 rm -f lustre.incoming
 zstd -dq --memory=1024MB ${delta ? '--patch-from=lustre ' : ''}-o lustre.incoming
 if [ "$(sha256sum < lustre.incoming | cut -d' ' -f1)" != ${sha256} ]; then
@@ -69,16 +77,18 @@ chmod 755 lustre.incoming
 mv -f lustre.incoming lustre`;
 }
 
-const APPLY_MIGRATIONS = `set -eu
+/** Swapped in with one rename, so there is never a moment without a migrations directory. */
+const APPLY_MIGRATIONS = `${LOCKED}
 umask 022
-mkdir -p ${DIR}/dist
-cd ${DIR}/dist
-rm -rf migrations.incoming migrations.old
+rm -rf migrations.incoming
 mkdir migrations.incoming
 tar --zstd -xf - -C migrations.incoming --no-same-owner
-if [ -d migrations ]; then mv migrations migrations.old; fi
-mv migrations.incoming migrations
-rm -rf migrations.old`;
+if [ -d migrations ]; then
+    mv -T --exchange migrations.incoming migrations
+    rm -rf migrations.incoming
+else
+    mv migrations.incoming migrations
+fi`;
 
 function say(line: string): void {
     process.stdout.write(`${line}\n`);
@@ -159,6 +169,8 @@ async function pushBinary(sha256: string, onServer: string | undefined): Promise
                 say(`Sent the binary as a delta: ${rate(sent)}.`);
                 return;
             }
+            if (sent.code === BUSY)
+                fail(SCRIPT, 'another push to this stack is running. Run it again once it is done.');
             say(`The delta did not apply (${sent.code}). Sending the whole binary instead.`);
         }
     }
