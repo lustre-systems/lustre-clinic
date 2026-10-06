@@ -64,7 +64,7 @@ export function useReminderNudges(enabled: boolean): void {
     const repeatMinutes = settings.data?.reminderRepeatMinutes;
     const dismissedOn = settings.data?.reminderDismissedOn ?? null;
     // Done for today pressed on the ring, until the server has it and says so.
-    const held = useAlarmDismissal(rearm, settings.dataUpdatedAt);
+    const held = useAlarmDismissal(rearm, { fetchedAt: settings.dataUpdatedAt, dismissedOn });
     const pendingCount = pending.data?.length;
     const alarm = useReminderAlarm();
     // The alarms are armed on the phone's clock, so a newly measured skew,

@@ -150,27 +150,39 @@ describe('createDismissalSync', () => {
         expect(state.sent).toEqual([TODAY]);
     });
 
-    it('forgets the press once settings read after the send come in, not before', async () => {
+    it('forgets the press once settings read after the send show the day, not before', async () => {
         const { state, sync } = harness({ day: TODAY, sent: false });
         state.now = 5_000;
         await sync.sync();
 
-        sync.settle(4_000);
+        sync.settle(4_000, TODAY);
         expect(state.held).toEqual({ day: TODAY, sent: true });
 
-        sync.settle(6_000);
+        sync.settle(6_000, TODAY);
         expect(state.held).toBeNull();
+    });
+
+    it('keeps the press when a read sent before the write lands after it', async () => {
+        const { state, sync } = harness({ day: TODAY, sent: false });
+        state.now = 5_000;
+        await sync.sync();
+
+        sync.settle(6_000, null);
+        expect(state.held).toEqual({ day: TODAY, sent: true });
+        expect(effectiveDismissedOn(null, state.held, TODAY)).toBe(TODAY);
     });
 
     it('never forgets a press the server does not have yet', () => {
         const { state, sync } = harness({ day: TODAY, sent: false });
-        sync.settle(Number.MAX_SAFE_INTEGER);
+        sync.settle(Number.MAX_SAFE_INTEGER, TODAY);
         expect(state.held).toEqual({ day: TODAY, sent: false });
     });
 
-    it('forgets a press sent by an earlier launch on the first settings read', () => {
+    it('forgets a press sent by an earlier launch once the server shows it', () => {
         const { state, sync } = harness({ day: TODAY, sent: true });
-        sync.settle(1);
+        sync.settle(1, null);
+        expect(state.held).toEqual({ day: TODAY, sent: true });
+        sync.settle(1, TODAY);
         expect(state.held).toBeNull();
     });
 });

@@ -90,14 +90,9 @@ export function tryAlarm(ms: number, day: string, copy: AlarmCopy): boolean {
     return native?.tryIn(ms, day, copy) ?? false;
 }
 
-/**
- * Done for today pressed somewhere the native side did not see, the fallback
- * nudge: held and stopped the same way. False with no native side to hold it.
- */
-export function dismissAlarmsFor(day: string): boolean {
-    if (!native) return false;
-    native.dismiss(day);
-    return true;
+/** Done for today pressed somewhere the native side did not see, the fallback nudge: held and stopped the same way. */
+export function dismissAlarmsFor(day: string): void {
+    native?.dismiss(day);
 }
 
 /** Done for today as the native side holds it, or null when it was not pressed. */

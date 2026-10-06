@@ -16,6 +16,7 @@ import {
     type AlarmDismissal,
     alarmDismissal,
     alarmDismissalSent,
+    alarmsAvailable,
     clearAlarmDismissal,
     dismissAlarmsFor,
     onAlarmDismissed,
@@ -26,16 +27,39 @@ import { onNudgeDone } from './notifications';
 
 const RETRY_MS = 60_000;
 
+// Where the press is held. With no native side (iOS) it is only in memory: a
+// relaunch loses it, but a clinic PC out of reach does not.
+let unheld: AlarmDismissal | null = null;
+const hold = alarmsAvailable
+    ? {
+          read: alarmDismissal,
+          press: dismissAlarmsFor,
+          markSent: alarmDismissalSent,
+          clear: clearAlarmDismissal,
+      }
+    : {
+          read: () => unheld,
+          press: (day: string) => {
+              unheld = { day, sent: false };
+          },
+          markSent: (day: string) => {
+              if (unheld?.day === day) unheld = { day, sent: true };
+          },
+          clear: () => {
+              unheld = null;
+          },
+      };
+
 const listeners = new Set<() => void>();
 let held: AlarmDismissal | null | undefined;
 
 function readHeld(): AlarmDismissal | null {
-    if (held === undefined) held = alarmDismissal();
+    if (held === undefined) held = hold.read();
     return held;
 }
 
 function reread(): void {
-    const next = alarmDismissal();
+    const next = hold.read();
     if (next?.day === held?.day && next?.sent === held?.sent) return;
     held = next;
     for (const listener of listeners) listener();
@@ -50,24 +74,27 @@ function subscribe(listener: () => void): () => void {
 
 /** Forgets this phone's press, for Turn back on: the native side would otherwise keep today quiet. */
 export function forgetAlarmDismissal(): void {
-    clearAlarmDismissal();
+    hold.clear();
     reread();
 }
 
 /**
- * Sends a held press and returns it. `settingsFetchedAt` is when the settings
- * this phone plans with were read; `rearm` re-reads them.
+ * Sends a held press and returns it. `settings` is what this phone plans with
+ * and when it was read; `rearm` re-reads it.
  */
-export function useAlarmDismissal(rearm: () => void, settingsFetchedAt: number): AlarmDismissal | null {
+export function useAlarmDismissal(
+    rearm: () => void,
+    settings: { fetchedAt: number; dismissedOn: string | null },
+): AlarmDismissal | null {
     const current = useSyncExternalStore(subscribe, readHeld);
     const sync = useRef<ReturnType<typeof createDismissalSync> | null>(null);
 
     useEffect(() => {
         const engine = createDismissalSync({
-            read: alarmDismissal,
+            read: hold.read,
             send: (date) => trpcClient.reminder.dismissToday.mutate({ date }),
-            markSent: alarmDismissalSent,
-            clear: clearAlarmDismissal,
+            markSent: hold.markSent,
+            clear: hold.clear,
             today: () => todayKey(),
             reread,
             rearm,
@@ -91,13 +118,8 @@ export function useAlarmDismissal(rearm: () => void, settingsFetchedAt: number):
         const pressed = onAlarmDismissed(run);
         const changes = onServerChange(() => void engine.sync());
         const fallback = onNudgeDone(() => {
-            const day = todayKey();
-            if (dismissAlarmsFor(day)) {
-                run();
-                return;
-            }
-            // No native side to hold it (iOS): sent once, as the press was.
-            void trpcClient.reminder.dismissToday.mutate({ date: day }).then(rearm, () => undefined);
+            hold.press(todayKey());
+            run();
         });
 
         return () => {
@@ -110,9 +132,10 @@ export function useAlarmDismissal(rearm: () => void, settingsFetchedAt: number):
         };
     }, [rearm]);
 
+    const { fetchedAt, dismissedOn } = settings;
     useEffect(() => {
-        if (settingsFetchedAt > 0) sync.current?.settle(settingsFetchedAt);
-    }, [settingsFetchedAt]);
+        if (fetchedAt > 0) sync.current?.settle(fetchedAt, dismissedOn);
+    }, [fetchedAt, dismissedOn]);
 
     return current;
 }

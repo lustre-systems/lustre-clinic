@@ -85,18 +85,20 @@ export function createDismissalSync(deps: DismissalDeps) {
     }
 
     /**
-     * The settings were read at `fetchedAt`. Once that is after the server took
-     * the press, the server's `reminderDismissedOn` speaks for it, and goes on
-     * speaking if the press is turned back on from the other phone.
+     * The settings came back at `fetchedAt` saying `serverDismissedOn`. Once a
+     * read after the send shows the server holding the day, the server speaks
+     * for the press from then on, including Turn back on from the other phone.
+     * Arrival time alone is not enough: a read sent before the write can land
+     * after it, still saying the day is not dismissed.
      */
-    function settle(fetchedAt: number): void {
+    function settle(fetchedAt: number, serverDismissedOn: string | null): void {
         const held = deps.read();
         if (!held) return;
         if (held.day !== deps.today()) {
             void sync();
             return;
         }
-        if (held.sent && fetchedAt > sentAt) {
+        if (held.sent && fetchedAt > sentAt && serverDismissedOn === held.day) {
             deps.clear();
             deps.reread();
         }
