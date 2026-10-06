@@ -45,7 +45,17 @@ import { api, type Branch, type ClinicDay, useLocalQuery } from '../data';
 import { describeError } from '../errors';
 import { isClosed } from '../hours';
 import { type DayLoad, loadsFrom } from '../month';
-import { addMonths, formatDate, formatMonth, monthDays, parseKey, time12, todayKey } from '../time';
+import {
+    addMonths,
+    dayOfMonth,
+    formatDate,
+    formatMonth,
+    keyParts,
+    monthDays,
+    time12,
+    todayKey,
+    weekdayOf,
+} from '../time';
 
 export type CalendarSheetProps = {
     visible: boolean;
@@ -99,8 +109,8 @@ type Leaving = {
 type Paging = { month: string; pending: string; leaving: Leaving | null };
 
 function monthIndex(key: string): number {
-    const date = parseKey(key);
-    return date.getFullYear() * 12 + date.getMonth();
+    const date = keyParts(key);
+    return date.year * 12 + date.month - 1;
 }
 
 function slideTo(target: number, velocity: number, reduced: boolean, settle: () => void) {
@@ -491,7 +501,7 @@ const MonthPage = memo(function MonthPage({
 }: MonthPageProps) {
     const t = useT();
     const days = monthDays(month);
-    const leading = parseKey(days[0] ?? month).getDay();
+    const leading = weekdayOf(days[0] ?? month);
     const cells: (string | null)[] = [...Array<null>(leading).fill(null), ...days];
 
     return (
@@ -572,7 +582,7 @@ const MonthPage = memo(function MonthPage({
                                 weight="bold"
                                 tone={picked ? 'inverse' : closed || past || unbookable ? 'muted' : 'ink'}
                             >
-                                {parseKey(day).getDate()}
+                                {dayOfMonth(day)}
                             </Text>
 
                             {/* A track where the bar will be, so a month

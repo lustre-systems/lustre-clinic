@@ -20,6 +20,7 @@
  * keeps the seed fast enough to run on a phone at launch.
  */
 import {
+    addDays,
     DEFAULT_DURATION_MINUTES,
     DEFAULT_DURATION_OPTIONS,
     DEFAULT_REMINDER_LEAD_HOURS,
@@ -28,7 +29,11 @@ import {
     DEFAULT_REMINDER_TEMPLATE,
     DEFAULT_REQUIRE_AGE,
     DEFAULT_REQUIRE_GENDER,
+    dateKey,
+    instantAt,
+    minutesOfDay,
     type PaymentMethod,
+    pad2,
     type Tooth,
 } from '@lustre/shared';
 import {
@@ -65,8 +70,10 @@ function at(offsetMinutes: number, from: number = Date.now()): Date {
     return new Date(Math.round((from + offsetMinutes * MINUTE) / GRID) * GRID);
 }
 
-function localHhMm(date: Date): string {
-    return `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
+/** `HH:MM` on the clinic's clock. */
+function clinicHhMm(at: Date | number): string {
+    const minutes = minutesOfDay(at);
+    return `${pad2(Math.floor(minutes / 60))}:${pad2(minutes % 60)}`;
 }
 
 function money(pounds: number): number {
@@ -507,8 +514,7 @@ export function seedDemoDb(): DemoDb {
     ];
 
     for (let daysAgo = 14; daysAgo >= 1; daysAgo -= 1) {
-        const midday = new Date(Date.now() - daysAgo * DAY);
-        midday.setHours(11, 0, 0, 0);
+        const midday = new Date(instantAt(dateKey(Date.now() - daysAgo * DAY), 11 * 60));
 
         for (let slot = 0; slot < 3; slot += 1) {
             const index = (daysAgo * 3 + slot) % patients.length;
@@ -699,8 +705,7 @@ export function seedDemoDb(): DemoDb {
     }
 
     for (let daysAhead = 1; daysAhead <= 6; daysAhead += 1) {
-        const morning = new Date(Date.now() + daysAhead * DAY);
-        morning.setHours(10, 0, 0, 0);
+        const morning = new Date(instantAt(dateKey(Date.now() + daysAhead * DAY), 10 * 60));
 
         for (let slot = 0; slot < 2; slot += 1) {
             const index = (daysAhead * 2 + slot + 3) % patients.length;
@@ -727,7 +732,7 @@ export function seedDemoDb(): DemoDb {
     // is: a 9pm demo on 09:00–17:00 hours would open on a clinic that shut four
     // hours ago.
     const todayStamps = db.appointments
-        .filter((row) => !row.isOpeningBalance && sameLocalDay(row.startsAt, new Date()))
+        .filter((row) => !row.isOpeningBalance && dateKey(row.startsAt) === dateKey(Date.now()))
         .map((row) => row.startsAt.getTime());
 
     // `now` is on the grid like the stamps are, so that the window is still on
@@ -747,7 +752,7 @@ export function seedDemoDb(): DemoDb {
     // 23:50 and 23:59, so the day view would open on a clinic that is closed.
     // Never earlier than now is what this file's header promises.
     const padded = clampToDay(new Date(latest + 90 * MINUTE), '23:50');
-    const nowHhMm = localHhMm(new Date());
+    const nowHhMm = clinicHhMm(Date.now());
     const closesAt = padded > nowHhMm ? padded : '23:59';
 
     // Late enough in the evening, the window runs past midnight at both ends
@@ -770,12 +775,6 @@ export function seedDemoDb(): DemoDb {
     return db;
 }
 
-function sameLocalDay(a: Date, b: Date): boolean {
-    return (
-        a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate()
-    );
-}
-
 /**
  * A time that ran past either end of *today* is pinned there. Opening hours are
  * `HH:MM` with no date on them, so a closing time of 00:57 tomorrow is not a
@@ -787,10 +786,8 @@ function sameLocalDay(a: Date, b: Date): boolean {
  * never be crossed, and an evening demo gets `00:57` as its closing time.
  */
 function clampToDay(date: Date, fallback: string): string {
-    const midnight = new Date();
-    midnight.setHours(0, 0, 0, 0);
-
-    if (date.getTime() < midnight.getTime()) return fallback;
-    if (date.getTime() >= midnight.getTime() + DAY) return fallback;
-    return localHhMm(date);
+    const today = dateKey(Date.now());
+    if (date.getTime() < instantAt(today, 0)) return fallback;
+    if (date.getTime() >= instantAt(addDays(today, 1), 0)) return fallback;
+    return clinicHhMm(date);
 }

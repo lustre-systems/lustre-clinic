@@ -163,8 +163,6 @@ export const COPY_AR = {
     'Back to the clinic the demo opens on': 'العودة إلى بيانات العيادة التجريبية الأصلية',
     'Connect to the clinic server instead': 'الاتصال بخادم العيادة بدلًا من ذلك',
     'New version ready': 'يتوفر إصدار جديد',
-    "This phone's time zone doesn't match the clinic's.": 'المنطقة الزمنية لهذا الهاتف لا تطابق العيادة.',
-    "This phone's clock is off by {duration}.": 'ساعة هذا الهاتف غير مضبوطة بفارق {duration}.',
     'Open settings': 'فتح الإعدادات',
     'Sends your last taps, never patient details': 'يرسل آخر النقرات دون بيانات المرضى',
     'Off on this build': 'متوقف في هذا الإصدار',

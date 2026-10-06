@@ -8,7 +8,7 @@
  * nothing was booked on these days that the answer depends on — and holds no
  * state; the month on show and the pick are the caller's.
  */
-import { parseKey, todayKey } from '@lustre/shared';
+import { keyParts, todayKey, weekdayOf } from '@lustre/shared';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { Chevron, IconButton } from '../../../components/ui';
 import { useT } from '../../../i18n';
@@ -30,7 +30,7 @@ export function MonthGrid({ month, onMonth, selected, onPick }: MonthGridProps) 
     const today = todayKey();
 
     const days = monthDays(month);
-    const leading = parseKey(days[0] ?? month).getDay();
+    const leading = weekdayOf(days[0] ?? month);
     const cells: (string | null)[] = [...Array<null>(leading).fill(null), ...days];
 
     function goToMonth(next: string) {
@@ -135,7 +135,7 @@ export function MonthGrid({ month, onMonth, selected, onPick }: MonthGridProps) 
                                     weight="bold"
                                     tone={picked ? 'inverse' : ahead ? 'muted' : 'ink'}
                                 >
-                                    {parseKey(day).getDate()}
+                                    {keyParts(day).day}
                                 </Text>
                             </View>
                         </Pressable>

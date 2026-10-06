@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from 'bun:test';
-import { dateKey } from '@lustre/shared';
+import { dateKey, instantAt } from '@lustre/shared';
 import { todayKey } from '../screens/day/time';
-import { noteServerClock, serverNow, serverToday } from './serverClock';
+import { noteServerClock, phoneTimeOf, serverNow, serverToday } from './serverClock';
 
 const HOUR = 60 * 60_000;
 
@@ -37,13 +37,19 @@ describe('the server clock', () => {
     // A phone an hour fast reads 00:30 while the clinic is still at 23:30: the
     // day list, the day's keys and "today" labels all have to stay on yesterday.
     it('keeps today on the server side of midnight, for the day cluster too', () => {
-        const phone = new Date();
-        phone.setHours(0, 30, 0, 0);
-        const clinic = new Date(phone.getTime() - HOUR);
-        noteServerClock(clinic.getTime() - Date.now());
+        const phone = instantAt(dateKey(Date.now()), 30);
+        const clinic = phone - HOUR;
+        noteServerClock(clinic - Date.now());
 
         expect(serverToday()).toBe(dateKey(clinic));
         expect(todayKey()).toBe(dateKey(clinic));
         expect(todayKey()).not.toBe(dateKey(phone));
+    });
+
+    // An OS alarm fires by the phone's clock: on a phone an hour fast, 7 pm
+    // clinic time is when the phone reads 8 pm.
+    it('moves an instant onto the phone clock for the OS to fire at', () => {
+        noteServerClock(-HOUR, { wall: 5 * HOUR, mono: 0 });
+        expect(phoneTimeOf(10 * HOUR, { wall: 5 * HOUR, mono: 0 })).toBe(11 * HOUR);
     });
 });

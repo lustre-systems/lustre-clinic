@@ -2,6 +2,7 @@
 
 export { ApiProvider, useTRPC } from './ApiProvider';
 export { api, trpcClient } from './client';
+export { adoptClinicZone, hydrateClinicZone } from './clinicZone';
 export type { ServerAddresses } from './config';
 export { BUILD_VARIANT, serverAddresses, setServerAddresses } from './config';
 export type { AddressKind, ConnectionStatus } from './connection';
@@ -28,7 +29,7 @@ export {
 } from './demo';
 export { classifyError, errorCodeOf, isOffline, isSlotOverlap } from './errors';
 export { onServerChange, onServerEvent } from './live';
-export { clockSample, noteServerClock, serverNow, serverToday } from './serverClock';
+export { clockSample, noteServerClock, phoneTimeOf, serverNow, serverToday } from './serverClock';
 export type { Area } from './serverEvents';
 export type { RouterOutput } from './types';
 export { useConnection } from './useConnection';

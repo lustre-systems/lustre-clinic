@@ -12,7 +12,9 @@
  * `startsAt` is UTC. An unknown `{{placeholder}}` is left visible, not dropped.
  */
 import {
+    callerWallClock,
     type LabStatus,
+    pad2,
     reminderDueCutoff,
     renderReminderTemplate,
     type WhatsAppApp,
@@ -140,14 +142,14 @@ export const reminderService = {
             .limit(input.limit);
 
         return rows.map((row) => {
-            const local = new Date(row.startsAt.getTime() + input.offsetMinutes * 60_000);
+            const wall = callerWallClock(row.startsAt, input.offsetMinutes);
 
             const message = renderReminderTemplate(settings.reminderTemplate, {
                 name: row.name,
                 clinic: settings.clinicName,
                 branch: row.branch,
-                date: local.toISOString().slice(0, 10),
-                time: local.toISOString().slice(11, 16),
+                date: wall.key,
+                time: `${pad2(Math.floor(wall.minutes / 60))}:${pad2(wall.minutes % 60)}`,
                 ref: row.ref,
             });
 

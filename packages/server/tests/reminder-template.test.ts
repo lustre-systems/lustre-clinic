@@ -1,5 +1,7 @@
 import { beforeAll, beforeEach, describe, expect, test } from 'bun:test';
 import {
+    clinicOffsetNow,
+    offsetAt,
     REMINDER_PLACEHOLDERS,
     REMINDER_TOKENS,
     reminderToken,
@@ -140,17 +142,24 @@ describe('the sender, against what the pane can build', () => {
     test('the time is the appointment time in the clinic day, not UTC', async () => {
         await settingsService.update({ reminderTemplate: reminderToken('time') });
         const { branch, patient } = await fixtures();
+        const startsAt = slot();
         await appointmentService.create({
             patient: { kind: 'existing', patientId: patient.id },
             branchId: branch.id,
-            startsAt: slot(),
-            offsetMinutes: 180,
+            startsAt,
+            offsetMinutes: clinicOffsetNow(),
         });
 
-        const [reminder] = await reminderService.pending({ dueOnly: false, limit: 100, offsetMinutes: 180 });
+        const [reminder] = await reminderService.pending({
+            dueOnly: false,
+            limit: 100,
+            offsetMinutes: clinicOffsetNow(),
+        });
 
-        expect(reminder?.message).toBe('12:00');
-        expect(new URL(reminder?.whatsAppUrl ?? '').searchParams.get('text')).toBe('12:00');
+        // 09:00 UTC is 12:00 in a Cairo summer and 11:00 in its winter.
+        const clock = `${9 + offsetAt(startsAt) / 60}:00`;
+        expect(reminder?.message).toBe(clock);
+        expect(new URL(reminder?.whatsAppUrl ?? '').searchParams.get('text')).toBe(clock);
     });
 
     test('a template built from every chip leaves nothing unsubstituted', async () => {

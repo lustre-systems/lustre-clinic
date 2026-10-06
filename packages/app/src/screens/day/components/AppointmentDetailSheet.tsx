@@ -302,7 +302,7 @@ function PrimaryAction({
         case 'booked':
             // Only on the appointment's own day. From another day's list it is a
             // mis-tap, and the server refuses it anyway.
-            return dateKey(new Date(appointment.startsAt)) === todayKey() ? (
+            return dateKey(appointment.startsAt) === todayKey() ? (
                 <Button
                     label="Check in"
                     block

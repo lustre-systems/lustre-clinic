@@ -83,9 +83,9 @@ describe('the one-string forms', () => {
 });
 
 describe('off a timestamp', () => {
-    // Local time throughout — the clinic has one timezone and the server is
-    // told which local day it means, so these read the local fields.
-    const at = new Date(2026, 5, 12, 14, 15);
+    // The clinic's wall clock, whatever zone the test runs in: 14:15 in Cairo
+    // in June is 11:15 UTC.
+    const at = new Date('2026-06-12T11:15:00Z');
 
     it('reads the local wall clock', () => {
         expect(formatStamp(at.getTime())).toBe('2:15 PM');

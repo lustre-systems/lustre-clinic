@@ -21,12 +21,12 @@
  * process that was alive at midnight.
  */
 
-import { offsetForDate, todayKey } from '@lustre/shared';
+import { clinicNow, clinicOffsetNow, todayKey } from '@lustre/shared';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 // biome-ignore lint/style/noRestrictedImports: two of them, both external — arming the OS notification scheduler, and the `AppState` subscription that re-arms it on foreground
 import { useCallback, useEffect, useState } from 'react';
 import { AppState } from 'react-native';
-import { api, useTRPC } from '../api';
+import { api, phoneTimeOf, useTRPC } from '../api';
 import { useLocale } from '../i18n';
 import { useReminderAlarm } from './alarmStore';
 import { armNudges } from './notifications';
@@ -55,7 +55,7 @@ export function useReminderNudges(enabled: boolean): void {
 
     const settings = useQuery(trpc.settings.get.queryOptions(undefined, { enabled }));
     const pending = useQuery(
-        trpc.reminder.pending.queryOptions(nudgePendingInput(offsetForDate(todayKey())), { enabled }),
+        trpc.reminder.pending.queryOptions(nudgePendingInput(clinicOffsetNow()), { enabled }),
     );
 
     const notifyAt = settings.data?.reminderNotifyAt;
@@ -82,18 +82,18 @@ export function useReminderNudges(enabled: boolean): void {
             return;
         }
 
-        // The phone's clock, not the server's: the OS fires what is armed by it.
-        const now = new Date();
-
+        // Planned on the clinic's clock, armed on the phone's: the OS fires by it.
+        const now = clinicNow();
+        const plan = planNudges({
+            notifyAt: minutesOfClock(notifyAt),
+            repeatMinutes,
+            pendingCount,
+            dismissedOn,
+            today: todayKey(now),
+            now,
+        });
         void armNudges(
-            planNudges({
-                notifyAt: minutesOfClock(notifyAt),
-                repeatMinutes,
-                pendingCount,
-                dismissedOn,
-                today: todayKey(now),
-                now,
-            }),
+            { ...plan, at: plan.at.map((at) => new Date(phoneTimeOf(at.getTime()))) },
             { alarm: alarm.enabled },
         );
     }, [
