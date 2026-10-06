@@ -554,10 +554,23 @@ export const visitService = {
      * (`stats`, `balance`), so the money lands in the right place on its own.
      *
      * Saying what is already on the visit writes nothing at all.
+     *
+     * Raising the total past the charge is refused, as at checkout (§7.6): the
+     * phone clamps, so only a stale or hand-made call meets this. Lowering is
+     * never refused, even while still above the charge — that is a visit whose
+     * charge came down after it was paid, and the correction is the refund.
      */
     async setPaid(input: SetPaidInput): Promise<Visit> {
         await db.transaction(async (tx) => {
-            const visit = await requireVisit(tx, input.visitId);
+            // Locked so two phones correcting the same visit cannot both
+            // measure against the same total and write two deltas.
+            const [visit] = await tx
+                .select()
+                .from(visits)
+                .where(eq(visits.id, input.visitId))
+                .limit(1)
+                .for('update');
+            if (!visit) throw AppError.notFound('visit');
 
             const [collected] = await tx
                 .select({ total: sql<number>`COALESCE(SUM(${payments.amount}), 0)::int` })
@@ -566,6 +579,14 @@ export const visitService = {
 
             const delta = input.paidTotal - (collected?.total ?? 0);
             if (delta === 0) return;
+
+            if (delta > 0 && input.paidTotal > visit.chargedTotal) {
+                throw new AppError(
+                    ERROR_CODE.PAYMENT_EXCEEDS_BALANCE,
+                    'the paid total is more than this visit charges',
+                    422,
+                );
+            }
 
             await insertPayment(tx, visit.id, delta, input.method, input.methodNote ?? null);
         });

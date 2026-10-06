@@ -25,7 +25,7 @@
  * (PRD §10 leaves a second practitioner undecided), so the line carries the
  * date alone.
  */
-import { PAYMENT_METHODS, type PaymentMethod, PIASTRES_PER_POUND } from '@lustre/shared';
+import { PAYMENT_METHODS, type PaymentMethod } from '@lustre/shared';
 import { useMemo, useState } from 'react';
 import type { ViewStyle } from 'react-native';
 import { Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
@@ -40,8 +40,10 @@ import {
     discountPercent,
     formatAmount,
     type PricedVisit,
-    poundsEntry,
+    paidEntry,
     procedureDiscount,
+    quickAmounts,
+    typedEntry,
 } from '../money';
 import { dateKey, formatLongDate, monthShort } from '../time';
 import { CheckIcon } from './icons';
@@ -75,15 +77,6 @@ const METHOD_LABEL: Record<PaymentMethod, string> = {
     instapay: 'Instapay',
     other: 'Other',
 };
-
-function toPiastres(pounds: string): number {
-    const digits = poundsEntry(pounds);
-    return digits ? Number(digits) * PIASTRES_PER_POUND : 0;
-}
-
-function toPounds(piastres: number): string {
-    return String(Math.round(piastres / PIASTRES_PER_POUND));
-}
 
 export function VisitPaymentScreen({
     appointment,
@@ -129,8 +122,11 @@ export function VisitPaymentScreen({
     // The mock opens on the full amount, already filled in: paid in full is what
     // happens at the desk almost every time, and the exception is the one worth
     // typing. A correction opens on what is already recorded, for the same
-    // reason — most corrections are to the procedures, not the money.
-    const [paid, setPaid] = useState(() => toPounds(correcting ? collected : due));
+    // reason — most corrections are to the procedures, not the money. Capped at
+    // the charge: a visit repriced under what was paid on it opens on giving
+    // the difference back, which the hint under the methods says in so many
+    // words, rather than on a credit the model has no place for.
+    const [entry, setEntry] = useState(() => paidEntry(correcting ? Math.min(collected, ceiling) : due));
     const [method, setMethod] = useState<PaymentMethod>('cash');
     const [methodNote, setMethodNote] = useState('');
     const [showProcedures, setShowProcedures] = useState(false);
@@ -140,18 +136,16 @@ export function VisitPaymentScreen({
     const checkOut = useLocalMutation(closeVisit);
     const setPaidTotal = useLocalMutation(api.setPaid);
 
-    const paidPiastres = toPiastres(paid);
+    const paidPiastres = entry.piastres;
     const remaining = Math.max(ceiling - paidPiastres, 0);
     const settled = remaining === 0;
     const nothing = paidPiastres === 0;
 
-    // Full, Half and Nothing are about the money still owed, in both modes. At
-    // the desk the field is that money and they read straight off it. On a
-    // correction the field is a running total, so they read off what is left on
-    // top of it: half of a 6,000 visit with 150 on it is the 150 plus half of
-    // the 5,850 outstanding, not half the bill.
+    const quick = quickAmounts(ceiling);
+    // What the field is measured from: nothing at the desk, where it is money
+    // handed over now, and what is already on the visit on a correction, where
+    // it is the running total.
     const base = correcting ? collected : 0;
-    const room = Math.max(ceiling - base, 0);
     // What this confirm actually moves — the whole field at the desk, only the
     // difference on a correction. Negative is money going back.
     const moving = paidPiastres - base;
@@ -162,10 +156,10 @@ export function VisitPaymentScreen({
     const moves = moving !== 0;
     const noteMissing = moves && method === 'other' && methodNote.trim() === '';
 
-    function setPaidClamped(entry: string) {
-        const digits = poundsEntry(entry);
-        if (toPiastres(digits) > ceiling) {
-            setPaid(toPounds(ceiling));
+    function setPaidClamped(typed: string) {
+        const next = typedEntry(typed, ceiling);
+        setEntry(next.entry);
+        if (next.capped) {
             setToast(
                 t(
                     correcting
@@ -173,9 +167,12 @@ export function VisitPaymentScreen({
                         : 'They cannot pay more than the amount due',
                 ),
             );
-            return;
         }
-        setPaid(digits);
+    }
+
+    /** A chip's figure is exact, never a pound rounded off the field. */
+    function choose(piastres: number) {
+        setEntry(paidEntry(piastres));
     }
 
     function methodText(): string {
@@ -519,7 +516,7 @@ export function VisitPaymentScreen({
                         {t('EGP')}
                     </Text>
                     <TextInput
-                        value={paid}
+                        value={entry.text}
                         onChangeText={setPaidClamped}
                         keyboardType="decimal-pad"
                         accessibilityLabel={t('Amount paid')}
@@ -538,18 +535,18 @@ export function VisitPaymentScreen({
                 <View style={styles.quick}>
                     <QuickChip
                         label="Full"
-                        selected={paidPiastres === base + room && room > 0}
-                        onPress={() => setPaidClamped(toPounds(base + room))}
+                        selected={paidPiastres === quick.full && quick.full > 0}
+                        onPress={() => choose(quick.full)}
                     />
                     <QuickChip
                         label="Half"
-                        selected={paidPiastres === base + Math.round(room / 2) && room > 0}
-                        onPress={() => setPaidClamped(toPounds(base + Math.round(room / 2)))}
+                        selected={paidPiastres === quick.half && quick.half > 0}
+                        onPress={() => choose(quick.half)}
                     />
                     <QuickChip
                         label="Nothing"
-                        selected={paidPiastres === base}
-                        onPress={() => setPaidClamped(toPounds(base))}
+                        selected={paidPiastres === quick.nothing}
+                        onPress={() => choose(quick.nothing)}
                     />
                 </View>
 

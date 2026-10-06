@@ -115,6 +115,12 @@ export function insertPayment(
     getDb().payments.push({ id: uuidv7(), visitId, amount, method, methodNote, paidAt: new Date() });
 }
 
+function collectedOn(visitId: string): number {
+    return getDb()
+        .payments.filter((payment) => payment.visitId === visitId)
+        .reduce((sum, payment) => sum + payment.amount, 0);
+}
+
 function readVisit(id: string): Visit {
     const db = getDb();
     const visit = requireVisit(id);
@@ -326,6 +332,16 @@ export const visitHandlers = {
         const now = new Date();
         const paidTotal = input.paidTotal ?? 0;
 
+        // As the server: the desk's phone clamps to what is owed, a doctor's is
+        // not shown what was already paid, so the rule is here too.
+        if (paidTotal > 0 && paidTotal > input.chargedTotal - collectedOn(visit.id)) {
+            throw new DemoError(
+                ERROR_CODE.PAYMENT_EXCEEDS_BALANCE,
+                'the payment is more than is owed on this visit',
+                422,
+            );
+        }
+
         visit.chargedTotal = input.chargedTotal;
         visit.pricedAt = visit.pricedAt ?? now;
         visit.completedAt = now;
@@ -363,16 +379,21 @@ export const visitHandlers = {
      * dated the day the correction was made. Nothing is edited and nothing is
      * deleted, because the original row is still a true record of what was
      * entered at the time.
+     *
+     * Raising the total past the charge is refused, as on the server; lowering
+     * it never is, because that is the refund of a charge that came down.
      */
     setPaid(input: RouterInput['visit']['setPaid']): Visit {
-        const db = getDb();
         const visit = requireVisit(input.visitId);
 
-        const collected = db.payments
-            .filter((payment) => payment.visitId === visit.id)
-            .reduce((sum, payment) => sum + payment.amount, 0);
-
-        const delta = input.paidTotal - collected;
+        const delta = input.paidTotal - collectedOn(visit.id);
+        if (delta > 0 && input.paidTotal > visit.chargedTotal) {
+            throw new DemoError(
+                ERROR_CODE.PAYMENT_EXCEEDS_BALANCE,
+                'the paid total is more than this visit charges',
+                422,
+            );
+        }
         if (delta !== 0) insertPayment(visit.id, delta, input.method, input.methodNote ?? null);
 
         save();

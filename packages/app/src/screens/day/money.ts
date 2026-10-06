@@ -13,6 +13,8 @@
  * `discountPercent` is presentation only: prices stay whole piastres, and this
  * just says how far a typed price sits under the catalogue's.
  */
+import { PIASTRES_PER_POUND } from '@lustre/shared';
+import { toPounds } from '../../components/domain/money';
 import type { Visit, VisitLine } from './data/types';
 
 export { formatAmount, formatMoney } from '../../components/domain/money';
@@ -23,6 +25,42 @@ export function amountDue(chargedTotal: number, alreadyPaid: number): number {
 
 export function poundsEntry(entry: string): string {
     return entry.replace(/[^\d]/g, '');
+}
+
+/**
+ * The payment field: the whole pounds it shows, and the exact piastres it
+ * records. They differ only for a figure that came from the visit rather than
+ * from typing — a 120.50 charge reads `121` and is recorded as 120.50 — so a
+ * correction left alone moves nothing, and Full never records over the charge.
+ */
+export interface PaidEntry {
+    text: string;
+    piastres: number;
+}
+
+export function paidEntry(piastres: number): PaidEntry {
+    return { text: String(toPounds(piastres)), piastres };
+}
+
+/** Typed pounds, capped at `ceiling`. `capped` is the screen's cue to say so. */
+export function typedEntry(typed: string, ceiling: number): { entry: PaidEntry; capped: boolean } {
+    const digits = poundsEntry(typed);
+    const piastres = digits ? Number(digits) * PIASTRES_PER_POUND : 0;
+    if (piastres > ceiling) return { entry: paidEntry(ceiling), capped: true };
+    return { entry: { text: digits, piastres }, capped: false };
+}
+
+/**
+ * Full, Half and Nothing, measured against `ceiling` — the most the field may
+ * hold. At the desk that is what is still due, and the chips are shares of the
+ * money being handed over now. On a correction it is the whole charge, and they
+ * are states of the bill: paid in full, half paid, unpaid. They were read off
+ * what was left on top of what had been paid, which on a visit already paid in
+ * full is nothing — so all three landed on the same figure and none applied.
+ */
+export function quickAmounts(ceiling: number): { full: number; half: number; nothing: number } {
+    const top = Math.max(ceiling, 0);
+    return { full: top, half: Math.round(top / 2), nothing: 0 };
 }
 
 /**
