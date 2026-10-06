@@ -42,6 +42,7 @@ export const COPY_AR = {
     'Can have a quantity': 'يمكن تحديد كمية',
     Cancel: 'إلغاء',
     'Cancel appointment': 'إلغاء الموعد',
+    'Cancel booking': 'إلغاء الحجز',
     'Cancel it': 'نعم، إلغاء',
     Category: 'التصنيف',
     Charged: 'المطلوب',

@@ -7,7 +7,8 @@
  *
  * Only a booking still to come can be edited — the server refuses a move past
  * check-in — so a row that has stopped being `booked` between the record's
- * read and this one is reported rather than opened.
+ * read and this one is reported rather than opened. It is also where such a
+ * booking is cancelled from: the record has no other way to it.
  */
 import { useRef } from 'react';
 import { StyleSheet, View } from 'react-native';
@@ -101,6 +102,11 @@ export function ReschedulePage({ appointmentId, onClose, onChanged }: Reschedule
             nowMinutes={nowMinutes}
             onBack={() => close()}
             onBooked={() => {
+                appointment.refetch();
+                close(true);
+            }}
+            // The record lists the booking, so it is re-read either way.
+            onCancelled={() => {
                 appointment.refetch();
                 close(true);
             }}

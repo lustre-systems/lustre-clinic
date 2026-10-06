@@ -558,6 +558,30 @@ describe('the refusals a demo runs into', () => {
         }
     });
 
+    it('cancels a booking on a future day and lets the same slot be booked again', () => {
+        const db = getDb();
+        const branch = db.branches[0];
+        const patient = db.patients[1];
+        if (!branch || !patient) throw new Error('the seed is missing its fixtures');
+
+        const startsAt = new Date(Date.now() + 10 * 24 * 3_600_000).toISOString();
+        const book = () =>
+            appointmentHandlers.create({
+                patient: { kind: 'existing', patientId: patient.id },
+                branchId: branch.id,
+                startsAt,
+                durationMinutes: 30,
+                offsetMinutes: 0,
+            });
+
+        const first = book();
+        expect(appointmentHandlers.cancel({ id: first.id }).status).toBe('cancelled');
+
+        const rebooked = book();
+        expect(rebooked.id).not.toBe(first.id);
+        expect(rebooked.status).toBe('booked');
+    });
+
     it('refuses a payment larger than the balance', () => {
         const owing = balanceHandlers.outstanding().patients[0];
         if (!owing) throw new Error('the seed left nobody owing');

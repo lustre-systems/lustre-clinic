@@ -913,6 +913,11 @@ function DayScreenView({
                                 setToast(message);
                                 day.refetch();
                             }}
+                            onCancelled={(message) => {
+                                routes.pop();
+                                setToast(message);
+                                day.refetch();
+                            }}
                         />
                     ) : null}
 
