@@ -159,4 +159,10 @@ export const reminderHandlers = {
         // again here makes every subscriber refetch twice for one dismissal.
         return settingsHandlers.dismissRemindersFor(input.date);
     },
+
+    resumeToday(
+        input: RouterInput['reminder']['resumeToday'],
+    ): Dated<RouterOutput['reminder']['resumeToday']> {
+        return settingsHandlers.resumeRemindersFor(input.date);
+    },
 };

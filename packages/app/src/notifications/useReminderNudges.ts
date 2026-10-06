@@ -29,8 +29,10 @@ import { AppState } from 'react-native';
 import { api, phoneTimeOf, skewMinutes, subscribeSkew, useTRPC } from '../api';
 import { useLocale } from '../i18n';
 import { useReminderAlarm } from './alarmStore';
+import { effectiveDismissedOn } from './dismissal';
 import { armNudges } from './notifications';
 import { minutesOfClock, nudgePendingInput, planNudges } from './schedule';
+import { useAlarmDismissal } from './useAlarmDismissal';
 
 /**
  * `enabled` is the desk's phone: reminders are the secretary's job, and the
@@ -61,6 +63,8 @@ export function useReminderNudges(enabled: boolean): void {
     const notifyAt = settings.data?.reminderNotifyAt;
     const repeatMinutes = settings.data?.reminderRepeatMinutes;
     const dismissedOn = settings.data?.reminderDismissedOn ?? null;
+    // Done for today pressed on the ring, until the server has it and says so.
+    const held = useAlarmDismissal(rearm, settings.dataUpdatedAt);
     const pendingCount = pending.data?.length;
     const alarm = useReminderAlarm();
     // The alarms are armed on the phone's clock, so a newly measured skew,
@@ -70,7 +74,7 @@ export function useReminderNudges(enabled: boolean): void {
     // biome-ignore lint/correctness/useExhaustiveDependencies: `foregrounded`, `locale` and `skew` are triggers, not values — the arm reads the clock, the day, the OS permission and the language, none of which it is handed
     useEffect(() => {
         if (!enabled) {
-            void armNudges({ at: [], silent: null }, { alarm: false });
+            void armNudges({ at: [], silent: null }, { alarm: false, day: todayKey() });
             return;
         }
         // Nothing is armed and nothing is cancelled until both answers are in.
@@ -87,23 +91,25 @@ export function useReminderNudges(enabled: boolean): void {
 
         // Planned on the clinic's clock, armed on the phone's: the OS fires by it.
         const now = clinicNow();
+        const today = todayKey(now);
         const plan = planNudges({
             notifyAt: minutesOfClock(notifyAt),
             repeatMinutes,
             pendingCount,
-            dismissedOn,
-            today: todayKey(now),
+            dismissedOn: effectiveDismissedOn(dismissedOn, held, today),
+            today,
             now,
         });
         void armNudges(
             { ...plan, at: plan.at.map((at) => new Date(phoneTimeOf(at.getTime()))) },
-            { alarm: alarm.enabled },
+            { alarm: alarm.enabled, day: today },
         );
     }, [
         enabled,
         notifyAt,
         repeatMinutes,
         dismissedOn,
+        held,
         pendingCount,
         foregrounded,
         locale,
