@@ -514,7 +514,7 @@ export function seedDemoDb(): DemoDb {
     ];
 
     for (let daysAgo = 14; daysAgo >= 1; daysAgo -= 1) {
-        const midday = new Date(instantAt(dateKey(Date.now() - daysAgo * DAY), 11 * 60));
+        const midday = new Date(instantAt(addDays(dateKey(Date.now()), -daysAgo), 11 * 60));
 
         for (let slot = 0; slot < 3; slot += 1) {
             const index = (daysAgo * 3 + slot) % patients.length;
@@ -705,7 +705,7 @@ export function seedDemoDb(): DemoDb {
     }
 
     for (let daysAhead = 1; daysAhead <= 6; daysAhead += 1) {
-        const morning = new Date(instantAt(dateKey(Date.now() + daysAhead * DAY), 10 * 60));
+        const morning = new Date(instantAt(addDays(dateKey(Date.now()), daysAhead), 10 * 60));
 
         for (let slot = 0; slot < 2; slot += 1) {
             const index = (daysAhead * 2 + slot + 3) % patients.length;

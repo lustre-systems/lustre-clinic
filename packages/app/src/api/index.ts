@@ -36,6 +36,8 @@ export {
     serverNow,
     serverTimeOf,
     serverToday,
+    skewMinutes,
+    subscribeSkew,
 } from './serverClock';
 export type { Area } from './serverEvents';
 export type { RouterOutput } from './types';

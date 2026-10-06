@@ -34,11 +34,27 @@ export const CLOCK_JUMP_TOLERANCE_MS = 2_000;
 
 let skewMs = 0;
 let measuredAt: ClockSample | null = null;
+const skewListeners = new Set<() => void>();
 
 /** How far the server's clock is ahead of this phone's; negative when behind. */
 export function noteServerClock(skew: number, at: ClockSample = clockSample()): void {
+    const moved = Math.round(skew / 60_000) !== skewMinutes();
     skewMs = skew;
     measuredAt = at;
+    if (moved) for (const listener of skewListeners) listener();
+}
+
+/**
+ * The skew to the minute, for what has to be redone when it moves: alarms the
+ * OS fires by the phone's clock were armed against the old one.
+ */
+export function skewMinutes(): number {
+    return Math.round(skewMs / 60_000);
+}
+
+export function subscribeSkew(listener: () => void): () => void {
+    skewListeners.add(listener);
+    return () => skewListeners.delete(listener);
 }
 
 /**

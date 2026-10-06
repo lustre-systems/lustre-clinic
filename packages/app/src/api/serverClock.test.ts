@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from 'bun:test';
 import { dateKey, instantAt } from '@lustre/shared';
 import { todayKey } from '../screens/day/time';
-import { noteServerClock, phoneTimeOf, serverNow, serverToday } from './serverClock';
+import { noteServerClock, phoneTimeOf, serverNow, serverToday, subscribeSkew } from './serverClock';
 
 const HOUR = 60 * 60_000;
 
@@ -51,5 +51,19 @@ describe('the server clock', () => {
     it('moves an instant onto the phone clock for the OS to fire at', () => {
         noteServerClock(-HOUR, { wall: 5 * HOUR, mono: 0 });
         expect(phoneTimeOf(10 * HOUR, { wall: 5 * HOUR, mono: 0 })).toBe(11 * HOUR);
+    });
+
+    // Alarms armed before the first measurement are an hour out on a fast
+    // phone, so a skew that moves says so; one that only jitters does not.
+    it('tells its subscribers when the skew moves by a minute or more', () => {
+        let told = 0;
+        const unsubscribe = subscribeSkew(() => {
+            told += 1;
+        });
+        noteServerClock(-HOUR);
+        noteServerClock(-HOUR + 5_000);
+        noteServerClock(0);
+        unsubscribe();
+        expect(told).toBe(2);
     });
 });

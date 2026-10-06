@@ -12,6 +12,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 const KEY = 'lustre.clinicZone';
 
 let adopted = false;
+/** What storage holds, once known: a table equal to the active one may still need writing. */
+let stored: ClinicZone | null = null;
 
 function same(a: ClinicZone, b: ClinicZone): boolean {
     return (
@@ -27,16 +29,22 @@ export function adoptClinicZone(value: unknown): void {
     const zone = parseClinicZone(value);
     if (!zone) return;
     adopted = true;
-    if (same(zone, clinicZone())) return;
-    setClinicZone(zone);
-    void AsyncStorage.setItem(KEY, JSON.stringify(zone)).catch(() => {});
+    if (!same(zone, clinicZone())) setClinicZone(zone);
+    if (stored && same(zone, stored)) return;
+    void AsyncStorage.setItem(KEY, JSON.stringify(zone))
+        .then(() => {
+            stored = zone;
+        })
+        .catch(() => {});
 }
 
 export async function hydrateClinicZone(): Promise<void> {
-    const stored = await AsyncStorage.getItem(KEY).catch(() => null);
-    if (adopted || stored === null) return;
+    const raw = await AsyncStorage.getItem(KEY).catch(() => null);
+    if (adopted || raw === null) return;
     try {
-        const zone = parseClinicZone(JSON.parse(stored));
-        if (zone) setClinicZone(zone);
+        const zone = parseClinicZone(JSON.parse(raw));
+        if (!zone) return;
+        setClinicZone(zone);
+        stored = zone;
     } catch {}
 }
