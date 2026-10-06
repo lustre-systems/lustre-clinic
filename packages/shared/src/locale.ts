@@ -298,6 +298,7 @@ export const COPY_AR = {
     '{count} appointment that day, in {name}.': 'موعد واحد في هذا اليوم، في {name}.',
     '{count} appointments that day, in {name}.': '{count} مواعيد في هذا اليوم، في {name}.',
     'Open {name}': 'فتح {name}',
+    "{name}'s booking was cancelled": 'تم إلغاء حجز {name}',
     'This day is full': 'هذا اليوم ممتلئ',
     'Who is it for?': 'لمن هذا الموعد؟',
     'Which tooth?': 'أي سن؟',

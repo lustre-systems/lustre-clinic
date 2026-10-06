@@ -368,7 +368,7 @@ export function BookingScreen({
         cancel.mutate(rescheduling.id, {
             onSuccess: () => {
                 setConfirmingCancel(false);
-                onCancelled(`${name}'s booking cancelled`);
+                onCancelled(t("{name}'s booking was cancelled", { name }));
             },
         });
     }
