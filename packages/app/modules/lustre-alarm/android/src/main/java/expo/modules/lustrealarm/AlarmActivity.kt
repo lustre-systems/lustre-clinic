@@ -19,9 +19,10 @@ import android.widget.TextClock
 import android.widget.TextView
 
 /**
- * The full-screen ringing screen over the lock screen. Snooze only stops the
- * ringing: the series rings again at the next repeat on its own, until the list
- * is cleared. Open stops it too, and asks for the unlock on the way into the app.
+ * The full-screen ringing screen over the lock screen. Done for today stops the
+ * ringing and the rest of the day's series ([Dismissal]); tomorrow's arms as
+ * usual. Open stops only this ring, and asks for the unlock on the way into the
+ * app, where the list is.
  *
  * Plain views, not React: it has to come up in a process where JS is not
  * running, and fast.
@@ -123,7 +124,7 @@ class AlarmActivity : Activity() {
     root.addView(View(this), LinearLayout.LayoutParams(0, 0, 1f))
 
     root.addView(button(copy.open, ACCENT) { open() }, buttonParams(0))
-    root.addView(button(copy.snooze, RAISED) { AlarmService.silence(this) }, buttonParams(dp(12)))
+    root.addView(button(copy.done, RAISED) { Dismissal.press(this, AlarmService.day) }, buttonParams(dp(12)))
     return root
   }
 

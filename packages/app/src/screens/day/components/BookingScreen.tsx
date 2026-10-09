@@ -80,13 +80,13 @@ import {
 } from '../procedures';
 import {
     addDays,
+    clinicOffsetNow,
     dateKey as dayKeyOf,
+    dayOfMonth,
     isoAt,
-    localOffsetMinutes,
     minutesOfDay,
     monthShort,
     offsetForDate,
-    parseKey,
     relativeDayLabel,
     time12,
     todayKey,
@@ -169,7 +169,7 @@ export function BookingScreen({
     // price it. Until then there is nothing to compare, so nothing has changed.
     const [planSeeded, setPlanSeeded] = useState(rescheduling === undefined);
     // A move opens on the day the appointment already has, not the day behind.
-    const movingFrom = rescheduling ? dayKeyOf(new Date(rescheduling.startsAt)) : null;
+    const movingFrom = rescheduling ? dayKeyOf(rescheduling.startsAt) : null;
     const openOn = movingFrom ?? dateKey;
     const [timing, setTiming] = useState<Timing>(
         asked ?? (!isClosed(today, schedule, branchId) && dateKey === today ? 'now' : 'later'),
@@ -399,7 +399,7 @@ export function BookingScreen({
                     procedures,
                     note: body,
                     needsLab,
-                    offsetMinutes: localOffsetMinutes(),
+                    offsetMinutes: clinicOffsetNow(),
                 },
                 {
                     // A walk-in is never refused for want of room — the booked
@@ -541,7 +541,7 @@ export function BookingScreen({
                     {scheduled ? (
                         <>
                             <Text variant="title2" script="sans" weight="bold" tone="inverse">
-                                {parseKey(date).getDate()}
+                                {dayOfMonth(date)}
                             </Text>
                             <Text variant="eyebrow" tone="inverse" style={styles.tileMonth}>
                                 {monthShort(date).toUpperCase()}

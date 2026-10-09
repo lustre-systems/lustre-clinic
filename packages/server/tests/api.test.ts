@@ -153,6 +153,17 @@ describe('every path in §13 answers', () => {
         expect((await client.settings.get.query()).reminderDismissedOn).toBe('2026-08-03');
     });
 
+    test('reminder.resumeToday clears that date and leaves another', async () => {
+        const { client } = api;
+
+        await client.reminder.dismissToday.mutate({ date: '2026-08-03' });
+        await client.reminder.resumeToday.mutate({ date: '2026-08-02' });
+        expect((await client.settings.get.query()).reminderDismissedOn).toBe('2026-08-03');
+
+        await client.reminder.resumeToday.mutate({ date: '2026-08-03' });
+        expect((await client.settings.get.query()).reminderDismissedOn).toBeNull();
+    });
+
     /**
      * The reminder pane's Save, over the wire it actually uses. Its edit used
      * to be written on blur and was lost whenever the blur did not come, so

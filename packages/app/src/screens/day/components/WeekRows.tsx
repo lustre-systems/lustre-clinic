@@ -8,7 +8,7 @@
  */ import type { ReactNode } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { space, Text } from '../../../theme';
-import { monthDays, parseKey } from '../time';
+import { monthDays, weekdayOf } from '../time';
 
 const WEEKDAY_INITIALS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'] as const;
 
@@ -43,7 +43,7 @@ export type WeekRowsProps = {
 
 export function WeekRows({ month, rowHeight, renderDay }: WeekRowsProps) {
     const days = monthDays(month);
-    const leading = parseKey(days[0] ?? month).getDay();
+    const leading = weekdayOf(days[0] ?? month);
     const cells: (string | null)[] = [...Array<null>(leading).fill(null), ...days];
     while (cells.length % 7 !== 0) cells.push(null);
 

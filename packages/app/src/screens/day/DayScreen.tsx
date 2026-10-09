@@ -362,7 +362,7 @@ function DayScreenView({
         branches.data?.[0]?.id ??
         null;
 
-    const reminders = useLocalQuery('reminders', () => api.pendingReminders(todayKey()));
+    const reminders = useLocalQuery('reminders', () => api.pendingReminders());
     const reminderCount = reminders.data?.length ?? 0;
 
     // Tapping a row that already has a visit. Separate from `loadVisit` so a

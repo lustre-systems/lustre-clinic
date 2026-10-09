@@ -98,6 +98,15 @@ that stack's staged releases, the same work as the `releases` tag. After
 server goes first, phones are never offered an update ahead of the server it
 needs.
 
+Neither copy is an Ansible `copy`, which checksums file by file and sends
+everything uncompressed, at about 145 KB/s upload on the clinic line. The play
+runs the same scripts `bun ship` does, from this machine:
+`scripts/pushBinary.ts` sends the binary as a zstd delta against the one on the
+server (or nothing, when the sha256 already matches) and the migrations, and
+`scripts/pushReleases.ts` sends one compressed stream of the releases the
+server lacks (see Releases). The image is built before the container is
+replaced, so the old server answers through the build and the migration.
+
 Each server reports which stack it is in `health.check` (`environment`), from
 the stack's `LUSTRE_ENVIRONMENT`. A server that was never told says
 `production`. Dev builds of the app connect only to `development` and refuse
@@ -262,9 +271,21 @@ Tailscale, with nothing hosted anywhere else:
   browser and Android's installer takes over.
 
 Production releases are staged in `dist/releases`; development releases are staged
-in `dist/releases-dev`. The `releases` tag (and the `app` tag, which includes
-it) copies each directory to its matching stack: both unless `--stack` says
-which. The server reads releases on each request; nothing restarts.
+in `dist/releases-dev`. `scripts/pushReleases.ts --stack=prod|dev` copies each
+directory to its matching stack; `bun ship` runs it once the server is up, and
+the `releases` tag (and the `app` tag, which includes it) runs it for both
+stacks unless `--stack` says which. The server reads releases on each request;
+nothing restarts.
+
+The copy is one SSH session and one zstd tar stream of only what the server
+lacks. An update's assets are named by their content, so the ones an earlier
+update already has are copied on the server, and the JavaScript bundle goes as
+a delta against the previous one: a patch is about 1 MB instead of 14. The
+stream lands in `/opt/lustre-<stack>/.releases-incoming`, every file the server
+rebuilt is checked against its sha256, and only then is each file renamed into
+place, the pointers (`updates/<runtime>/latest.json`, then `android/lustre.apk`,
+then `android/latest.json`) last. Nothing is deleted, so a phone mid-download
+keeps its file.
 
 ### Versions
 
@@ -284,19 +305,21 @@ update counts on from everything released since the staged APK, so the patch
 after an OTA 1.6.0 is 1.6.1. It needs a staged APK with its runtime version and
 is refused without one, because no phone would take it.
 
-An update also rebuilds the APK from the same commit, numbered as the
-update (1.4.1), and stages it over the last one, so a phone installing fresh
-starts on the latest patch. That makes every `bun ship` a Gradle build. The
-rebuilt APK has the same runtime, so phones already running it are not offered
-it: the update brought them the same code. Only an APK with new native code
-shows the install banner.
+An update leaves the staged APK as it is, so a phone installing fresh starts on
+an older bundle (the APK's 1.4.0) and takes the latest update on its first
+launch. `bun ship --with-apk` also rebuilds the APK from the same commit,
+numbered as the update (1.4.1), and stages it over the last one, so a fresh
+install starts on it; that costs a Gradle build and a 56 MB upload. Either way
+the APK has the same runtime, so phones already running it are not offered it:
+the update brought them the same code. Only an APK with new native code shows
+the install banner.
 
 `bun ship` refuses uncommitted changes, tags the commit it built from and
 pushes the tag.
 
 Settings → App shows the release the phone runs (the update's number, `1.4.2`)
-with the APK under it (`1.4.0 · build …`, or a later patch if it was installed
-after one shipped). GlitchTip files crashes under the same
+with the APK under it (`1.4.0 · build …`, or a later patch if it was rebuilt
+with `--with-apk`). GlitchTip files crashes under the same
 number, `lustre@1.4.2`.
 
 The runtime version is a fingerprint of native code only.

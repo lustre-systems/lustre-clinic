@@ -8,10 +8,13 @@ listed.
 
 ## [Unreleased]
 
-### Fixed
-
+- The reminder alarm's Snooze is now "Done for today": it stops the alarm for the rest of the day on both desk phones, even with the app closed, and it starts again tomorrow. The Reminders tab has the same button, and "Turn back on" if it was pressed by mistake.
 - With the app in Arabic, the short messages at the top of the screen after booking, moving, checking in, marking a no-show, finishing a visit or adding a procedure category now show in Arabic. They used to stay in English because they included the patient's name.
 - At some phone display sizes, the days in the calendar (the day view's calendar and the Old visit date picker) slipped out from under the weekday letters, so a date sat under the wrong day of the week. The days now line up at every display and font size.
+
+## [1.8.1] - 2026-10-06
+
+- Bookings and times now always use the clinic's time, even on a phone whose time zone or clock is set wrong, so a 5:30 booking no longer lands at 6:30.
 
 ## [1.8.0] - 2026-10-02
 
@@ -249,7 +252,8 @@ The first release at the clinic.
 - Settings for working hours, branches, procedures and reminders.
 - Runs on the clinic's own server over Tailscale, with over-the-air updates.
 
-[Unreleased]: https://github.com/Youssef-codin/lustre-clinic/compare/v1.8.0...HEAD
+[Unreleased]: https://github.com/Youssef-codin/lustre-clinic/compare/v1.8.1...HEAD
+[1.8.1]: https://github.com/Youssef-codin/lustre-clinic/compare/v1.8.0...v1.8.1
 [1.8.0]: https://github.com/Youssef-codin/lustre-clinic/compare/v1.7.2...v1.8.0
 [1.7.2]: https://github.com/Youssef-codin/lustre-clinic/compare/v1.7.1...v1.7.2
 [1.7.1]: https://github.com/Youssef-codin/lustre-clinic/compare/v1.7.0...v1.7.1

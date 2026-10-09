@@ -20,7 +20,6 @@ import { SettingsScreen } from '../screens/settings';
 import { color } from '../theme';
 import { ApkUpdateBanner } from './ApkUpdateBanner';
 import { type BackStack, type BackStacks, backFromRoot, createBackStacks } from './backStack';
-import { ClockBanner } from './ClockBanner';
 import { JoinSheet } from './JoinSheet';
 import { NotificationsBanner } from './NotificationsBanner';
 import { OfflineScreen } from './OfflineScreen';
@@ -37,6 +36,7 @@ import {
     type ShellRoute,
 } from './routes';
 import { BackStackContext } from './useBackHandler';
+import { useClinicClock } from './useClinicClock';
 import { useRole } from './useRole';
 
 // The app shell (SPEC §18 F3): four clusters under one `domain/BottomTabBar`,
@@ -92,6 +92,7 @@ import { useRole } from './useRole';
 // caches intact — but nothing of them is drawn or tappable, because a search
 // field over a server that cannot be searched is worse than no screen at all.
 export function AppShell() {
+    useClinicClock();
     const [tab, setTab] = useState<TabKey>('day');
     // Device-local and persisted (`roleStore`), not shell state: a role held
     // here only would be re-chosen as Doctor by every cold launch.
@@ -329,7 +330,6 @@ export function AppShell() {
                     {/* Over whichever day the role draws: the home screen is
                         where a clinic phone spends its day, so it is where a
                         new build gets noticed. */}
-                    <ClockBanner />
                     <NotificationsBanner />
                     <ApkUpdateBanner />
                     {role === 'doctor' ? (

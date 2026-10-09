@@ -55,7 +55,7 @@ export function standingFor(appointment: Appointment, today: string): Standing {
     if (appointment.status === 'done') return 'finished';
     // `dateKey`, not the ISO string's first ten characters: the day a late
     // appointment falls on is the local one, and the wire carries UTC.
-    if (dateKey(new Date(appointment.startsAt)) !== today) return 'finished';
+    if (dateKey(appointment.startsAt) !== today) return 'finished';
     return appointment.status === 'awaiting_payment' ? 'desk' : 'chair';
 }
 

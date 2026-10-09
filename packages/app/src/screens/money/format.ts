@@ -4,6 +4,7 @@
 // The client switches on `ERROR_CODE` and never parses the server's message,
 // and this one map is where a localisation scaffold will land.
 import {
+    clinicWallClock,
     ERROR_CODE,
     type ErrorCode,
     localizeCopy,
@@ -60,11 +61,12 @@ const METHOD_LABEL: Record<PaymentMethod, string> = {
 
 // The stats heading names the month the figures are being read in, not the
 // period the pills select — "Stats · June 2026" stays put while the pills move.
-export function statsPeriodLabel(now: Date = new Date(serverNow())): string {
+export function statsPeriodLabel(now: number = serverNow()): string {
     const locale = getLocale();
+    const { month, year } = clinicWallClock(now);
     return localizeCopy(locale, 'Stats · {month} {year}', {
-        month: localizeCopy(locale, MONTHS_LONG[now.getMonth()] ?? ''),
-        year: now.getFullYear(),
+        month: localizeCopy(locale, MONTHS_LONG[month - 1] ?? ''),
+        year,
     });
 }
 
