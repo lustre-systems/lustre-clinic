@@ -61,20 +61,22 @@
     - { src: .dockerignore, mode: "0640" }
     - { src: infra/postgres/init/10-roles.sh, mode: "0755" }
 
-- name: "{{ stack.name }}: server binary"
+# Only what changed, compressed: a delta against the binary already on the
+# server, checked by sha256 before it replaces it (scripts/pushBinary.ts). An
+# Ansible `copy` sent all 76 MB uncompressed. `bun ship` has usually sent it
+# by now, and then this finds the same sha256 and sends nothing.
+- name: "{{ stack.name }}: server binary and migrations"
   become: false
-  ansible.builtin.copy:
-    src: "{{ repo_root }}/dist/lustre"
-    dest: "{{ stack_dir }}/dist/lustre"
-    mode: "0755"
-
-- name: "{{ stack.name }}: migrations"
-  become: false
-  ansible.builtin.copy:
-    src: "{{ repo_root }}/dist/migrations/"
-    dest: "{{ stack_dir }}/dist/migrations/"
-    mode: "0644"
-    directory_mode: "0755"
+  delegate_to: localhost
+  ansible.builtin.command:
+    argv:
+      - bun
+      - scripts/pushBinary.ts
+      - "--stack={{ stack.name }}"
+      - "--host={{ hostvars[inventory_hostname].ansible_user }}@{{ hostvars[inventory_hostname].ansible_host }}"
+    chdir: "{{ repo_root }}"
+  register: stack_binary
+  changed_when: "'Sent ' in stack_binary.stdout"
 
 # The .env is rendered in full on every deploy, so a changed port, profile or
 # setting reaches the stack. Its passwords are the exception: the database
@@ -151,6 +153,9 @@
     dest: "{{ stack_dir }}/.env"
     mode: "0600"
 
+# The running server keeps answering through the build, the database and the
+# migration: only `up` below replaces it, and then only if the image changed.
+# Measured on the dev stack, the API is down for about a second.
 - name: "{{ stack.name }}: build the image"
   become: false
   ansible.builtin.command: docker compose build
