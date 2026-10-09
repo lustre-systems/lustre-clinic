@@ -256,6 +256,17 @@ export const api = {
         methodNote?: string | null;
     }): Promise<Visit> => wrap(() => trpcClient.visit.setPaid.mutate(input)),
 
+    /**
+     * How the money already on the visit was paid, said again — card, not
+     * cash — with the total unchanged. The server gives each other method's
+     * share back and takes it again in this one, so nothing is overwritten.
+     */
+    setPaidMethod: (input: {
+        visitId: string;
+        method: PaymentMethod;
+        methodNote?: string | null;
+    }): Promise<Visit> => wrap(() => trpcClient.visit.setPaidMethod.mutate(input)),
+
     visitById: (id: string): Promise<Visit> => wrap(() => trpcClient.visit.byId.query({ id })),
 
     appointmentById: (id: string): Promise<Appointment> =>

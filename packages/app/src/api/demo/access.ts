@@ -21,6 +21,7 @@ const PAYMENT = new Set([
     'stats.summary',
     'visit.recordPayment',
     'visit.setPaid',
+    'visit.setPaidMethod',
     'visit.deletePayment',
 ]);
 

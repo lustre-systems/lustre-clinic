@@ -43,6 +43,7 @@ import type {
     RecordPaymentInput,
     ReopenInput,
     SetPaidInput,
+    SetPaidMethodInput,
     SetPriceInput,
     SetProceduresInput,
 } from './visit.schema.ts';
@@ -554,10 +555,23 @@ export const visitService = {
      * (`stats`, `balance`), so the money lands in the right place on its own.
      *
      * Saying what is already on the visit writes nothing at all.
+     *
+     * Raising the total past the charge is refused, as at checkout (§7.6): the
+     * phone clamps, so only a stale or hand-made call meets this. Lowering is
+     * never refused, even while still above the charge — that is a visit whose
+     * charge came down after it was paid, and the correction is the refund.
      */
     async setPaid(input: SetPaidInput): Promise<Visit> {
         await db.transaction(async (tx) => {
-            const visit = await requireVisit(tx, input.visitId);
+            // Locked so two phones correcting the same visit cannot both
+            // measure against the same total and write two deltas.
+            const [visit] = await tx
+                .select()
+                .from(visits)
+                .where(eq(visits.id, input.visitId))
+                .limit(1)
+                .for('update');
+            if (!visit) throw AppError.notFound('visit');
 
             const [collected] = await tx
                 .select({ total: sql<number>`COALESCE(SUM(${payments.amount}), 0)::int` })
@@ -567,7 +581,52 @@ export const visitService = {
             const delta = input.paidTotal - (collected?.total ?? 0);
             if (delta === 0) return;
 
+            if (delta > 0 && input.paidTotal > visit.chargedTotal) {
+                throw new AppError(
+                    ERROR_CODE.PAYMENT_EXCEEDS_BALANCE,
+                    'the paid total is more than this visit charges',
+                    422,
+                );
+            }
+
             await insertPayment(tx, visit.id, delta, input.method, input.methodNote ?? null);
+        });
+
+        broadcast(WS_EVENT.VISIT_UPDATED, { id: input.visitId });
+        return this.byId(input.visitId);
+    },
+
+    /**
+     * Say again how the money on a visit was paid — "that was card, not cash" —
+     * without changing how much. Each other method's net on the visit is given
+     * back in that method and taken again in `method`, as rows of their own and
+     * dated today, so the takings by method come out right and nothing that was
+     * entered is edited away. `other` is told apart by its note.
+     *
+     * Already all in `method`, it writes nothing.
+     */
+    async setPaidMethod(input: SetPaidMethodInput): Promise<Visit> {
+        const methodNote = input.method === 'other' ? (input.methodNote?.trim() ?? null) : null;
+
+        await db.transaction(async (tx) => {
+            // Locked as in `setPaid`: two phones restating the same visit must
+            // not both move the same money.
+            const [visit] = await tx
+                .select({ id: visits.id })
+                .from(visits)
+                .where(eq(visits.id, input.visitId))
+                .limit(1)
+                .for('update');
+            if (!visit) throw AppError.notFound('visit');
+
+            const rows = await tx
+                .select({ amount: payments.amount, method: payments.method, methodNote: payments.methodNote })
+                .from(payments)
+                .where(eq(payments.visitId, visit.id));
+
+            for (const row of restated(rows, input.method, methodNote)) {
+                await insertPayment(tx, visit.id, row.amount, row.method, row.methodNote);
+            }
         });
 
         broadcast(WS_EVENT.VISIT_UPDATED, { id: input.visitId });
@@ -708,6 +767,42 @@ export const visitService = {
         return row ?? null;
     },
 };
+
+type Method = RecordPaymentInput['method'];
+
+interface PaymentLine {
+    amount: number;
+    method: Method;
+    methodNote: string | null;
+}
+
+/**
+ * The rows that move every other method's net onto `method`: one giving each
+ * back, then one taking the lot again. Their sum is zero, so the paid total
+ * does not move.
+ */
+function restated(rows: readonly PaymentLine[], method: Method, methodNote: string | null): PaymentLine[] {
+    const keyOf = (m: Method, note: string | null) => (m === 'other' ? `other:${note?.trim() ?? ''}` : m);
+    const target = keyOf(method, methodNote);
+
+    const nets = new Map<string, PaymentLine>();
+    for (const row of rows) {
+        const key = keyOf(row.method, row.methodNote);
+        const net = nets.get(key);
+        if (net) net.amount += row.amount;
+        else nets.set(key, { ...row });
+    }
+
+    const out: PaymentLine[] = [];
+    let moved = 0;
+    for (const [key, net] of nets) {
+        if (key === target || net.amount === 0) continue;
+        out.push({ amount: -net.amount, method: net.method, methodNote: net.methodNote });
+        moved += net.amount;
+    }
+    if (moved !== 0) out.push({ amount: moved, method, methodNote });
+    return out;
+}
 
 /**
  * The one place a `payments` row is written. Exported because `balance.settle`
