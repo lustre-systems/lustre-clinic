@@ -20,7 +20,7 @@ import type { PatientRequirements } from '../../../components/domain/patientDraf
 // cluster, and the queue rule is all this needs.
 import { arrivalQueue } from '../../day/chair';
 import { checkInTimes, api as dayApi } from '../../day/data';
-import { localOffsetMinutes, todayKey } from '../../day/time';
+import { clinicOffsetNow, todayKey } from '../../day/time';
 import { PatientsRequestError } from './requestError';
 import type {
     AddedOldVisit,
@@ -171,7 +171,7 @@ export const patientsApi = {
      */
     addOldVisit(input: AddOldVisitInput): Promise<AddedOldVisit> {
         return wrap(() =>
-            trpcClient.procedure.addOldVisit.mutate({ ...input, offsetMinutes: localOffsetMinutes() }),
+            trpcClient.procedure.addOldVisit.mutate({ ...input, offsetMinutes: clinicOffsetNow() }),
         );
     },
 

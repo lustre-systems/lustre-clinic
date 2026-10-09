@@ -384,4 +384,10 @@ export const settingsService = {
         await readRow();
         return writeRow({ reminderDismissedOn: date });
     },
+
+    async resumeRemindersFor(date: string): Promise<Settings> {
+        const row = await readRow();
+        if (row.reminderDismissedOn !== date) return toSettings(row);
+        return writeRow({ reminderDismissedOn: null });
+    },
 };

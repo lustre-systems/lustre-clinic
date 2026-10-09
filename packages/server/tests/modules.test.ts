@@ -2693,6 +2693,15 @@ describe('reminder', () => {
         expect((await settingsService.get()).reminderDismissedOn).toBe('2026-08-03');
     });
 
+    test('resuming today clears only that date', async () => {
+        await reminderService.dismissToday({ date: '2026-08-03' });
+        await reminderService.resumeToday({ date: '2026-08-02' });
+        expect((await settingsService.get()).reminderDismissedOn).toBe('2026-08-03');
+
+        await reminderService.resumeToday({ date: '2026-08-03' });
+        expect((await settingsService.get()).reminderDismissedOn).toBeNull();
+    });
+
     test('leaves an unknown placeholder visible rather than dropping it', () => {
         expect(renderReminderTemplate('Hi {{name}}, {{nonsense}}', { name: 'Nadia' })).toBe(
             'Hi Nadia, {{nonsense}}',

@@ -5,14 +5,16 @@
  * an hour forward would otherwise find every check-in an hour old the instant
  * it arrived, and draw a walk-in seated a minute ago as an hour over.
  *
- * The exception is anything the OS fires by the phone's own clock, such as a
- * scheduled local notification.
+ * It is `clinicTime`'s "now" too (`setClinicClock` below), so today's key, the
+ * day's timers and every booking decision read the server's clock. Anything the
+ * OS fires by the phone's own clock, such as a scheduled local notification, is
+ * moved onto it with `phoneTimeOf`.
  *
  * The skew is measured by the clock check (`shell/clockCheck.ts`). Until it
  * has answered, the phone's own clock is all there is. No imports but
  * `@lustre/shared`, so Bun can test what reads it without React Native.
  */
-import { todayKey } from '@lustre/shared';
+import { setClinicClock, todayKey } from '@lustre/shared';
 
 /**
  * One reading of both of the phone's clocks. `mono` never jumps when the
@@ -32,11 +34,27 @@ export const CLOCK_JUMP_TOLERANCE_MS = 2_000;
 
 let skewMs = 0;
 let measuredAt: ClockSample | null = null;
+const skewListeners = new Set<() => void>();
 
 /** How far the server's clock is ahead of this phone's; negative when behind. */
 export function noteServerClock(skew: number, at: ClockSample = clockSample()): void {
+    const moved = Math.round(skew / 60_000) !== skewMinutes();
     skewMs = skew;
     measuredAt = at;
+    if (moved) for (const listener of skewListeners) listener();
+}
+
+/**
+ * The skew to the minute, for what has to be redone when it moves: alarms the
+ * OS fires by the phone's clock were armed against the old one.
+ */
+export function skewMinutes(): number {
+    return Math.round(skewMs / 60_000);
+}
+
+export function subscribeSkew(listener: () => void): () => void {
+    skewListeners.add(listener);
+    return () => skewListeners.delete(listener);
 }
 
 /**
@@ -56,7 +74,19 @@ export function serverNow(now: ClockSample = clockSample()): number {
     return now.wall + skewMs;
 }
 
-/** Today's `YYYY-MM-DD` by the server's clock, in this phone's zone like every other key. */
+setClinicClock(() => serverNow());
+
+/** Today's `YYYY-MM-DD` by the server's clock, in the clinic's zone like every other key. */
 export function serverToday(): string {
-    return todayKey(new Date(serverNow()));
+    return todayKey(serverNow());
+}
+
+/** What the server's clock read when the phone's read `instant`: a stamp the phone took itself. */
+export function serverTimeOf(instant: number, now: ClockSample = clockSample()): number {
+    return instant + (serverNow(now) - now.wall);
+}
+
+/** When the phone's own clock will read `instant` on the server's: what an OS alarm is armed for. */
+export function phoneTimeOf(instant: number, now: ClockSample = clockSample()): number {
+    return instant - (serverNow(now) - now.wall);
 }

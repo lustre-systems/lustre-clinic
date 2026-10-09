@@ -31,7 +31,7 @@ export function bookingActions(
 ): BookingActions {
     if (appointment.status !== 'booked') return NONE;
 
-    const day = dateKey(new Date(appointment.startsAt));
+    const day = dateKey(appointment.startsAt);
     return {
         checkIn: day === today,
         reschedule: true,

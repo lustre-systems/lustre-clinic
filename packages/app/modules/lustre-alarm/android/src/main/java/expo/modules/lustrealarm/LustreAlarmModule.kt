@@ -13,11 +13,11 @@ import expo.modules.kotlin.records.Record
 class AlarmCopyRecord : Record {
   @Field var title: String = ""
   @Field var body: String = ""
-  @Field var snooze: String = ""
+  @Field var done: String = ""
   @Field var open: String = ""
   @Field var channelName: String = ""
 
-  fun toCopy() = AlarmCopy(title, body, snooze, open, channelName)
+  fun toCopy() = AlarmCopy(title, body, done, open, channelName)
 }
 
 class AlarmCheckRecord : Record {
@@ -33,16 +33,47 @@ class LustreAlarmModule : Module() {
   override fun definition() = ModuleDefinition {
     Name("LustreAlarm")
 
-    // Replaces the whole series. A ring already going is left alone: the
-    // series is re-armed on every foreground and every refetch.
-    Function("schedule") { at: List<Double>, copy: AlarmCopyRecord, check: AlarmCheckRecord?, rings: Boolean ->
-      val context = appContext.reactContext ?: return@Function false
-      AlarmSchedule.replace(context, at.map { it.toLong() }, copy.toCopy(), check?.toCheck(), rings)
+    Events("onDone")
+
+    OnStartObserving {
+      Dismissal.dismissed = { sendEvent("onDone", emptyMap<String, Any>()) }
     }
 
-    Function("tryIn") { ms: Double, copy: AlarmCopyRecord ->
+    OnStopObserving {
+      Dismissal.dismissed = null
+    }
+
+    // Replaces the whole series. A ring already going is left alone: the
+    // series is re-armed on every foreground and every refetch.
+    Function("schedule") { at: List<Double>, day: String, copy: AlarmCopyRecord, check: AlarmCheckRecord?, rings: Boolean ->
       val context = appContext.reactContext ?: return@Function false
-      AlarmSchedule.tryAt(context, System.currentTimeMillis() + ms.toLong(), copy.toCopy())
+      AlarmSchedule.replace(context, at.map { it.toLong() }, day, copy.toCopy(), check?.toCheck(), rings)
+    }
+
+    Function("tryIn") { ms: Double, day: String, copy: AlarmCopyRecord ->
+      val context = appContext.reactContext ?: return@Function false
+      AlarmSchedule.tryAt(context, System.currentTimeMillis() + ms.toLong(), day, copy.toCopy())
+    }
+
+    Function("dismiss") { day: String ->
+      val context = appContext.reactContext ?: return@Function Unit
+      Dismissal.press(context, day)
+    }
+
+    // Done for today pressed on the ring, as it stands on disk.
+    Function("dismissal") {
+      val context = appContext.reactContext ?: return@Function null
+      Dismissal.read(context)?.let { mapOf("day" to it.day, "sent" to it.sent) }
+    }
+
+    Function("dismissalSent") { day: String ->
+      val context = appContext.reactContext ?: return@Function Unit
+      Dismissal.markSent(context, day)
+    }
+
+    Function("clearDismissal") {
+      val context = appContext.reactContext ?: return@Function Unit
+      Dismissal.clear(context)
     }
 
     Function("takeOpenRequest") {

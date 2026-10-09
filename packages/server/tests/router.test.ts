@@ -55,6 +55,7 @@ const EXPECTED = [
     'reminder.markSent',
     'reminder.markSkipped',
     'reminder.dismissToday',
+    'reminder.resumeToday',
     'stats.summary',
     'migration.progress',
     'device.me',

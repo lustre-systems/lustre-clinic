@@ -18,4 +18,8 @@ export const reminderRouter = router({
     dismissToday: clinicProcedure
         .input(dismissTodayInput)
         .mutation(({ input }) => reminderService.dismissToday(input)),
+
+    resumeToday: clinicProcedure
+        .input(dismissTodayInput)
+        .mutation(({ input }) => reminderService.resumeToday(input)),
 });

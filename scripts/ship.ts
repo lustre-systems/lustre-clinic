@@ -3,6 +3,7 @@
  *
  *   bun ship [--minor]          an OTA update: a quiet patch, or a minor the phones take now
  *   bun ship --screen           a patch the phones take now, behind the download screen
+ *   bun ship --with-apk         an update that also rebuilds the APK, so fresh installs start on it
  *   bun ship --apk [--major]    a new APK, for a native change
  *   bun ship --dry-run          prints the number and changes nothing
  *   bun ship deploy             the deploy step alone, for the release at HEAD
@@ -12,8 +13,11 @@
  *
  * In order: checks `main` is clean and not behind origin, asks `release.ts` for
  * the number, moves `[Unreleased]` in CHANGELOG.md under it and commits, builds
- * and stages the release (which tags it), pushes `main` and the tag, then runs
- * `play app`, which builds the server and deploys it with the releases.
+ * and stages the release (which tags it), pushes `main` and the tag, builds the
+ * server and sends it (`pushBinary.ts`, a delta), runs `play app` to restart
+ * it, and last sends the releases (`pushReleases.ts`), so no phone is offered
+ * an update ahead of the server it needs. It prints how long each step took,
+ * and how long the API did not answer while the server restarted.
  *
  * Run it again after a failure: a changelog already cut for the number is kept,
  * and every message says what to run next. The dev track cuts no changelog and
@@ -22,6 +26,7 @@
  */
 import { join, resolve } from 'node:path';
 import { $ } from 'bun';
+import { healthUrl, sshHost, watchHealth } from './clinicServer';
 import { cutChangelog } from './cutChangelog';
 
 const ROOT = resolve(import.meta.dir, '..');
@@ -30,6 +35,11 @@ const CHANGELOG = join(ROOT, 'CHANGELOG.md');
 /** What `build:server` compiles. The deploy builds from the working tree, so these must match the tag. */
 const SERVER_PATHS = ['packages/server', 'packages/shared', 'bun.lock', 'package.json'];
 
+/** What `printTimings` reports. Declared before anything can `fail`, which prints them. */
+const shipStarted = performance.now();
+const phases: { name: string; seconds: number; note?: string }[] = [];
+let current: { name: string; started: number } | null = null;
+
 const args = process.argv.slice(2);
 const deployOnly = args[0] === 'deploy';
 const dev = args.includes('--dev');
@@ -37,6 +47,7 @@ const apk = args.includes('--apk');
 const dryRun = args.includes('--dry-run');
 const fast = args.includes('--fast');
 const keepServer = args.includes('--keep-server');
+const withApk = args.includes('--with-apk');
 const known = [
     'deploy',
     '--dev',
@@ -47,6 +58,7 @@ const known = [
     '--dry-run',
     '--fast',
     '--keep-server',
+    '--with-apk',
 ];
 const unknown = args.filter((arg) => !known.includes(arg));
 if (unknown.length) fail(`unknown ${unknown.join(' ')}. See the top of scripts/ship.ts.`);
@@ -55,6 +67,7 @@ if (args.includes('--minor') && apk) fail('--minor is for an update. An APK is a
 if (keepServer && !fast) fail('--keep-server goes with --fast: bun ship:dev:fast --keep-server');
 if (fast && !args.includes('--dev')) fail('--fast is for the dev track: bun ship:dev --fast');
 if (args.includes('--screen') && apk) fail('--screen is for an update. An APK shows its own install banner.');
+if (withApk && apk) fail('--with-apk is for an update. --apk builds the APK anyway.');
 
 const stack = dev ? 'dev' : 'prod';
 const tagPrefix = dev ? 'dev-v' : 'v';
@@ -65,8 +78,44 @@ function say(line: string): void {
 }
 
 function fail(line: string): never {
+    printTimings();
     process.stderr.write(`ship: ${line}\n`);
     process.exit(1);
+}
+
+async function timed<T>(name: string, task: () => Promise<T>): Promise<T> {
+    const started = performance.now();
+    current = { name, started };
+    try {
+        return await task();
+    } finally {
+        phases.push({ name, seconds: (performance.now() - started) / 1000 });
+        current = null;
+    }
+}
+
+function duration(seconds: number): string {
+    if (seconds < 60) return `${seconds.toFixed(1)} s`;
+    const whole = Math.round(seconds);
+    return `${Math.floor(whole / 60)}:${String(whole % 60).padStart(2, '0')}`;
+}
+
+/** How long each step took, and the whole run. Also printed when a step fails. */
+function printTimings(): void {
+    const rows = [...phases];
+    if (current)
+        rows.push({
+            name: `${current.name} (failed)`,
+            seconds: (performance.now() - current.started) / 1000,
+        });
+    if (!rows.length) return;
+    rows.push({ name: 'total', seconds: (performance.now() - shipStarted) / 1000 });
+    const width = Math.max(...rows.map((row) => row.name.length)) + 2;
+    const lines = rows.map(
+        (row) =>
+            `  ${row.name.padEnd(width)}${duration(row.seconds).padStart(7)}${row.note ? `  ${row.note}` : ''}`,
+    );
+    process.stdout.write(`\n» Timings\n${lines.join('\n')}\n`);
 }
 
 async function git(...parts: string[]): Promise<string> {
@@ -174,7 +223,11 @@ async function cutRelease(version: string): Promise<void> {
     say(`Moved [Unreleased] under ${version} and committed it.`);
 }
 
-/** Builds the server and deploys it with the staged releases (`play app`). */
+/**
+ * Builds the server, sends it, restarts it (`play app`, which leaves the
+ * releases out), then sends the staged releases. The server goes first, so no
+ * phone is offered an update ahead of the server it needs.
+ */
 async function deploy(): Promise<void> {
     const tag = await releaseTagAt('HEAD');
     if (!tag) fail(`no ${tagPrefix}X.Y.Z tag at or before HEAD. Ship one first.`);
@@ -183,8 +236,33 @@ async function deploy(): Promise<void> {
             `the server code changed after ${tag}, so this would deploy code no release has. Ship again instead.`,
         );
     }
-    say(`Deploying the server and ${tag} to ${stack}. The sudo password is for the clinic server.`);
-    if (!(await run(['scripts/play.sh', 'app', `--stack=${stack}`]))) deployFailed(tag);
+    const step = async (name: string, command: string[], env?: Record<string, string | undefined>) => {
+        if (!(await timed(name, () => run(command, env)))) deployFailed(tag);
+    };
+    say(`Deploying the server and ${tag} to ${stack}.`);
+    await step('server build', ['bun', 'run', 'build:server']);
+    await step('binary', ['bun', 'scripts/pushBinary.ts', `--stack=${stack}`]);
+
+    say(`Restarting the ${stack} server. The sudo password is for the clinic server.`);
+    const url = await healthUrl(stack, await sshHost('ship'));
+    const stopWatching = url ? watchHealth(url) : null;
+    const restarted = await timed('server restart', () =>
+        run(['scripts/play.sh', 'app', `--stack=${stack}`, '--skip-tags=releases'], {
+            ...process.env,
+            LUSTRE_SERVER_BUILT: '1',
+        }),
+    );
+    const health = await stopWatching?.();
+    const restart = phases.at(-1);
+    if (restart && health) {
+        restart.note = health.answered
+            ? `API down ${health.downSeconds.toFixed(1)} s`
+            : 'API never answered this machine';
+    }
+    if (!restarted) deployFailed(tag);
+
+    say(`Sending the ${tag} releases to ${stack}.`);
+    await step('releases', ['bun', 'scripts/pushReleases.ts', `--stack=${stack}`]);
 }
 
 function deployFailed(tag: string): never {
@@ -195,6 +273,7 @@ function deployFailed(tag: string): never {
 
 if (deployOnly) {
     await deploy();
+    printTimings();
     process.exit(0);
 }
 
@@ -206,22 +285,25 @@ say(`Shipping ${tag}${dev ? ' on the dev track' : ''}${dryRun ? ' (dry run)' : '
 if (!dev) await cutRelease(version);
 if (dryRun) {
     say(
-        `Would build ${apk ? 'the APK' : 'the update and the APK'}, tag ${tag}${dev ? '' : ', push main and the tag'}, and deploy the server and releases to ${stack}.`,
+        `Would build ${apk ? 'the APK' : withApk ? 'the update and the APK' : 'the update'}, tag ${tag}${dev ? '' : ', push main and the tag'}, and deploy the server and releases to ${stack}.`,
     );
     process.exit(0);
 }
 
 const releaseArgs = [
     apk ? 'apk' : 'update',
-    ...args.filter((arg) => arg === '--major' || arg === '--minor' || arg === '--screen'),
+    ...args.filter((arg) => ['--major', '--minor', '--screen', '--with-apk'].includes(arg)),
 ];
-if (!(await run(['bun', RELEASE, ...releaseArgs], { ...trackEnv, LUSTRE_EXPECT_VERSION: version }))) {
+const built = await timed('app build', () =>
+    run(['bun', RELEASE, ...releaseArgs], { ...trackEnv, LUSTRE_EXPECT_VERSION: version }),
+);
+if (!built) {
     fail(`the ${version} build failed. Nothing was tagged or deployed. Fix it and run \`bun ship\` again.`);
 }
 
 if (!dev) {
     say(`Pushing main and ${tag}. GitHub publishes the release notes from the tag.`);
-    if (!(await run(['git', 'push', '--atomic', 'origin', 'main', tag]))) {
+    if (!(await timed('push', () => run(['git', 'push', '--atomic', 'origin', 'main', tag])))) {
         fail(
             `the push failed. Push by hand (git push --atomic origin main ${tag}), then run \`bun ship deploy\`.`,
         );
@@ -230,8 +312,11 @@ if (!dev) {
 
 if (fast) {
     say(`Copying the releases to ${stack}. The server is left as it is.`);
-    if (!(await run(['bun', 'scripts/pushReleases.ts']))) deployFailed(tag);
+    if (!(await timed('releases', () => run(['bun', 'scripts/pushReleases.ts', `--stack=${stack}`])))) {
+        deployFailed(tag);
+    }
 } else {
     await deploy();
 }
+printTimings();
 say(`${tag} is out.`);

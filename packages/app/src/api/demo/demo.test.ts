@@ -15,7 +15,15 @@
  * reach.
  */
 import { afterEach, beforeEach, describe, expect, it, mock, setSystemTime } from 'bun:test';
-import { REMINDER_TOKENS } from '@lustre/shared';
+import {
+    instantAt,
+    minutesOfDay,
+    offsetForDate,
+    pad2,
+    REMINDER_TOKENS,
+    todayKey,
+    weekdayOf,
+} from '@lustre/shared';
 
 mock.module('@react-native-async-storage/async-storage', () => ({
     default: {
@@ -45,13 +53,12 @@ const { provisionDemo } = await import('./handlers/device');
 const { nudgePendingInput, planNudges } = await import('../../notifications/schedule');
 
 function today(): string {
-    const now = new Date();
-    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    return todayKey();
 }
 
 /** The offset the app sends: minutes east of UTC for the day being asked about. */
 function offsetMinutes(): number {
-    return -new Date().getTimezoneOffset();
+    return offsetForDate(today());
 }
 
 beforeEach(() => {
@@ -67,10 +74,11 @@ describe('the seeded day', () => {
         const schedule = settingsHandlers.schedule();
         expect(schedule).toHaveLength(7);
 
-        const day = schedule.find((row) => row.weekday === new Date().getDay());
+        const day = schedule.find((row) => row.weekday === weekdayOf(today()));
         if (!day) throw new Error('the seed left today closed');
 
-        const now = `${String(new Date().getHours()).padStart(2, '0')}:${String(new Date().getMinutes()).padStart(2, '0')}`;
+        const minutes = minutesOfDay(Date.now());
+        const now = `${pad2(Math.floor(minutes / 60))}:${pad2(minutes % 60)}`;
         // Zero-padded `HH:MM`, so a string comparison orders them by time.
         expect(day.opensAt <= now).toBe(true);
         expect(day.closesAt >= now).toBe(true);
@@ -88,7 +96,7 @@ describe('the seeded day', () => {
         const opensOn = branchHandlers.list({ includeInactive: false })[0];
         if (!opensOn) throw new Error('the seed registered no branches');
 
-        const day = settingsHandlers.schedule().find((row) => row.weekday === new Date().getDay());
+        const day = settingsHandlers.schedule().find((row) => row.weekday === weekdayOf(today()));
         expect(day?.branchId).toBe(opensOn.id);
 
         // And the day's own appointments are at that branch, or they draw as
@@ -113,7 +121,7 @@ describe('the seeded day', () => {
      */
     it('books every appointment on a ten-minute boundary', () => {
         const offGrid = getDb()
-            .appointments.filter((row) => row.startsAt.getMinutes() % 10 !== 0)
+            .appointments.filter((row) => minutesOfDay(row.startsAt) % 10 !== 0)
             .map((row) => row.startsAt.toString());
 
         expect(offGrid).toEqual([]);
@@ -197,7 +205,7 @@ describe('the seeded day', () => {
     // most of it lands on tomorrow and today holds three rows, which is right
     // for that hour and not what this checks.
     it('draws a day, a register, a catalogue and money', () => {
-        setSystemTime(new Date(2030, 0, 15, 12, 0));
+        setSystemTime(new Date(instantAt('2030-01-15', 12 * 60)));
         setDb(seedDemoDb());
 
         expect(
@@ -1202,9 +1210,9 @@ describe('the reminders due from the notify time', () => {
             pendingCount,
             dismissedOn: null,
             today: '2026-09-28',
-            now: new Date(2026, 8, 28, 9, 0),
+            now: instantAt('2026-09-28', 9 * 60),
         });
         expect(plan.silent).toBe('pending');
-        expect(plan.at[0]).toEqual(new Date(2026, 8, 28, 17, 0));
+        expect(plan.at[0]).toEqual(new Date(instantAt('2026-09-28', 17 * 60)));
     });
 });

@@ -25,7 +25,7 @@
  * plan is cheap to recompute and a diff is how a phone ends up with two series
  * layered over each other, each buzzing on its own half-hour.
  */
-import { type Locale, localizeCopy, offsetForDate, todayKey } from '@lustre/shared';
+import { clinicOffsetNow, type Locale, localizeCopy, todayKey } from '@lustre/shared';
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 import {
@@ -47,6 +47,9 @@ const CHANNEL_ID = 'reminders';
 
 /** Tags every nudge this module owns, so cancelling never touches a notification someone else scheduled. */
 const NUDGE_TAG = 'lustre.reminder.nudge';
+
+const NUDGE_CATEGORY = 'lustre.reminder.nudge';
+const DONE_ACTION = 'done';
 
 const TITLE = 'Reminders pending';
 const BODY = 'Reminders are waiting to be sent.';
@@ -149,8 +152,11 @@ async function cancelNudges(): Promise<void> {
  * schedule, and two arms interleaved that way each cancel before either
  * schedules, which leaves both series armed.
  */
-export function armNudges(plan: NudgePlan, { alarm }: { alarm: boolean }): Promise<ArmResult> {
-    const next = arming.then(() => arm(plan, alarm));
+export function armNudges(
+    plan: NudgePlan,
+    { alarm, day }: { alarm: boolean; day: string },
+): Promise<ArmResult> {
+    const next = arming.then(() => arm(plan, alarm, day));
     arming = next.catch(() => undefined);
     return next;
 }
@@ -159,15 +165,15 @@ type ArmResult = 'armed' | 'disarmed' | 'refused';
 
 let arming: Promise<unknown> = Promise.resolve();
 
-async function arm(plan: NudgePlan, alarm: boolean): Promise<ArmResult> {
+async function arm(plan: NudgePlan, alarm: boolean, day: string): Promise<ArmResult> {
     await cancelNudges();
 
     if (plan.at.length === 0) {
         cancelAlarms();
         return 'disarmed';
     }
-    // The ring's screen and its Snooze both hang off its notification: no
-    // notifications, no way to stop it.
+    // The ring's screen and its Done for today both hang off its notification:
+    // no notifications, no way to stop it.
     if (!(await ensurePermission())) {
         cancelAlarms();
         return 'refused';
@@ -175,11 +181,12 @@ async function arm(plan: NudgePlan, alarm: boolean): Promise<ArmResult> {
 
     // The plain nudge posts on this channel from native code too.
     if (!alarm) await ensureChannel();
-    if (scheduleAlarms(plan.at, alarmCopy(), serverCheck(), alarm)) return 'armed';
+    if (scheduleAlarms(plan.at, day, alarmCopy(), serverCheck(day), alarm)) return 'armed';
     // No native side, or Android refused the exact alarm: the ordinary nudge,
     // unchecked, rather than none.
     cancelAlarms();
     await ensureChannel();
+    await ensureNudgeCategory();
 
     for (const at of plan.at) {
         await Notifications.scheduleNotificationAsync({
@@ -187,6 +194,7 @@ async function arm(plan: NudgePlan, alarm: boolean): Promise<ArmResult> {
                 title: localizeCopy(getLocale(), TITLE),
                 body: localizeCopy(getLocale(), BODY),
                 data: { tag: NUDGE_TAG },
+                categoryIdentifier: NUDGE_CATEGORY,
             },
             trigger: {
                 type: Notifications.SchedulableTriggerInputTypes.DATE,
@@ -199,25 +207,59 @@ async function arm(plan: NudgePlan, alarm: boolean): Promise<ArmResult> {
     return 'armed';
 }
 
+let categoryLocale: Locale | null = null;
+
+/**
+ * Done for today on the fallback nudge. It brings the app up, because nothing
+ * else runs code for a notification `expo-notifications` posted: with the app
+ * killed, an action that stays in the background is never heard.
+ */
+async function ensureNudgeCategory(): Promise<void> {
+    if (categoryLocale === getLocale()) return;
+    await Notifications.setNotificationCategoryAsync(NUDGE_CATEGORY, [
+        {
+            identifier: DONE_ACTION,
+            buttonTitle: localizeCopy(getLocale(), 'Done for today'),
+            options: { opensAppToForeground: true },
+        },
+    ]);
+    categoryLocale = getLocale();
+}
+
+/**
+ * Calls `listener` when Done for today is pressed on a fallback nudge, including
+ * the press that launched the app.
+ */
+export function onNudgeDone(listener: () => void): () => void {
+    const handle = (response: Notifications.NotificationResponse | null) => {
+        if (response?.actionIdentifier !== DONE_ACTION) return;
+        if (response.notification.request.content.data?.tag !== NUDGE_TAG) return;
+        Notifications.clearLastNotificationResponse();
+        listener();
+    };
+    handle(Notifications.getLastNotificationResponse());
+    const subscription = Notifications.addNotificationResponseReceivedListener(handle);
+    return () => subscription.remove();
+}
+
 /**
  * Demo mode's "Try the alarm": one real ring `ms` from now, long enough to lock
  * the phone and see it fill the lock screen. Beside the day's series, not in it.
  */
 export async function tryReminderAlarm(ms: number): Promise<boolean> {
     if (!(await ensurePermission())) return false;
-    return tryAlarm(ms, alarmCopy());
+    return tryAlarm(ms, todayKey(), alarmCopy());
 }
 
-function serverCheck(): AlarmCheck | null {
+function serverCheck(today: string): AlarmCheck | null {
     const { lan, tailscale } = serverAddresses();
-    const today = todayKey();
     return alarmCheck({
         demo: isDemoMode() || isLocalMode(),
         current: getConnectionState().baseUrl,
         lan,
         tailscale,
         today,
-        offsetMinutes: offsetForDate(today),
+        offsetMinutes: clinicOffsetNow(),
     });
 }
 
@@ -227,7 +269,7 @@ function alarmCopy(): AlarmCopy {
     return {
         title: t(TITLE),
         body: t(BODY),
-        snooze: t('Snooze'),
+        done: t('Done for today'),
         open: t('Open reminders'),
         channelName: t('Appointment reminders (ringing)'),
     };

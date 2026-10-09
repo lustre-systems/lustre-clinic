@@ -107,6 +107,7 @@ const handlers = {
     'reminder.markSent': reminderHandlers.markSent,
     'reminder.markSkipped': reminderHandlers.markSkipped,
     'reminder.dismissToday': reminderHandlers.dismissToday,
+    'reminder.resumeToday': reminderHandlers.resumeToday,
 
     'stats.summary': statsHandlers.summary,
 
