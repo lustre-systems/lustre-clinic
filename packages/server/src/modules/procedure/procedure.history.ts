@@ -2,7 +2,7 @@
  * A visit that happened on a day that has passed and was never typed in: past
  * work entered from the patient's record rather than at registration.
  */
-import { ERROR_CODE, WS_EVENT } from '@lustre/shared';
+import { callerWallClock, ERROR_CODE, WS_EVENT } from '@lustre/shared';
 import { db } from '../../db/index.ts';
 import { payments, visitProcedures, visits } from '../../db/schema.ts';
 import { AppError } from '../../errors/AppError.ts';
@@ -61,7 +61,7 @@ export const procedureHistoryService = {
 
         // A visit that has not happened is not a record of anything. Dates
         // compare as strings in ISO, and "today" is the clinic's, not the server's.
-        const today = new Date(Date.now() + input.offsetMinutes * 60_000).toISOString().slice(0, 10);
+        const today = callerWallClock(Date.now(), input.offsetMinutes).key;
         if (input.performedOn > today) {
             throw new AppError(
                 ERROR_CODE.VALIDATION,

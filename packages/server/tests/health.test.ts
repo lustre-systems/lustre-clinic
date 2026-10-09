@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
 import { ERROR_CODE, TRPC_ENDPOINT, WS_PATH } from '@lustre/shared';
-import { utcOffsetMinutes } from '../src/modules/health/health.service.ts';
+import { utcOffsetMinutes } from '@lustre/shared/zoneSpans';
 import { setupDatabase } from './helpers/db.ts';
 import { startTestServer, type TestServer } from './helpers/trpc.ts';
 
@@ -33,6 +33,16 @@ describe('health.clock', () => {
         expect(result.now).toBeGreaterThanOrEqual(before);
         expect(result.now).toBeLessThanOrEqual(Date.now());
         expect([120, 180]).toContain(result.utcOffsetMinutes);
+    });
+
+    // The table the app converts every time with. It has to cover today, and
+    // agree with the offset reported beside it.
+    test("carries the clinic zone's offsets around now", async () => {
+        const { now, utcOffsetMinutes: offset, zone } = await client().health.clock.query();
+        expect(zone.zone).toBe('Africa/Cairo');
+        expect(zone.spans[0]?.[0]).toBeLessThan(now - 365 * 86_400_000);
+        const current = zone.spans.findLast(([from]) => from <= now);
+        expect(current?.[1]).toBe(offset);
     });
 
     // Cairo keeps summer time from the last Friday of April to the last

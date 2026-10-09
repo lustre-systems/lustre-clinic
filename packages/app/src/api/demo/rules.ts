@@ -9,9 +9,13 @@
  * because the two have to be changed together.
  */
 import {
+    callerWallClock,
+    clinicDayOf,
+    dayRange,
     ERROR_CODE,
     type ErrorCode,
     MAX_AMOUNT_PIASTRES,
+    pad2,
     REF_ALPHABET,
     REF_RANDOM_LENGTH,
     type Tooth,
@@ -115,26 +119,11 @@ export function buildPatientRef(): string {
 // --- time (`server/src/util/time.ts`) ---------------------------------------
 
 function refDatePart(at: Date, offsetMinutes = 0): string {
-    const local = new Date(at.getTime() + offsetMinutes * 60_000);
-    const dd = String(local.getUTCDate()).padStart(2, '0');
-    const mm = String(local.getUTCMonth() + 1).padStart(2, '0');
-    const yy = String(local.getUTCFullYear() % 100).padStart(2, '0');
-    return `${dd}${mm}${yy}`;
+    const { year, month, day } = callerWallClock(at, offsetMinutes);
+    return `${pad2(day)}${pad2(month)}${pad2(year % 100)}`;
 }
 
-export function dayRange(date: string, offsetMinutes = 0): { from: Date; to: Date } {
-    const startUtc = new Date(`${date}T00:00:00Z`);
-    if (Number.isNaN(startUtc.getTime())) throw new Error(`invalid date: ${date}`);
-
-    const from = new Date(startUtc.getTime() - offsetMinutes * 60_000);
-    return { from, to: new Date(from.getTime() + 86_400_000) };
-}
-
-/** The clinic day a moment falls on, as the same half-open range `dayRange` returns. */
-export function clinicDayOf(at: Date, offsetMinutes = 0): { from: Date; to: Date } {
-    const key = new Date(at.getTime() + offsetMinutes * 60_000).toISOString().slice(0, 10);
-    return dayRange(key, offsetMinutes);
-}
+export { clinicDayOf, dayRange };
 
 export function ageFromBirthDate(birthDate: string | null, on: Date = new Date()): number | null {
     if (!birthDate) return null;

@@ -1,3 +1,4 @@
+import { clinicWallClock } from '@lustre/shared';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { MoneyValue, StatusBadge } from '../../../components/domain';
 import { useLocale, useT } from '../../../i18n';
@@ -227,10 +228,10 @@ function Meaning({ entry }: { entry: PatientHistoryEntry }) {
 }
 
 function stamp(iso: string): { day: string; month: string } {
-    const date = new Date(iso);
+    const date = clinicWallClock(iso);
     return {
-        day: String(date.getDate()).padStart(2, '0'),
-        month: MONTHS[date.getMonth()] ?? '',
+        day: String(date.day).padStart(2, '0'),
+        month: MONTHS[date.month - 1] ?? '',
     };
 }
 

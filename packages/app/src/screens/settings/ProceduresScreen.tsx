@@ -597,7 +597,7 @@ function ProcedureEditor({
                         isCheckup: details.isCheckup,
                     },
                 });
-                onSaved(`${newCategory} added`);
+                onSaved(t('{category} added', { category: newCategory }));
                 return;
             }
 

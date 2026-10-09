@@ -80,13 +80,13 @@ import {
 } from '../procedures';
 import {
     addDays,
+    clinicOffsetNow,
     dateKey as dayKeyOf,
+    dayOfMonth,
     isoAt,
-    localOffsetMinutes,
     minutesOfDay,
     monthShort,
     offsetForDate,
-    parseKey,
     relativeDayLabel,
     time12,
     todayKey,
@@ -169,7 +169,7 @@ export function BookingScreen({
     // price it. Until then there is nothing to compare, so nothing has changed.
     const [planSeeded, setPlanSeeded] = useState(rescheduling === undefined);
     // A move opens on the day the appointment already has, not the day behind.
-    const movingFrom = rescheduling ? dayKeyOf(new Date(rescheduling.startsAt)) : null;
+    const movingFrom = rescheduling ? dayKeyOf(rescheduling.startsAt) : null;
     const openOn = movingFrom ?? dateKey;
     const [timing, setTiming] = useState<Timing>(
         asked ?? (!isClosed(today, schedule, branchId) && dateKey === today ? 'now' : 'later'),
@@ -357,7 +357,7 @@ export function BookingScreen({
             if (at === null) return;
             // Nothing the server holds has changed, so there is nothing to write.
             if (!timeChanged && !lengthChanged && !branchChanged && !planChanged && !noteEdited) {
-                onBooked(`${name}'s booking is unchanged`);
+                onBooked(t("{name}'s booking is unchanged", { name }));
                 return;
             }
             move.mutate(
@@ -375,8 +375,12 @@ export function BookingScreen({
                     onSuccess: () =>
                         onBooked(
                             !timeChanged
-                                ? `${name}'s booking updated`
-                                : `${name} moved to ${dayLabel(date)} at ${timeLabel(at)}`,
+                                ? t("{name}'s booking updated", { name })
+                                : t('{name} moved to {day} at {time}', {
+                                      name,
+                                      day: dayLabel(date),
+                                      time: timeLabel(at),
+                                  }),
                         ),
                 },
             );
@@ -395,7 +399,7 @@ export function BookingScreen({
                     procedures,
                     note: body,
                     needsLab,
-                    offsetMinutes: localOffsetMinutes(),
+                    offsetMinutes: clinicOffsetNow(),
                 },
                 {
                     // A walk-in is never refused for want of room — the booked
@@ -409,16 +413,31 @@ export function BookingScreen({
                     // when in the same breath.
                     onSuccess: (result) => {
                         const pushed = result.moved.length;
-                        const who = name ? `${name} is checked in` : 'Walk-in checked in';
                         const seated = time12(result.appointment.startsAt);
+                        const at = `${seated.time} ${seated.meridiem}`;
                         // A minute of slack: the round trip alone puts the
                         // start a few seconds behind the clock, and that is
                         // still "now" to the person at the desk.
                         const waits = new Date(result.appointment.startsAt).getTime() > serverNow() + 60_000;
 
                         const parts = [
-                            waits ? `${who}, seen at ${seated.time} ${seated.meridiem}` : who,
-                            pushed > 0 ? `${pushed} appointment${pushed === 1 ? '' : 's'} moved back` : null,
+                            name
+                                ? waits
+                                    ? t('{name} is checked in, seen at {time}', { name, time: at })
+                                    : t('{name} is checked in', { name })
+                                : waits
+                                  ? t('Walk-in checked in, seen at {time}', { time: at })
+                                  : t('Walk-in checked in'),
+                            pushed > 0
+                                ? t(
+                                      pushed === 1
+                                          ? '{count} appointment moved back'
+                                          : '{count} appointments moved back',
+                                      {
+                                          count: pushed,
+                                      },
+                                  )
+                                : null,
                         ].filter((part) => part !== null);
 
                         onBooked(parts.join(' — '));
@@ -441,7 +460,16 @@ export function BookingScreen({
                 needsLab,
                 offsetMinutes: offsetForDate(date),
             },
-            { onSuccess: () => onBooked(`${name} — ${dayLabel(date)} at ${timeLabel(slotMinutes)}`) },
+            {
+                onSuccess: () =>
+                    onBooked(
+                        t('{name} — {day} at {time}', {
+                            name,
+                            day: dayLabel(date),
+                            time: timeLabel(slotMinutes),
+                        }),
+                    ),
+            },
         );
     }
 
@@ -513,7 +541,7 @@ export function BookingScreen({
                     {scheduled ? (
                         <>
                             <Text variant="title2" script="sans" weight="bold" tone="inverse">
-                                {parseKey(date).getDate()}
+                                {dayOfMonth(date)}
                             </Text>
                             <Text variant="eyebrow" tone="inverse" style={styles.tileMonth}>
                                 {monthShort(date).toUpperCase()}

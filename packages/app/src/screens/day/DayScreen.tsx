@@ -362,7 +362,7 @@ function DayScreenView({
         branches.data?.[0]?.id ??
         null;
 
-    const reminders = useLocalQuery('reminders', () => api.pendingReminders(todayKey()));
+    const reminders = useLocalQuery('reminders', () => api.pendingReminders());
     const reminderCount = reminders.data?.length ?? 0;
 
     // Tapping a row that already has a visit. Separate from `loadVisit` so a
@@ -540,7 +540,7 @@ function DayScreenView({
     function seated(): string {
         // Checking in no longer means going in: with the chair taken they join
         // the queue, and the message has to say which happened.
-        return chair ? `waiting, ${waiting.length + 1} ahead` : 'in the chair';
+        return chair ? t('waiting, {count} ahead', { count: waiting.length + 1 }) : t('in the chair');
     }
 
     /**
@@ -556,7 +556,7 @@ function DayScreenView({
      */
     function stayOnDay(patient: EmbeddedPatient, standing: string) {
         setBookNextOpen(false);
-        setToast(`${patient.name} is ${standing}`);
+        setToast(t('{name} is {standing}', { name: patient.name, standing }));
     }
 
     /**
@@ -601,7 +601,7 @@ function DayScreenView({
     function markNoShow(appointment: Appointment) {
         noShow.mutate(appointment.id, {
             onSuccess: () => {
-                setToast(`${appointment.patient.name} marked as a no-show`);
+                setToast(t('{name} marked as a no-show', { name: appointment.patient.name }));
                 day.refetch();
             },
         });
@@ -978,7 +978,11 @@ function DayScreenView({
                                 // until the work is done.
                                 if (visit.standing === 'waiting') {
                                     routes.popToRoot();
-                                    setToast(`${visit.appointment.patient.name} is still waiting`);
+                                    setToast(
+                                        t('{name} is still waiting', {
+                                            name: visit.appointment.patient.name,
+                                        }),
+                                    );
                                     day.refetch();
                                     return;
                                 }

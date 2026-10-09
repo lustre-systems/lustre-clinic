@@ -13,7 +13,16 @@
  * scanned a code keeps working as it did before roles existed; the admin turns
  * it on once every phone in the clinic has one.
  */
-import { GRANT_TTL_MINUTES, grantCodeOf, joinUrl, MAX_DEVICE_LABEL, ROLES, type Role } from '@lustre/shared';
+import {
+    clinicWallClock,
+    GRANT_TTL_MINUTES,
+    grantCodeOf,
+    joinUrl,
+    MAX_DEVICE_LABEL,
+    ROLES,
+    type Role,
+    todayKey,
+} from '@lustre/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
@@ -53,10 +62,9 @@ const STATUS: Record<Grant['status'], { label: string; tone: TagTone }> = {
 };
 
 function when(iso: string | Date): string {
-    const at = new Date(iso);
-    const today = new Date();
-    const time = formatStamp(at.getTime());
-    return at.toDateString() === today.toDateString() ? time : `${at.getDate()}/${at.getMonth() + 1} ${time}`;
+    const at = clinicWallClock(iso);
+    const time = formatStamp(new Date(iso).getTime());
+    return at.key === todayKey() ? time : `${at.day}/${at.month} ${time}`;
 }
 
 export function RolesScreen({ onBack }: { onBack: () => void }) {

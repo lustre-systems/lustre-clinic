@@ -8,9 +8,15 @@
  * overnight.
  */
 import { describe, expect, it } from 'bun:test';
+import { instantAt } from '@lustre/shared';
 import { minutesOfClock, planNudges } from './schedule';
 
-const AT_NOON = new Date(2026, 7, 27, 12, 0, 0, 0);
+/** `HH:MM` on a clinic day, as the instant the clinic's clock reads it. */
+function clinic(key: string, hours: number, minutes = 0): number {
+    return instantAt(key, hours * 60 + minutes);
+}
+
+const AT_NOON = clinic('2026-08-27', 12);
 
 function plan(over: Partial<Parameters<typeof planNudges>[0]> = {}) {
     return planNudges({
@@ -29,9 +35,9 @@ describe('planNudges', () => {
         const { at, silent } = plan();
 
         expect(silent).toBe('pending');
-        expect(at[0]).toEqual(new Date(2026, 7, 27, 19, 0, 0, 0));
-        expect(at[1]).toEqual(new Date(2026, 7, 27, 19, 30, 0, 0));
-        expect(at.at(-1)).toEqual(new Date(2026, 7, 27, 23, 30, 0, 0));
+        expect(at[0]).toEqual(new Date(clinic('2026-08-27', 19)));
+        expect(at[1]).toEqual(new Date(clinic('2026-08-27', 19, 30)));
+        expect(at.at(-1)).toEqual(new Date(clinic('2026-08-27', 23, 30)));
         // 19:00 to 23:30 inclusive, every half hour.
         expect(at).toHaveLength(10);
     });
@@ -54,9 +60,9 @@ describe('planNudges', () => {
     it('never schedules a slot that has already passed', () => {
         // Foregrounded at 21:10. The 19:00, 19:30, 20:00, 20:30 and 21:00 slots
         // are gone; scheduling them would buzz five times on the spot.
-        const { at } = plan({ now: new Date(2026, 7, 27, 21, 10, 0, 0) });
+        const { at } = plan({ now: clinic('2026-08-27', 21, 10) });
 
-        expect(at[0]).toEqual(new Date(2026, 7, 27, 21, 30, 0, 0));
+        expect(at[0]).toEqual(new Date(clinic('2026-08-27', 21, 30)));
         expect(at).toHaveLength(5);
     });
 
@@ -64,7 +70,7 @@ describe('planNudges', () => {
         const { at, silent } = plan({
             notifyAt: 20 * 60,
             repeatMinutes: 120,
-            now: new Date(2026, 7, 27, 23, 45, 0, 0),
+            now: clinic('2026-08-27', 23, 45),
         });
 
         expect(at).toEqual([]);
@@ -72,10 +78,38 @@ describe('planNudges', () => {
     });
 
     it('caps the series, so a 6am start every quarter hour is not 72 alarms', () => {
-        const { at } = plan({ notifyAt: 6 * 60, repeatMinutes: 15, now: new Date(2026, 7, 27, 5, 0) });
+        const { at } = plan({ notifyAt: 6 * 60, repeatMinutes: 15, now: clinic('2026-08-27', 5) });
 
         expect(at.length).toBeLessThanOrEqual(24);
-        expect(at[0]).toEqual(new Date(2026, 7, 27, 6, 0, 0, 0));
+        expect(at[0]).toEqual(new Date(clinic('2026-08-27', 6)));
+    });
+
+    // 7 pm in Cairo is 16:00 UTC in summer, whatever zone the phone is set to.
+    it("fires at the clinic's notify time, not the phone zone's", () => {
+        const { at } = plan();
+
+        expect(at[0]?.toISOString()).toBe('2026-08-27T16:00:00.000Z');
+    });
+
+    // The night summer time ends: 24:00 at +3 becomes 23:00 at +2, so the
+    // last hour of the clinic's Thursday runs twice. The series still ends at
+    // midnight, and every slot is a distinct instant on the right side of it.
+    it("keeps the clinic's times across the end of summer time", () => {
+        const { at } = plan({
+            today: '2026-10-29',
+            notifyAt: 22 * 60,
+            repeatMinutes: 30,
+            now: clinic('2026-10-29', 12),
+        });
+
+        expect(at.map((date) => date.toISOString())).toEqual([
+            '2026-10-29T19:00:00.000Z',
+            '2026-10-29T19:30:00.000Z',
+            '2026-10-29T20:00:00.000Z',
+            '2026-10-29T20:30:00.000Z',
+        ]);
+        const next = plan({ today: '2026-10-30', notifyAt: 19 * 60, now: clinic('2026-10-30', 12) });
+        expect(next.at[0]?.toISOString()).toBe('2026-10-30T17:00:00.000Z');
     });
 
     it('survives a repeat of zero rather than looping forever', () => {
