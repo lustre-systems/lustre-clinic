@@ -1179,7 +1179,7 @@ export const COPY_AR = {
         'يُضاف إلى كل زيارة عند تسجيل الوصول، ويُلغى إذا أُجري أي عمل آخر. يمكن أن يحمل هذا الإعداد إجراء واحد فقط.',
     'Appointment reminders': 'تذكيرات المواعيد',
     'Appointment reminders (ringing)': 'تذكيرات المواعيد (رنين)',
-    Snooze: 'غفوة',
+    'Done for today': 'إيقاف لليوم',
     'Open reminders': 'فتح التذكيرات',
     'The daily nudge that reminders are still waiting to be sent.':
         'تنبيه يومي بأن هناك تذكيرات لم تُرسل بعد.',
@@ -1343,6 +1343,10 @@ export const COPY_AR = {
     'Procedures marked as done to a tooth ask which one.': 'الإجراءات المحددة على سن تسأل عن السن.',
     'Tap a category to choose a variant.': 'اضغط على فئة لاختيار نوع.',
     'Off: once per visit.': 'عند الإيقاف: مرة واحدة لكل زيارة.',
+    'Turn back on': 'إعادة التفعيل',
+    'The reminder alarm is off for today.': 'منبّه التذكيرات متوقف لهذا اليوم.',
+    'The reminder alarm repeats until the list is clear.': 'يتكرر منبّه التذكيرات حتى تفرغ القائمة.',
+    'The reminder alarm could not be changed — try again.': 'تعذّر تغيير منبّه التذكيرات — حاول مرة أخرى.',
 } as const;
 
 export type CopyKey = keyof typeof COPY_AR;

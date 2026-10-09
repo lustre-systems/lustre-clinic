@@ -17,18 +17,30 @@
  * blocked — the lab often promises the work by phone — so WhatsApp stays, as
  * Send anyway. Lab's back is optimistic like the rest, and a failure puts the
  * warning back.
+ *
+ * Above the list, the daily nudge for today: it rings again every repeat until
+ * the list is clear, and Done for today stops it for the rest of the day on both
+ * desk phones, as the same button on the ringing alarm does. Turn back on undoes
+ * it. Neither touches the list.
  */
 import { FontAwesome } from '@expo/vector-icons';
 import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
-import { Banner, Button, EmptyState, type PullToRefresh, RefreshView } from '../../../components/ui';
+import {
+    Banner,
+    Button,
+    EmptyState,
+    type PullToRefresh,
+    RefreshView,
+    usePendingAction,
+} from '../../../components/ui';
 import { useLocale, useT } from '../../../i18n';
-import { useRearmReminderNudges } from '../../../notifications';
+import { forgetAlarmDismissal, useRearmReminderNudges, useRemindersOffToday } from '../../../notifications';
 import { border, color, size, space, Text } from '../../../theme';
 import { openWhatsApp } from '../../../whatsapp';
 import { api, type PendingReminder, type QueryResult } from '../data';
 import { describeError } from '../errors';
-import { dateKey, relativeDayLabel, time12 } from '../time';
+import { dateKey, relativeDayLabel, time12, todayKey } from '../time';
 import { DaySkeleton } from './DayStates';
 import { CheckIcon, CloseIcon, LabIcon, RetryIcon } from './icons';
 
@@ -145,6 +157,7 @@ export function Reminders({ query, pull, onOpenRecord }: RemindersProps) {
 
     return (
         <View style={styles.pane}>
+            <TodayNudge />
             {failed ? (
                 <Banner
                     tone="warning"
@@ -175,6 +188,62 @@ export function Reminders({ query, pull, onOpenRecord }: RemindersProps) {
                 ))}
             </ScrollView>
         </View>
+    );
+}
+
+/**
+ * Done for today, or Turn back on once it is. The answer is held on screen
+ * until the settings read back agree, or the label would flick back for the
+ * moment between the write and the refetch.
+ */
+function TodayNudge() {
+    const off = useRemindersOffToday();
+    const rearm = useRearmReminderNudges();
+    const [shown, setShown] = useState<boolean | null>(null);
+    const [failed, setFailed] = useState(false);
+
+    if (shown !== null && shown === off) setShown(null);
+
+    const toggle = usePendingAction(async () => {
+        setFailed(false);
+        const today = todayKey();
+        try {
+            if (off) {
+                // This phone's own press would keep today quiet whatever the server says.
+                forgetAlarmDismissal();
+                await api.resumeRemindersToday(today);
+            } else {
+                await api.dismissRemindersToday(today);
+            }
+            setShown(!off);
+        } catch {
+            setFailed(true);
+        } finally {
+            rearm();
+        }
+    });
+
+    const quiet = shown ?? off;
+    return (
+        <Banner
+            tone={failed ? 'warning' : 'info'}
+            message={
+                failed
+                    ? 'The reminder alarm could not be changed — try again.'
+                    : quiet
+                      ? 'The reminder alarm is off for today.'
+                      : 'The reminder alarm repeats until the list is clear.'
+            }
+            action={
+                <Button
+                    label={quiet ? 'Turn back on' : 'Done for today'}
+                    variant="text"
+                    size="md"
+                    loading={toggle.pending}
+                    onPress={toggle.run}
+                />
+            }
+        />
     );
 }
 

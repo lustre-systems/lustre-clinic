@@ -8,6 +8,8 @@ listed.
 
 ## [Unreleased]
 
+- The reminder alarm's Snooze is now "Done for today": it stops the alarm for the rest of the day on both desk phones, even with the app closed, and it starts again tomorrow. The Reminders tab has the same button, and "Turn back on" if it was pressed by mistake.
+
 ## [1.8.1] - 2026-10-06
 
 - Bookings and times now always use the clinic's time, even on a phone whose time zone or clock is set wrong, so a 5:30 booking no longer lands at 6:30.

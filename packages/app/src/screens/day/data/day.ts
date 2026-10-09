@@ -148,6 +148,10 @@ export const api = {
     dismissRemindersToday: (date: string): Promise<unknown> =>
         wrap(() => trpcClient.reminder.dismissToday.mutate({ date })),
 
+    /** Undoes `dismissRemindersToday` for `date`: the nudge arms again. */
+    resumeRemindersToday: (date: string): Promise<unknown> =>
+        wrap(() => trpcClient.reminder.resumeToday.mutate({ date })),
+
     searchPatients: (q: string): Promise<Patient[]> =>
         wrap(() => trpcClient.patient.search.query({ q, limit: 8 })),
 

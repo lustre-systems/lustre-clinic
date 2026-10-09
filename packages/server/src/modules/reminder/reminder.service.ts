@@ -195,4 +195,9 @@ export const reminderService = {
     async dismissToday(input: DismissTodayInput) {
         return settingsService.dismissRemindersFor(input.date);
     },
+
+    /** Undoes `dismissToday` for `date`, and only for it: another day's dismissal is left alone. */
+    async resumeToday(input: DismissTodayInput) {
+        return settingsService.resumeRemindersFor(input.date);
+    },
 };
