@@ -8,12 +8,13 @@
  * nothing was booked on these days that the answer depends on — and holds no
  * state; the month on show and the pick are the caller's.
  */
-import { keyParts, todayKey, weekdayOf } from '@lustre/shared';
+import { keyParts, todayKey } from '@lustre/shared';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { Chevron, IconButton } from '../../../components/ui';
 import { useT } from '../../../i18n';
 import { border, color, radius, size, space, Text } from '../../../theme';
-import { addMonths, formatLongDate, formatMonth, monthDays } from '../../day/time';
+import { WeekdayHeader, WeekRows } from '../../day/components/WeekRows';
+import { addMonths, formatLongDate, formatMonth } from '../../day/time';
 
 export type MonthGridProps = {
     /** Any day in the month on show. */
@@ -23,15 +24,9 @@ export type MonthGridProps = {
     onPick: (day: string) => void;
 };
 
-const WEEKDAY_INITIALS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'] as const;
-
 export function MonthGrid({ month, onMonth, selected, onPick }: MonthGridProps) {
     const t = useT();
     const today = todayKey();
-
-    const days = monthDays(month);
-    const leading = weekdayOf(days[0] ?? month);
-    const cells: (string | null)[] = [...Array<null>(leading).fill(null), ...days];
 
     function goToMonth(next: string) {
         // Paging forward stops at the month today is in — there is nothing to
@@ -79,29 +74,12 @@ export function MonthGrid({ month, onMonth, selected, onPick }: MonthGridProps) 
                 </View>
             </View>
 
-            <View style={styles.weekdays}>
-                {WEEKDAY_INITIALS.map((initial, index) => (
-                    <Text
-                        // biome-ignore lint/suspicious/noArrayIndexKey: two Ts and two Ss
-                        key={index}
-                        variant="caption"
-                        script="sans"
-                        weight="bold"
-                        tone="muted"
-                        style={styles.weekday}
-                    >
-                        {initial}
-                    </Text>
-                ))}
-            </View>
+            <WeekdayHeader />
 
-            <View style={styles.grid}>
-                {cells.map((day, index) => {
-                    if (!day) {
-                        // biome-ignore lint/suspicious/noArrayIndexKey: blank leading cell
-                        return <View key={`blank-${index}`} style={styles.cell} />;
-                    }
-
+            <WeekRows
+                month={month}
+                rowHeight={CELL}
+                renderDay={(day) => {
                     const ahead = day > today;
                     const picked = day === selected;
 
@@ -140,8 +118,8 @@ export function MonthGrid({ month, onMonth, selected, onPick }: MonthGridProps) 
                             </View>
                         </Pressable>
                     );
-                })}
-            </View>
+                }}
+            />
         </View>
     );
 }
@@ -178,11 +156,7 @@ const styles = StyleSheet.create({
     doubleChevron: { flexDirection: 'row', alignItems: 'center' },
     overlap: { marginStart: -3 },
 
-    weekdays: { flexDirection: 'row' },
-    weekday: { width: `${100 / 7}%`, textAlign: 'center' },
-
-    grid: { flexDirection: 'row', flexWrap: 'wrap', marginTop: space[1] },
-    cell: { width: `${100 / 7}%`, height: CELL, padding: space[0.5] },
+    cell: { flex: 1, padding: space[0.5] },
     cellBox: {
         flex: 1,
         alignItems: 'center',
