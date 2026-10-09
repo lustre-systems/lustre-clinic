@@ -11,6 +11,7 @@ listed.
 ### Fixed
 
 - Editing the payment on a visit that was already checked out works again. Full, Half and Nothing now mean paid in full, half the bill paid and unpaid, so a visit can be moved between any of them, including back down from paid in full. Before, on a visit that was already paid, all three left the amount where it was. The patient's balance follows the edit. A visit priced in pounds and piastres keeps its exact amount when the payment isn't touched, and the paid amount still can't go above what the visit charges.
+- When editing a checked-out visit, how it was paid can be changed without changing the amount: the payment screen now opens on the method the visit was actually paid by (it used to always show Cash), and picking another one, say Card instead of Cash, re-records what was paid that way. The balance doesn't change, and the money screen's split by method follows. A visit paid in two ways can be put all onto one.
 
 ## [1.8.0] - 2026-10-02
 

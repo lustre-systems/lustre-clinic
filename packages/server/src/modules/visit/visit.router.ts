@@ -12,6 +12,7 @@ import {
     recordPaymentInput,
     reopenInput,
     setPaidInput,
+    setPaidMethodInput,
     setPriceInput,
     setProceduresInput,
     visitByAppointmentInput,
@@ -52,6 +53,10 @@ export const visitRouter = router({
         .mutation(({ input, ctx }) => visitService.reopen(input, ctx.caller.role)),
 
     setPaid: paymentProcedure.input(setPaidInput).mutation(({ input }) => visitService.setPaid(input)),
+
+    setPaidMethod: paymentProcedure
+        .input(setPaidMethodInput)
+        .mutation(({ input }) => visitService.setPaidMethod(input)),
 
     delete: clinicProcedure.input(deleteVisitInput).mutation(({ input }) => visitService.delete(input)),
 

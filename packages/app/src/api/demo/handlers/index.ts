@@ -94,6 +94,7 @@ const handlers = {
     'visit.recordPayment': visitHandlers.recordPayment,
     'visit.reopen': visitHandlers.reopen,
     'visit.setPaid': visitHandlers.setPaid,
+    'visit.setPaidMethod': visitHandlers.setPaidMethod,
     'visit.delete': visitHandlers.delete,
     'visit.deletePayment': visitHandlers.deletePayment,
 

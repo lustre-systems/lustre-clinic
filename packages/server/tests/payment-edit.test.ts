@@ -153,3 +153,91 @@ describe('editing the payment on a checked-out visit', () => {
         expect(refunded.balance).toBe(0);
     });
 });
+
+function today() {
+    const day = (at: Date) => at.toISOString().slice(0, 10);
+    return { from: day(new Date()), to: day(new Date(Date.now() + 86_400_000)), offsetMinutes: 0 };
+}
+
+describe('saying again how a checked-out visit was paid', () => {
+    test('moves cash to card without changing the balance', async () => {
+        const f = await fixtures();
+        const { visitId, charged } = await checkedOutUnpaid(f);
+        await visitService.setPaid({ visitId, paidTotal: charged, method: 'cash' });
+
+        const restated = await visitService.setPaidMethod({ visitId, method: 'visa' });
+
+        expect(restated.paidTotal).toBe(charged);
+        expect(restated.balance).toBe(0);
+        expect(await outstandingOf(f.patient.id)).toBe(0);
+        // Append-only: the cash stays on the record, given back, and the card takes it.
+        expect((restated.payments ?? []).map((p) => [p.method, p.amount])).toEqual([
+            ['cash', charged],
+            ['cash', -charged],
+            ['visa', charged],
+        ]);
+
+        const takings = await balanceService.takings(today());
+        expect(takings.total).toBe(charged);
+        expect(takings.byMethod).toContainEqual({ method: 'visa', amount: charged, count: 1 });
+        expect(takings.byMethod).toContainEqual({ method: 'cash', amount: 0, count: 2 });
+    });
+
+    test('folds a split payment onto one method', async () => {
+        const f = await fixtures();
+        const { visitId, charged } = await checkedOutUnpaid(f);
+        await visitService.setPaid({ visitId, paidTotal: 100_000, method: 'cash' });
+        await visitService.setPaid({ visitId, paidTotal: charged, method: 'instapay' });
+
+        const restated = await visitService.setPaidMethod({ visitId, method: 'instapay' });
+
+        expect(restated.paidTotal).toBe(charged);
+        const net = (method: string) =>
+            (restated.payments ?? [])
+                .filter((p) => p.method === method)
+                .reduce((sum, p) => sum + p.amount, 0);
+        expect(net('cash')).toBe(0);
+        expect(net('instapay')).toBe(charged);
+    });
+
+    test('writes nothing when it is already all in that method', async () => {
+        const f = await fixtures();
+        const { visitId, charged } = await checkedOutUnpaid(f);
+        await visitService.setPaid({ visitId, paidTotal: charged, method: 'visa' });
+
+        const same = await visitService.setPaidMethod({ visitId, method: 'visa' });
+        expect(same.payments?.length).toBe(1);
+    });
+
+    test('tells one other method from another by its note', async () => {
+        const f = await fixtures();
+        const { visitId, charged } = await checkedOutUnpaid(f);
+        await visitService.setPaid({
+            visitId,
+            paidTotal: charged,
+            method: 'other',
+            methodNote: 'Bank transfer',
+        });
+
+        const restated = await visitService.setPaidMethod({
+            visitId,
+            method: 'other',
+            methodNote: 'Vodafone Cash',
+        });
+
+        expect(restated.paidTotal).toBe(charged);
+        expect((restated.payments ?? []).map((p) => [p.methodNote, p.amount])).toEqual([
+            ['Bank transfer', charged],
+            ['Bank transfer', -charged],
+            ['Vodafone Cash', charged],
+        ]);
+    });
+
+    test('writes nothing on a visit with nothing paid', async () => {
+        const f = await fixtures();
+        const { visitId } = await checkedOutUnpaid(f);
+
+        const same = await visitService.setPaidMethod({ visitId, method: 'visa' });
+        expect(same.payments).toEqual([]);
+    });
+});

@@ -401,6 +401,47 @@ export const visitHandlers = {
         return readVisit(visit.id);
     },
 
+    /**
+     * Say again how the money on a visit was paid without changing how much,
+     * as on the server: each other method's net is given back in that method
+     * and taken again in `method`. `other` is told apart by its note. Already
+     * all in `method`, it writes nothing.
+     */
+    setPaidMethod(input: RouterInput['visit']['setPaidMethod']): Visit {
+        const visit = requireVisit(input.visitId);
+        const methodNote = input.method === 'other' ? (input.methodNote?.trim() ?? null) : null;
+        if (input.method === 'other' && !methodNote) {
+            throw new DemoError(ERROR_CODE.PAYMENT_NOTE_REQUIRED, "method 'other' requires a note", 422);
+        }
+
+        const keyOf = (method: PaymentRow['method'], note: string | null) =>
+            method === 'other' ? `other:${note?.trim() ?? ''}` : method;
+        const target = keyOf(input.method, methodNote);
+
+        const nets = new Map<
+            string,
+            { amount: number; method: PaymentRow['method']; methodNote: string | null }
+        >();
+        for (const row of getDb().payments.filter((payment) => payment.visitId === visit.id)) {
+            const key = keyOf(row.method, row.methodNote);
+            const net = nets.get(key);
+            if (net) net.amount += row.amount;
+            else nets.set(key, { amount: row.amount, method: row.method, methodNote: row.methodNote });
+        }
+
+        let moved = 0;
+        for (const [key, net] of nets) {
+            if (key === target || net.amount === 0) continue;
+            insertPayment(visit.id, -net.amount, net.method, net.methodNote);
+            moved += net.amount;
+        }
+        if (moved !== 0) insertPayment(visit.id, moved, input.method, methodNote);
+
+        save();
+        broadcast(WS_EVENT.VISIT_UPDATED);
+        return readVisit(visit.id);
+    },
+
     recordPayment(input: RouterInput['visit']['recordPayment']): Visit {
         const visit = requireVisit(input.visitId);
         insertPayment(visit.id, input.amount, input.method, input.methodNote ?? null);

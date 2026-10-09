@@ -13,7 +13,7 @@
  * `discountPercent` is presentation only: prices stay whole piastres, and this
  * just says how far a typed price sits under the catalogue's.
  */
-import { PIASTRES_PER_POUND } from '@lustre/shared';
+import { PAYMENT_METHODS, type PaymentMethod, PIASTRES_PER_POUND } from '@lustre/shared';
 import { toPounds } from '../../components/domain/money';
 import type { Visit, VisitLine } from './data/types';
 
@@ -97,6 +97,41 @@ export function procedureDiscount(
     }
     const percent = discountPercent(usual, charged);
     return percent === null ? null : { off: usual - charged, usual, percent };
+}
+
+export interface PaidBy {
+    method: PaymentMethod;
+    methodNote: string | null;
+    amount: number;
+}
+
+/**
+ * How the money on a visit was paid, net of its corrections: one entry per
+ * method still holding any, `other` once per note, largest first. Empty when
+ * nothing is paid. A method the enum does not know reads as `other`.
+ */
+export function paidBy(
+    payments: ReadonlyArray<{ amount: number; method: string; methodNote: string | null }>,
+): PaidBy[] {
+    const nets = new Map<string, PaidBy>();
+    for (const payment of payments) {
+        const method = (PAYMENT_METHODS as readonly string[]).includes(payment.method)
+            ? (payment.method as PaymentMethod)
+            : 'other';
+        const methodNote = method === 'other' ? (payment.methodNote?.trim() ?? null) : null;
+        const key = method === 'other' ? `other:${methodNote ?? ''}` : method;
+        const net = nets.get(key);
+        if (net) net.amount += payment.amount;
+        else nets.set(key, { method, methodNote, amount: payment.amount });
+    }
+    return [...nets.values()].filter((net) => net.amount > 0).sort((a, b) => b.amount - a.amount);
+}
+
+/** Whether `held` is already all in `method` — restating it would write nothing. */
+export function alreadyPaidBy(held: readonly PaidBy[], method: PaymentMethod, methodNote: string): boolean {
+    const [only, ...rest] = held;
+    if (!only || rest.length > 0 || only.method !== method) return false;
+    return method !== 'other' || (only.methodNote ?? '') === methodNote.trim();
 }
 
 export interface PricedLine extends VisitLine {

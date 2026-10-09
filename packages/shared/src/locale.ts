@@ -664,6 +664,12 @@ export const COPY_AR = {
         'يُحصّل {amount} الآن. و{collected} المسجلة على هذه الزيارة تحتفظ بطريقة دفعها.',
     '{amount} given back. What stays paid keeps how it was paid.':
         'أُعيد {amount}. وما يبقى مدفوعًا يحتفظ بطريقة دفعه.',
+    'The {amount} already paid will be recorded as {method}.':
+        'سيُسجَّل المبلغ المدفوع {amount} على أنه {method}.',
+    'Paid more than one way. Pick one to record all of it that way.':
+        'دُفع بأكثر من طريقة. اختر طريقة واحدة لتسجيل المبلغ كله بها.',
+    'Paid by {method}. Pick another to change how it was paid.':
+        'طريقة الدفع: {method}. اختر طريقة أخرى لتغييرها.',
     '{amount} paid — {balance} still owed on this visit.':
         'دُفع {amount} — وما زال {balance} مستحقًا على هذه الزيارة.',
     '{amount} paid. Nothing left on this visit.': 'دُفع {amount}. لم يتبق شيء على هذه الزيارة.',

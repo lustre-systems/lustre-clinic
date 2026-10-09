@@ -152,3 +152,48 @@ describe('editing the payment on a checked-out visit (demo)', () => {
         expect(visit.balance).toBe(charged);
     });
 });
+
+describe('saying again how a checked-out visit was paid (demo)', () => {
+    it('moves cash to card without changing the balance, as the server does', () => {
+        const { visitId, patientId, charged, owedBefore } = checkedOutUnpaid();
+        visitHandlers.setPaid({ visitId, paidTotal: charged, method: 'cash' });
+
+        const restated = visitHandlers.setPaidMethod({ visitId, method: 'visa' });
+
+        expect(restated.paidTotal).toBe(charged);
+        expect(restated.balance).toBe(0);
+        expect(outstandingOf(patientId)).toBe(owedBefore);
+        expect((restated.payments ?? []).map((p) => [p.method, p.amount])).toEqual([
+            ['cash', charged],
+            ['cash', -charged],
+            ['visa', charged],
+        ]);
+    });
+
+    it('writes nothing when it is already all in that method', () => {
+        const { visitId, charged } = checkedOutUnpaid();
+        visitHandlers.setPaid({ visitId, paidTotal: charged, method: 'visa' });
+
+        expect(visitHandlers.setPaidMethod({ visitId, method: 'visa' }).payments?.length).toBe(1);
+    });
+
+    it('tells one other method from another by its note, and wants one', () => {
+        const { visitId, charged } = checkedOutUnpaid();
+        visitHandlers.setPaid({ visitId, paidTotal: charged, method: 'other', methodNote: 'Bank transfer' });
+
+        expect(() => visitHandlers.setPaidMethod({ visitId, method: 'other', methodNote: ' ' })).toThrow(
+            DemoError,
+        );
+
+        const restated = visitHandlers.setPaidMethod({
+            visitId,
+            method: 'other',
+            methodNote: 'Vodafone Cash',
+        });
+        expect((restated.payments ?? []).map((p) => [p.methodNote, p.amount])).toEqual([
+            ['Bank transfer', charged],
+            ['Bank transfer', -charged],
+            ['Vodafone Cash', charged],
+        ]);
+    });
+});

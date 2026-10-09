@@ -36,10 +36,12 @@ import { border, color, font, radius, size, space, Text, type } from '../../../t
 import { type Appointment, api, closeVisit, useLocalMutation, useLocalQuery } from '../data';
 import { describeError } from '../errors';
 import {
+    alreadyPaidBy,
     amountDue,
     discountPercent,
     formatAmount,
     type PricedVisit,
+    paidBy,
     paidEntry,
     procedureDiscount,
     quickAmounts,
@@ -127,14 +129,25 @@ export function VisitPaymentScreen({
     // the difference back, which the hint under the methods says in so many
     // words, rather than on a credit the model has no place for.
     const [entry, setEntry] = useState(() => paidEntry(correcting ? Math.min(collected, ceiling) : due));
-    const [method, setMethod] = useState<PaymentMethod>('cash');
-    const [methodNote, setMethodNote] = useState('');
+    // How the money already on a corrected visit was paid, so the methods open
+    // on the truth rather than on cash. Largest first when it was split.
+    const held = useMemo(
+        () => (correcting ? paidBy(visit.payments ?? []) : []),
+        [correcting, visit.payments],
+    );
+    const [method, setMethod] = useState<PaymentMethod>(() => held[0]?.method ?? 'cash');
+    const [methodNote, setMethodNote] = useState(() => held[0]?.methodNote ?? '');
+    // Whether the desk chose a method rather than leaving the one it opened on.
+    // Opening on a split payment must not fold it into its largest part unasked.
+    const [picked, setPicked] = useState(false);
     const [showProcedures, setShowProcedures] = useState(false);
     const [toast, setToast] = useState<string | null>(null);
     const [done, setDone] = useState<Done | null>(null);
 
     const checkOut = useLocalMutation(closeVisit);
     const setPaidTotal = useLocalMutation(api.setPaid);
+    const setPaidMethod = useLocalMutation(api.setPaidMethod);
+    const writing = checkOut.pending || setPaidTotal.pending || setPaidMethod.pending;
 
     const paidPiastres = entry.piastres;
     const remaining = Math.max(ceiling - paidPiastres, 0);
@@ -154,7 +167,12 @@ export function VisitPaymentScreen({
     // ask for; changing it does move money, even when the new figure is zero,
     // because that is a refund of everything.
     const moves = moving !== 0;
-    const noteMissing = moves && method === 'other' && methodNote.trim() === '';
+    // With the total left alone, the methods say how what is already on the
+    // visit was paid, and choosing another says it again: no money moves, but
+    // the takings by method do.
+    const restatable = correcting && !moves && held.length > 0;
+    const restating = restatable && picked && !alreadyPaidBy(held, method, methodNote);
+    const noteMissing = (moves || restating) && method === 'other' && methodNote.trim() === '';
 
     function setPaidClamped(typed: string) {
         const next = typedEntry(typed, ceiling);
@@ -186,10 +204,18 @@ export function VisitPaymentScreen({
      * there is none — so the checkout that follows takes no payment of its own.
      */
     function confirm() {
-        if (checkOut.pending || setPaidTotal.pending) return;
+        if (writing) return;
         onWritingChange?.(true);
         if (!correcting) {
             close(paidPiastres);
+            return;
+        }
+
+        if (restating) {
+            setPaidMethod.mutate(
+                { visitId: visit.id, method, methodNote: method === 'other' ? methodNote.trim() : null },
+                { onSuccess: () => close(0), onError: () => onWritingChange?.(false) },
+            );
             return;
         }
 
@@ -321,9 +347,18 @@ export function VisitPaymentScreen({
      * it is asking about, and that the first keeps what it was paid by.
      */
     const methodHint = !moves
-        ? correcting
-            ? t('Unchanged — no money moves either way.')
-            : t('Nothing collected — the full amount stays on this visit.')
+        ? restating
+            ? t('The {amount} already paid will be recorded as {method}.', {
+                  amount: formatMoney(collected),
+                  method: methodText(),
+              })
+            : restatable && held.length > 1
+              ? t('Paid more than one way. Pick one to record all of it that way.')
+              : restatable
+                ? t('Paid by {method}. Pick another to change how it was paid.', { method: methodText() })
+                : correcting
+                  ? t('Unchanged — no money moves either way.')
+                  : t('Nothing collected — the full amount stays on this visit.')
         : moving < 0
           ? t('{amount} given back. What stays paid keeps how it was paid.', {
                 amount: formatMoney(-moving),
@@ -335,7 +370,7 @@ export function VisitPaymentScreen({
               })
             : '';
 
-    const writeError = setPaidTotal.error ?? checkOut.error;
+    const writeError = setPaidTotal.error ?? setPaidMethod.error ?? checkOut.error;
     const failure = writeError ? describeError(writeError, 'check-out') : null;
     const day = dateKey(new Date(appointment.startsAt));
 
@@ -347,7 +382,7 @@ export function VisitPaymentScreen({
                     accessibilityLabel={t('Back to the visit')}
                     // A correction is two writes, the money and then the close;
                     // leaving between them strands a reopened visit.
-                    disabled={checkOut.pending || setPaidTotal.pending}
+                    disabled={writing}
                     onPress={onBack}
                     style={({ pressed }) => [styles.back, pressed && styles.backPressed]}
                 >
@@ -550,7 +585,10 @@ export function VisitPaymentScreen({
                     />
                 </View>
 
-                <View style={moves ? undefined : styles.methodsOff} pointerEvents={moves ? 'auto' : 'none'}>
+                <View
+                    style={moves || restatable ? undefined : styles.methodsOff}
+                    pointerEvents={moves || restatable ? 'auto' : 'none'}
+                >
                     <Text variant="eyebrow" tone="muted" style={styles.secLabel}>
                         {t(moving < 0 ? 'GIVEN BACK BY' : 'PAID BY')}
                     </Text>
@@ -563,7 +601,10 @@ export function VisitPaymentScreen({
                                     key={option}
                                     accessibilityRole="button"
                                     accessibilityState={{ selected: on }}
-                                    onPress={() => setMethod(option)}
+                                    onPress={() => {
+                                        setMethod(option);
+                                        setPicked(true);
+                                    }}
                                     style={({ pressed }) => [
                                         styles.method,
                                         on && styles.methodOn,
@@ -583,11 +624,14 @@ export function VisitPaymentScreen({
                         })}
                     </View>
 
-                    {method === 'other' && moves ? (
+                    {method === 'other' && (moves || restatable) ? (
                         <View style={styles.otherWrap}>
                             <TextInput
                                 value={methodNote}
-                                onChangeText={setMethodNote}
+                                onChangeText={(note) => {
+                                    setMethodNote(note);
+                                    setPicked(true);
+                                }}
                                 placeholder={t('How was it paid?')}
                                 placeholderTextColor={color.muted}
                                 accessibilityLabel={t('Other payment method')}
@@ -641,7 +685,7 @@ export function VisitPaymentScreen({
                 <Button
                     label={confirmLabel}
                     block
-                    loading={checkOut.pending || setPaidTotal.pending}
+                    loading={writing}
                     disabled={noteMissing}
                     onPress={confirm}
                     testID="visit-payment-confirm"
