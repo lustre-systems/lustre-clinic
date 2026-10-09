@@ -413,7 +413,7 @@ describe('a visit, end to end', () => {
         const next = waiting[0];
         if (!next) throw new Error('the seed left nobody waiting');
 
-        appointmentHandlers.awaitPayment({ id: seatedBefore.appointmentId });
+        appointmentHandlers.awaitPayment({ id: seatedBefore.appointmentId, offsetMinutes: offsetMinutes() });
 
         // The one who had been waiting longest is now the one in the chair, and
         // their bar starts here rather than at the time they arrived.
@@ -487,7 +487,7 @@ describe('the chair, when someone leaves the queue by another door', () => {
         // Sending a waiting patient to the desk does not empty the chair, so
         // nothing may be seated off it. Seating anyway leaves two visits
         // answering "in the chair" and the day view drawing two running bars.
-        appointmentHandlers.awaitPayment({ id: waiting.appointmentId });
+        appointmentHandlers.awaitPayment({ id: waiting.appointmentId, offsetMinutes: offsetMinutes() });
 
         expect(seated()).toBe(1);
     });
@@ -512,7 +512,7 @@ describe('the chair, when someone leaves the queue by another door', () => {
         });
         if (!waiting) throw new Error('the seed left nobody waiting');
 
-        visitHandlers.delete({ visitId: inChair.id });
+        visitHandlers.delete({ visitId: inChair.id, offsetMinutes: offsetMinutes() });
 
         expect(getDb().visits.find((row) => row.id === inChair.id)).toBeUndefined();
         expect(getDb().visits.find((row) => row.id === waiting.id)?.inChairAt).not.toBeNull();
@@ -531,11 +531,35 @@ describe('the chair, when someone leaves the queue by another door', () => {
         });
         if (!inChair) throw new Error('the seed seated nobody');
 
-        appointmentHandlers.awaitPayment({ id: inChair.appointmentId });
+        appointmentHandlers.awaitPayment({ id: inChair.appointmentId, offsetMinutes: offsetMinutes() });
 
         // The chair emptied, so the longest-waiting visit takes it.
         expect(seated()).toBe(1);
         expect(getDb().visits.find((row) => row.id === inChair.id)?.inChairAt).not.toBeNull();
+    });
+
+    // The seed books the chair fifty minutes back and the queue around now, so
+    // just after midnight UTC the two straddle a UTC date. The clinic's day is
+    // what counts, and the app always sends its offset: these tests used to
+    // leave it off, fell back to UTC, and failed in CI's first hour of the day.
+    it('seats the next patient just after midnight UTC, on the clinic’s day', () => {
+        setSystemTime(new Date('2026-10-10T00:20:00.000Z'));
+        try {
+            setDb(seedDemoDb());
+            const db = getDb();
+            const inChair = db.visits.find((visit) => {
+                if (!visit.inChairAt) return false;
+                const appointment = db.appointments.find((row) => row.id === visit.appointmentId);
+                return appointment?.status === 'checked_in';
+            });
+            if (!inChair) throw new Error('the seed seated nobody');
+
+            appointmentHandlers.awaitPayment({ id: inChair.appointmentId, offsetMinutes: offsetMinutes() });
+
+            expect(seated()).toBe(1);
+        } finally {
+            setSystemTime();
+        }
     });
 });
 
@@ -564,6 +588,30 @@ describe('the refusals a demo runs into', () => {
         } catch (error) {
             expect((error as InstanceType<typeof DemoError>).code).toBe('SLOT_OVERLAP');
         }
+    });
+
+    it('cancels a booking on a future day and lets the same slot be booked again', () => {
+        const db = getDb();
+        const branch = db.branches[0];
+        const patient = db.patients[1];
+        if (!branch || !patient) throw new Error('the seed is missing its fixtures');
+
+        const startsAt = new Date(Date.now() + 10 * 24 * 3_600_000).toISOString();
+        const book = () =>
+            appointmentHandlers.create({
+                patient: { kind: 'existing', patientId: patient.id },
+                branchId: branch.id,
+                startsAt,
+                durationMinutes: 30,
+                offsetMinutes: 0,
+            });
+
+        const first = book();
+        expect(appointmentHandlers.cancel({ id: first.id }).status).toBe('cancelled');
+
+        const rebooked = book();
+        expect(rebooked.id).not.toBe(first.id);
+        expect(rebooked.status).toBe('booked');
     });
 
     it('refuses a payment larger than the balance', () => {

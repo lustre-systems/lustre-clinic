@@ -38,6 +38,7 @@ import {
     Callout,
     Chevron,
     Chip,
+    ConfirmSheet,
     Select,
     StepView,
     Textarea,
@@ -45,6 +46,7 @@ import {
 } from '../../../components/ui';
 import { useT } from '../../../i18n';
 import { border, color, radius, size, space, Text } from '../../../theme';
+import { bookingActions } from '../actions';
 import {
     dayLabel,
     daysOffered,
@@ -126,6 +128,13 @@ export type BookingScreenProps = {
     nowMinutes: number;
     onBack: () => void;
     onBooked: (message: string) => void;
+    /**
+     * The booking being edited was cancelled. Given, a reschedule offers
+     * Cancel booking: the patient record opens a booking straight onto this
+     * page, so without it a booking on a later day had no way to be called
+     * off short of finding its day on the calendar.
+     */
+    onCancelled?: (message: string) => void;
 };
 
 /**
@@ -159,6 +168,7 @@ export function BookingScreen({
     nowMinutes,
     onBack,
     onBooked,
+    onCancelled,
 }: BookingScreenProps) {
     const t = useT();
     const today = todayKey();
@@ -216,6 +226,10 @@ export function BookingScreen({
     const walkIn = useLocalMutation(api.walkIn);
     const create = useLocalMutation(api.create);
     const move = useLocalMutation(api.reschedule);
+    const cancel = useLocalMutation(api.cancel);
+    const [confirmingCancel, setConfirmingCancel] = useState(false);
+    const canCancel =
+        rescheduling !== undefined && onCancelled !== undefined && bookingActions(rescheduling, today).cancel;
 
     const step = STEPS[index]?.key ?? 'confirm';
     // Picking a branch that is not working today takes the walk-in away under
@@ -223,7 +237,7 @@ export function BookingScreen({
     // leaving a booking with no when at all.
     // A move is always to a time: a walk-in is a new arrival, not this booking.
     const scheduled = rescheduling !== undefined || timing === 'later' || !canWalkIn;
-    const pending = walkIn.pending || create.pending || move.pending;
+    const pending = walkIn.pending || create.pending || move.pending || cancel.pending;
     const error = rescheduling ? move.error : scheduled ? create.error : walkIn.error;
     const failure = error
         ? describeError(error, rescheduling ? 'move' : scheduled ? 'booking' : 'walk-in')
@@ -347,6 +361,16 @@ export function BookingScreen({
         walkIn.reset();
         create.reset();
         move.reset();
+    }
+
+    function cancelBooking() {
+        if (!rescheduling || !onCancelled) return;
+        cancel.mutate(rescheduling.id, {
+            onSuccess: () => {
+                setConfirmingCancel(false);
+                onCancelled(t("{name}'s booking was cancelled", { name }));
+            },
+        });
     }
 
     function book() {
@@ -531,9 +555,22 @@ export function BookingScreen({
                 >
                     <Chevron direction="back" size={10} tone="ink" />
                 </Pressable>
-                <Text variant="eyebrow" tone="muted">
+                <Text variant="eyebrow" tone="muted" style={styles.topbarTitle}>
                     {t(rescheduling ? 'RESCHEDULE' : 'NEW BOOKING')}
                 </Text>
+                {canCancel ? (
+                    <Button
+                        label="Cancel booking"
+                        variant="dangerText"
+                        size="md"
+                        disabled={pending}
+                        onPress={() => {
+                            cancel.reset();
+                            setConfirmingCancel(true);
+                        }}
+                        testID="booking-cancel"
+                    />
+                ) : null}
             </View>
 
             <View style={styles.identity}>
@@ -936,6 +973,26 @@ export function BookingScreen({
                 }}
                 onClose={() => setCalendar(closeCalendar)}
             />
+
+            <ConfirmSheet
+                visible={confirmingCancel}
+                title="Cancel this appointment?"
+                body="The slot goes back on the day and the patient keeps their record. Nothing is deleted."
+                detail={
+                    cancel.error ? (
+                        <Callout tone="warning" title={describeError(cancel.error).title}>
+                            {describeError(cancel.error).body ?? ''}
+                        </Callout>
+                    ) : null
+                }
+                confirmLabel="Cancel it"
+                cancelLabel="Keep it"
+                destructive
+                loading={cancel.pending}
+                onConfirm={cancelBooking}
+                onCancel={() => setConfirmingCancel(false)}
+                testID="booking-cancel-confirm"
+            />
         </View>
     );
 }
@@ -969,6 +1026,7 @@ const styles = StyleSheet.create({
         paddingTop: space[2],
         paddingBottom: space[1],
     },
+    topbarTitle: { flex: 1 },
     back: {
         width: 34,
         height: 34,

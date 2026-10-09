@@ -39,6 +39,7 @@ import { MoneyValue, StatusPill } from '../../../components/domain';
 import { Button, Callout, Sheet, Switch, Tag } from '../../../components/ui';
 import { useT } from '../../../i18n';
 import { color, radius, size, space, Text } from '../../../theme';
+import { bookingActions } from '../actions';
 import {
     type Appointment,
     type AppointmentProcedure,
@@ -49,7 +50,7 @@ import {
     visitForAppointment,
 } from '../data';
 import { describeError } from '../errors';
-import { dateKey, formatSpan, minutesOfDay, todayKey } from '../time';
+import { formatSpan, minutesOfDay, todayKey } from '../time';
 import { CancelAppointmentIcon, CheckIcon, LabIcon, NoShowIcon, RescheduleIcon } from './icons';
 
 export type AppointmentDetailSheetProps = {
@@ -302,7 +303,7 @@ function PrimaryAction({
         case 'booked':
             // Only on the appointment's own day. From another day's list it is a
             // mis-tap, and the server refuses it anyway.
-            return dateKey(appointment.startsAt) === todayKey() ? (
+            return bookingActions(appointment, todayKey()).checkIn ? (
                 <Button
                     label="Check in"
                     block
@@ -418,8 +419,11 @@ function SecondaryActions({
         );
     }
 
-    // Three tiles, not a stack: one row the width of the sheet, each a big
-    // target, with the destructive one the only red.
+    // Tiles, not a stack: one row the width of the sheet, each a big target,
+    // with the destructive one the only red. A booking on a later day has no
+    // No-show — nobody has failed to come yet — and keeps Cancel, which is
+    // the call the patient rings to make.
+    const actions = bookingActions(appointment, todayKey());
     return (
         <View style={styles.tiles}>
             <Tile
@@ -428,12 +432,14 @@ function SecondaryActions({
                 onPress={onReschedule}
                 testID="appointment-reschedule"
             />
-            <Tile
-                label="No-show"
-                icon={<NoShowIcon size={20} stroke={color.ink2} />}
-                onPress={() => setConfirming('no-show')}
-                testID="appointment-no-show"
-            />
+            {actions.noShow ? (
+                <Tile
+                    label="No-show"
+                    icon={<NoShowIcon size={20} stroke={color.ink2} />}
+                    onPress={() => setConfirming('no-show')}
+                    testID="appointment-no-show"
+                />
+            ) : null}
             <Tile
                 label="Cancel"
                 accessibilityLabel="Cancel appointment"
