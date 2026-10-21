@@ -47,6 +47,13 @@ describe('the points each pill draws', () => {
         expect(slots.at(-1)?.range).toMatchObject({ from: '2026-01-01', to: TODAY });
     });
 
+    it('names the points in the language asked for, whatever the screen was drawn in first', () => {
+        const ar = trendSlots('week', TODAY, 'ar');
+        expect(ar.at(-1)?.name).toBe('هذا الأسبوع');
+        expect(ar.at(-2)?.axis).not.toContain('Oct');
+        expect(trendSlots('week', TODAY, 'en').at(-2)?.axis).toBe('4 Oct');
+    });
+
     it('carries the offset of each end’s own day, as the server wants', () => {
         // Egypt keeps DST: January is +02:00 and October 14 still +03:00.
         const year = trendSlots('year', TODAY).at(-1)?.range;

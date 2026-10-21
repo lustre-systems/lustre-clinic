@@ -260,8 +260,7 @@ export const COPY_AR = {
     'Collected · {period}': 'المحصّل · {period}',
     'Profit, stacked by branch': 'الربح موزّعًا على الفروع',
     'Tap a bar to see its split.': 'اضغط على عمود لترى التوزيع.',
-    '{branch} brought {percent}% of the profit in {point}.':
-        'جاء {percent}% من الربح في {point} من {branch}.',
+    '{point}: {branch} brought {percent}% of the profit.': '{point}: جاء {percent}% من الربح من {branch}.',
     'Owes money': 'عليه مستحقات',
     'Nobody owes anything.': 'لا أحد عليه مستحقات.',
     'Nobody who owes matches that name or number.': 'لا يوجد مدين يطابق هذا الاسم أو الرقم.',

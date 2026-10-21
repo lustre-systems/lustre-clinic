@@ -2,9 +2,9 @@
 // is testable under `bun test`. Every figure is the server's (`stats.trend`,
 // `stats.overview`); what happens here is choosing which periods to ask for,
 // comparing one point with the one before it, and laying points out.
-import { localizeCopy, type PaymentMethod } from '@lustre/shared';
+import { type Locale, localizeCopy, type PaymentMethod } from '@lustre/shared';
 import { getLocale } from '../../i18n/runtime';
-import { addDays, addMonths, formatDate, keyParts, monthShort, offsetForDate, weekdayOf } from '../day/time';
+import { addDays, addMonths, keyParts, offsetForDate, weekdayOf } from '../day/time';
 import { type DateRange, FIRST_RECORD, type Period } from './money';
 
 export const METRICS = ['profit', 'revenue', 'cost', 'newPatients'] as const;
@@ -46,6 +46,21 @@ export const YEARS = 12;
 
 const WEEKDAYS_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'] as const;
 
+const MONTHS_SHORT = [
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'May',
+    'Jun',
+    'Jul',
+    'Aug',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dec',
+] as const;
+
 const MONTHS_LONG = [
     'January',
     'February',
@@ -61,10 +76,6 @@ const MONTHS_LONG = [
     'December',
 ] as const;
 
-function say(copy: string, vars?: Record<string, string | number>): string {
-    return localizeCopy(getLocale(), copy, vars);
-}
-
 function rangeOf(from: string, to: string): DateRange {
     // A slot never runs past today, and never starts before the first record.
     const start = from < FIRST_RECORD ? FIRST_RECORD : from;
@@ -78,13 +89,18 @@ function rangeOf(from: string, to: string): DateRange {
  * month" the last six months; "This year" and "All time" one point per year.
  * The current unit ends today rather than at its calendar end.
  */
-export function trendSlots(period: Period, today: string): TrendSlot[] {
+export function trendSlots(period: Period, today: string, locale: Locale = getLocale()): TrendSlot[] {
+    const say = (copy: string, vars?: Record<string, string | number>) => localizeCopy(locale, copy, vars);
+    const month = (key: string) => say(MONTHS_SHORT[keyParts(key).month - 1] ?? '');
+    const weekday = (key: string) => say(WEEKDAYS_SHORT[weekdayOf(key)] ?? '');
+
     if (period === 'today') {
         return Array.from({ length: DAYS }, (_, i) => {
             const back = DAYS - 1 - i;
             const key = addDays(today, -back);
-            const label = back === 0 ? say('Today') : say(WEEKDAYS_SHORT[weekdayOf(key)] ?? '');
-            return { range: rangeOf(key, key), axis: label, name: back === 0 ? label : formatDate(key) };
+            const label = back === 0 ? say('Today') : weekday(key);
+            const name = back === 0 ? label : `${weekday(key)} ${keyParts(key).day} ${month(key)}`;
+            return { range: rangeOf(key, key), axis: label, name };
         });
     }
 
@@ -94,7 +110,7 @@ export function trendSlots(period: Period, today: string): TrendSlot[] {
             const back = WEEKS - 1 - i;
             const start = addDays(thisWeek, -7 * back);
             const end = back === 0 ? today : addDays(start, 6);
-            const axis = `${keyParts(start).day} ${monthShort(start)}`;
+            const axis = `${keyParts(start).day} ${month(start)}`;
             return {
                 range: rangeOf(start, end),
                 axis,
@@ -111,7 +127,7 @@ export function trendSlots(period: Period, today: string): TrendSlot[] {
             const end = back === 0 ? today : addDays(addMonths(start, 1), -1);
             return {
                 range: rangeOf(start, end),
-                axis: monthShort(start),
+                axis: month(start),
                 name: back === 0 ? say('This month') : say(MONTHS_LONG[keyParts(start).month - 1] ?? ''),
             };
         });

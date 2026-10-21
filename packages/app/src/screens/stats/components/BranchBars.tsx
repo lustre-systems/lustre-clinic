@@ -18,12 +18,14 @@ const SHADES = [color.ink, color.inkFaint, color.muted, color.line] as const;
 export type BranchBarsProps = {
     points: readonly StatsFigures[];
     labels: readonly string[];
+    /** Each point's full name, for the sentence under the bars: "September", "Week of 4 Oct". */
+    names: readonly string[];
     /** -1 when nothing is selected. */
     selected: number;
     onSelect: (index: number) => void;
 };
 
-export function BranchBars({ points, labels, selected, onSelect }: BranchBarsProps) {
+export function BranchBars({ points, labels, names, selected, onSelect }: BranchBarsProps) {
     const t = useT();
     const branches = branchOrder(points);
     const shade = (index: number) => SHADES[Math.min(index, SHADES.length - 1)];
@@ -123,10 +125,10 @@ export function BranchBars({ points, labels, selected, onSelect }: BranchBarsPro
             <View style={styles.note}>
                 <Text variant="subhead" tone="ink2">
                     {share && focus
-                        ? t('{branch} brought {percent}% of the profit in {point}.', {
+                        ? t('{point}: {branch} brought {percent}% of the profit.', {
+                              point: names[selected] ?? '',
                               branch: share.name,
                               percent: share.percent,
-                              point: labels[selected] ?? '',
                           })
                         : t('Tap a bar to see its split.')}
                 </Text>

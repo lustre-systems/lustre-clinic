@@ -15,7 +15,7 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AppState, ScrollView, StyleSheet, View } from 'react-native';
 import { ScreenHeader, usePullToRefresh } from '../../components/ui';
-import { useT } from '../../i18n';
+import { useLocale, useT } from '../../i18n';
 import { color, size, space } from '../../theme';
 import { todayKey } from '../day/time';
 import { BranchBars } from './components/BranchBars';
@@ -49,9 +49,14 @@ function StatsScreenView({ goHome = 0 }: StatsScreenProps) {
     const [metric, setMetric] = useState<Metric>('profit');
     const [today, rereadToday] = useToday();
 
+    const locale = useLocale();
     const allTime = period === 'all';
-    // "All time" is the yearly line, so the two pills share one query.
-    const slots = useMemo(() => trendSlots(allTime ? 'year' : period, today), [allTime, period, today]);
+    // "All time" is the yearly line, so the two pills share one query. The
+    // locale is in the key because the slots carry their labels.
+    const slots = useMemo(
+        () => trendSlots(allTime ? 'year' : period, today, locale),
+        [allTime, period, today, locale],
+    );
     const trend = useStatsTrend(slots.map((slot) => slot.range));
     const everything = useMemo(() => periodRange('all', today), [today]);
     const overview = useStatsOverview(everything, allTime);
@@ -154,6 +159,7 @@ function StatsScreenView({ goHome = 0 }: StatsScreenProps) {
                                 <BranchBars
                                     points={points}
                                     labels={labels}
+                                    names={shown.map((slot) => slot.name)}
                                     selected={selected}
                                     onSelect={selectPoint}
                                 />

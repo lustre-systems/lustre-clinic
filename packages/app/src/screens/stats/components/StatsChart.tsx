@@ -166,7 +166,10 @@ export function StatsChart({
 
                 {focus ? (
                     <View
-                        style={[styles.tag, { start: focus.x - TAG / 2, top: focus.y - 30 }]}
+                        style={[
+                            styles.tag,
+                            { start: clamp(focus.x - TAG / 2, 0, width - TAG), top: focus.y - 30 },
+                        ]}
                         pointerEvents="none"
                     >
                         <Text variant="footnote" weight="semibold" tone={skin.onDarkTone} numberOfLines={1}>
@@ -215,6 +218,10 @@ export function StatsChart({
             </View>
         </View>
     );
+}
+
+function clamp(value: number, min: number, max: number): number {
+    return Math.max(min, Math.min(max, value));
 }
 
 /** As wide as the gap between two points allows, so eight weeks of "26 Sep" do not run into each other. */

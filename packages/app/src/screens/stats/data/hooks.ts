@@ -20,7 +20,8 @@
  */
 import type { ErrorCode } from '@lustre/shared';
 import { useQuery } from '@tanstack/react-query';
-import { errorCodeOf, useTRPC } from '../../../api';
+import { useSyncExternalStore } from 'react';
+import { dataGeneration, errorCodeOf, subscribeToDataReset, useTRPC } from '../../../api';
 import type { DateRange } from '../money';
 import type { StatsFigures, TakingsReport } from './types';
 
@@ -50,19 +51,32 @@ function shape<T>(query: RawQuery): QueryResult<T> {
     };
 }
 
+/**
+ * Re-renders when the backend underneath changes (demo in or out, a new role).
+ * The cache is cleared then, but the Stats tab is mounted, hidden and memoised,
+ * so nothing else would make its queries look again and it would keep painting
+ * the other clinic's figures until a pull.
+ */
+function useFreshAfterReset(): void {
+    useSyncExternalStore(subscribeToDataReset, dataGeneration);
+}
+
 export function useTakings(range: DateRange): QueryResult<TakingsReport> {
+    useFreshAfterReset();
     const trpc = useTRPC();
     return shape(useQuery(trpc.balance.takings.queryOptions(range)));
 }
 
 /** The whole of one range. Asked only while `enabled`: "All time" is the one pill whose header is not a chart point. */
 export function useStatsOverview(range: DateRange, enabled = true): QueryResult<StatsFigures> {
+    useFreshAfterReset();
     const trpc = useTRPC();
     return shape(useQuery({ ...trpc.stats.overview.queryOptions(range), enabled }));
 }
 
 /** One point per range, oldest first: the chart and the branch bars. */
 export function useStatsTrend(ranges: DateRange[]): QueryResult<StatsFigures[]> {
+    useFreshAfterReset();
     const trpc = useTRPC();
     return shape(useQuery(trpc.stats.trend.queryOptions({ periods: ranges })));
 }
