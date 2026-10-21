@@ -117,7 +117,8 @@ function StatsScreenView({ goHome = 0 }: StatsScreenProps) {
     const figures = current
         ? (Object.fromEntries(METRICS.map((key) => [key, metricOf(current, key)])) as Record<Metric, number>)
         : null;
-    const branchesShown = branchOrder(points).length > 1;
+    // One branch still gets its bars: they are the profit per point, stacked or not.
+    const branchesShown = branchOrder(points).length > 0;
     const headLoading = trend.isLoading || (allTime && overview.isLoading);
     const headError = trend.error ?? (allTime ? overview.error : null);
     const retryHead = () => {
