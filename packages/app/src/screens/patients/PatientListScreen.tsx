@@ -19,6 +19,11 @@
 // failure costs only those rows' amounts. A refresh or a next page that failed
 // leaves what is loaded up — stale, not gone (§7.14). The search is debounced
 // because it runs over Tailscale; stale answers are dropped by the query key.
+//
+// "Owes money", by the search, swaps the rows for everyone who owes the clinic
+// (`owes/OwesBody`), and the search then filters that list on the phone. It is
+// the desk's old "Who owe" list from the Money tab, so only a role that sees
+// payments has the chip.
 import { seesPayments } from '@lustre/shared';
 // biome-ignore lint/style/noRestrictedImports: two of them, both external — the imperative `scrollToOffset` on the FlatList ref when the tab is re-tapped, and the search debounce's `setTimeout`
 import { useEffect, useRef, useState } from 'react';
@@ -27,6 +32,7 @@ import { PatientRow } from '../../components/domain';
 import {
     Banner,
     Button,
+    Chip,
     EmptyState,
     SearchField,
     SectionLabel,
@@ -43,6 +49,8 @@ import { PAGE_SIZE, patientsApi } from './data/api';
 import { errorText } from './data/errors';
 import { usePagedQuery, useQueryEach } from './data/hooks';
 import type { Patient } from './data/types';
+import { useOutstanding } from './owes/data';
+import { OwesBody } from './owes/OwesBody';
 import { type PatientPrefill, prefillOf } from './patientForm';
 
 export type PatientListScreenProps = {
@@ -74,8 +82,14 @@ export function PatientListScreen({ onNewPatient, onOpen, goHome = 0 }: PatientL
     const keyboard = useKeyboardHeight();
     const [term, setTerm] = useState('');
     const [toast, setToast] = useState<string | null>(null);
+    const [owesOn, setOwesOn] = useState(false);
     const query = useDebounced(term, DEBOUNCE_MS);
     const searching = query.trim().length > 0;
+
+    // A doctor's phone is refused balances by the server, so it does not ask.
+    const { granted } = useRole();
+    const owing = owesOn && seesPayments(granted);
+    const outstanding = useOutstanding(owing);
 
     // Two queries rather than one keyed by the term: leaving the recent page
     // mounted means clearing the search puts it straight back without a round
@@ -96,15 +110,13 @@ export function PatientListScreen({ onNewPatient, onOpen, goHome = 0 }: PatientL
         ['search', query],
         (offset) => patientsApi.search(query, offset),
         (page, offset) => (page.length === PAGE_SIZE ? offset + PAGE_SIZE : undefined),
-        { enabled: searching },
+        { enabled: searching && !owing },
     );
 
     const list = searching ? results : recent;
     const pages = searching ? results.pages : recent.pages?.map((page) => page.patients);
     const rows = distinct(pages?.flat() ?? []);
 
-    // A doctor's phone is refused balances by the server, so it does not ask.
-    const { granted } = useRole();
     const pageIds = (pages ?? [])
         .map((page) => page.map((patient) => patient.id))
         .filter((ids) => ids.length > 0);
@@ -129,10 +141,11 @@ export function PatientListScreen({ onNewPatient, onOpen, goHome = 0 }: PatientL
     // list — the term is the query key.
     const pull = usePullToRefresh(
         () => {
+            if (owing) return outstanding.refetch();
             list.refetch();
             if (seesPayments(granted)) for (const page of balances) page.refetch();
         },
-        list.loading || balances.some((page) => page.loading),
+        owing ? outstanding.isLoading : list.loading || balances.some((page) => page.loading),
     );
 
     // An effect because scrolling is imperative and there is nothing to derive:
@@ -179,7 +192,7 @@ export function PatientListScreen({ onNewPatient, onOpen, goHome = 0 }: PatientL
                 clear of them: the content simply ends behind the keyboard. */}
             <FlatList
                 ref={scroller}
-                data={rows}
+                data={owing ? [] : rows}
                 keyExtractor={(patient) => patient.id}
                 extraData={dueByPatient}
                 renderItem={({ item }) => (
@@ -190,7 +203,7 @@ export function PatientListScreen({ onNewPatient, onOpen, goHome = 0 }: PatientL
                     />
                 )}
                 onEndReached={() => {
-                    if (!list.moreError) list.loadMore();
+                    if (!owing && !list.moreError) list.loadMore();
                 }}
                 onEndReachedThreshold={2}
                 contentContainerStyle={{ paddingBottom: space[12] + keyboard }}
@@ -214,7 +227,18 @@ export function PatientListScreen({ onNewPatient, onOpen, goHome = 0 }: PatientL
                             />
                         </View>
 
-                        {list.error && pages && (
+                        {seesPayments(granted) ? (
+                            <View style={styles.filters}>
+                                <Chip
+                                    label="Owes money"
+                                    selected={owing}
+                                    onPress={() => setOwesOn((on) => !on)}
+                                    testID="owes-filter"
+                                />
+                            </View>
+                        ) : null}
+
+                        {!owing && list.error && pages && (
                             <View style={styles.inset}>
                                 <Banner
                                     tone="warning"
@@ -223,13 +247,15 @@ export function PatientListScreen({ onNewPatient, onOpen, goHome = 0 }: PatientL
                             </View>
                         )}
 
-                        {rows.length > 0 && (
+                        {!owing && rows.length > 0 && (
                             <SectionLabel>{t(searching ? 'RESULTS' : 'RECENT')}</SectionLabel>
                         )}
                     </>
                 }
                 ListEmptyComponent={
-                    list.loading && !pages ? (
+                    owing ? (
+                        <OwesBody outstanding={outstanding} term={term} onOpen={openPatient} />
+                    ) : list.loading && !pages ? (
                         <SkeletonRows count={7} ruled />
                     ) : list.error && !pages ? (
                         <EmptyState
@@ -245,7 +271,13 @@ export function PatientListScreen({ onNewPatient, onOpen, goHome = 0 }: PatientL
                     )
                 }
                 ListFooterComponent={
-                    <MoreFooter error={list.moreError} loading={list.loadingMore} onRetry={list.loadMore} />
+                    owing ? null : (
+                        <MoreFooter
+                            error={list.moreError}
+                            loading={list.loadingMore}
+                            onRetry={list.loadMore}
+                        />
+                    )
                 }
             />
 
@@ -413,6 +445,7 @@ const styles = StyleSheet.create({
     pressed: { opacity: 0.72 },
 
     search: { paddingHorizontal: size.gutter, paddingBottom: space[3] },
+    filters: { flexDirection: 'row', paddingHorizontal: size.gutter, paddingBottom: space[3] },
     inset: { paddingHorizontal: size.gutter, paddingBottom: space[2] },
     more: { alignItems: 'center', paddingVertical: space[5] },
 });

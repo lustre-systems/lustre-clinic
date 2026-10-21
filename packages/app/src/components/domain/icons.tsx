@@ -20,6 +20,7 @@ import {
     CalendarDays,
     CalendarPlus,
     CalendarX,
+    ChartNoAxesColumn,
     Check,
     ChevronDown,
     ChevronLeft,
@@ -132,6 +133,7 @@ export const GLYPH = {
     resetDemo: RotateCcw,
     retry: RefreshCw,
     search: Search,
+    stats: ChartNoAxesColumn,
     time: Clock,
     waiting: Hourglass,
 } satisfies Record<string, Glyph>;

@@ -1,7 +1,4 @@
-// Period pills that drive the hero, the stat cards and the takings card — all
-// range queries. They deliberately do not filter the debtors list: an
-// outstanding balance is a standing figure, not a period one, and a list that
-// emptied on "Today" would read as "nobody owes anything".
+// Period pills that pick what the stats screen's chart, tiles and bars cover.
 //
 // Not `ui/Chip`: the design draws these as a pill on a grey track (full radius,
 // no border, muted label) where `Chip` is a bordered white 12px-radius control.
@@ -42,7 +39,7 @@ export function PeriodTabs({ value, onChange }: PeriodTabsProps) {
                             selected && styles.selected,
                             pressed && !selected && styles.pressed,
                         ]}
-                        testID={`money-period-${period}`}
+                        testID={`stats-period-${period}`}
                     >
                         {/* A pill is one line by definition. Android otherwise
                             wraps an Arabic label it has room for and the row

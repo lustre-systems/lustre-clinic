@@ -1,4 +1,4 @@
-// One debtor row on the money dashboard. The amount is the standing balance
+// One row of the "Owes money" filter on the Patients list. The amount is the standing balance
 // across every visit, as `balance.outstanding` derived it — the row never adds
 // anything up. How long it has been owed is the only part of the line the
 // design colours, under an hourglass rather than "Outstanding for" on every
@@ -11,9 +11,9 @@ import { formatMoney } from '../../../components/domain';
 import { Chevron, duration, easing, useReducedMotion } from '../../../components/ui';
 import { useT } from '../../../i18n';
 import { color, space, Text } from '../../../theme';
-import type { PatientBalance } from '../data';
-import { outstandingAge } from '../format';
-import { MoneyValue } from '../MoneyValue';
+import { MoneyValue } from '../../stats/MoneyValue';
+import type { PatientBalance } from './data';
+import { outstandingAge } from './debtors';
 import { OwedForIcon } from './icons';
 
 const MAX_STAGGER_STEPS = 8;
@@ -57,7 +57,7 @@ export function DebtorRow({ patient, index, onPress }: DebtorRowProps) {
                 accessibilityRole="button"
                 accessibilityLabel={`${patient.name}, ${t('Outstanding for')} ${age}, ${formatMoney(patient.balance)}`}
                 style={({ pressed }) => [styles.row, index > 0 && styles.divided, pressed && styles.pressed]}
-                testID={`money-debtor-${patient.patientId}`}
+                testID={`owes-debtor-${patient.patientId}`}
             >
                 <View style={styles.text}>
                     <Text variant="body" weight="semibold" numberOfLines={1}>

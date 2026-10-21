@@ -1,4 +1,4 @@
-import { seesPayments } from '@lustre/shared';
+import { seesStats } from '@lustre/shared';
 // biome-ignore lint/style/noRestrictedImports: schedules the tab warm-up through `InteractionManager` and cancels it on cleanup — work deliberately deferred past the first paint
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { InteractionManager, StyleSheet, View } from 'react-native';
@@ -14,9 +14,9 @@ import {
 } from '../notifications';
 import { noteScreen, renderErrorReporter, useCrashReportRole } from '../reporting';
 import { DayScreen, DoctorDayScreen, type OpenBookingRequest, useSavedScheduleWriter } from '../screens/day';
-import { MoneyCluster } from '../screens/money';
 import { type OpenRecordRequest, PatientsCluster, useInvalidatePatients } from '../screens/patients';
 import { SettingsScreen } from '../screens/settings';
+import { StatsScreen } from '../screens/stats';
 import { color } from '../theme';
 import { ApkUpdateBanner } from './ApkUpdateBanner';
 import { type BackStack, type BackStacks, backFromRoot, createBackStacks } from './backStack';
@@ -61,7 +61,7 @@ import { useRole } from './useRole';
 // It also owns every route that crosses clusters, because a cluster holds its
 // own stack and cannot push into another one's. A patient's record is the
 // oldest of them: wherever it is asked for — a row in the list, an appointment
-// in the doctor's day view, a debtor on the money dashboard — it opens on the
+// in the doctor's day view, a debtor on the Patients list — it opens on the
 // Patients tab and the tab bar moves with it, because that is the screen's home
 // and a record drawn inside the Day tab left the highlight on a day nobody was
 // looking at. The patient record's two openers go the other way, into the day
@@ -97,14 +97,14 @@ export function AppShell() {
     // Device-local and persisted (`roleStore`), not shell state: a role held
     // here only would be re-chosen as Doctor by every cold launch.
     const { hydrated: roleReady, role, granted } = useRole();
-    // A doctor's phone has no Money tab and never mounts the cluster: every
-    // read on it is one the server refuses that role.
-    const money = seesPayments(granted);
+    // Only the admin's phone has the Stats tab and mounts the screen: every
+    // read on it is one the server refuses the other roles.
+    const stats = seesStats(granted);
     // The server would not let this phone in (`api/credential`). The route is
     // the connection's kind of answer, so it takes the panes' place the same way.
     const { refusal } = useCredential();
-    // A code redeemed on the Money tab can take the tab away under her.
-    if (!money && tab === 'money') setTab('day');
+    // A code redeemed on the Stats tab can take the tab away under them.
+    if (!stats && tab === 'stats') setTab('day');
     const [visited, setVisited] = useState<TabKey[]>(['day']);
     // The day tab can be showing a booking, which is patients' work — the tab
     // bar says so rather than leaving the highlight on a day nobody is looking
@@ -162,7 +162,7 @@ export function AppShell() {
     useSavedScheduleWriter(roleReady && refusal === 'none');
 
     // A pane nobody has opened has no components, so it has no queries either
-    // and the round trip for Patients, Money or Settings started at the tap —
+    // and the round trip for Patients, Stats or Settings started at the tap —
     // which is the pause. Mounting the other three once the day tab has settled
     // moves that cost to a moment when she is reading rather than waiting;
     // `runAfterInteractions` is what keeps it off the first paint. A tab tapped
@@ -270,7 +270,6 @@ export function AppShell() {
             openRecord(patientId, backLabel ?? 'Day', said),
         [openRecord],
     );
-    const openFromMoney = useCallback((patientId: string) => openRecord(patientId, 'Money'), [openRecord]);
     const bookLater = useCallback((patient: PatientTarget) => openBooking(patient, 'later'), [openBooking]);
     const clearToast = useCallback(() => setToast(null), []);
 
@@ -363,15 +362,12 @@ export function AppShell() {
                 </Pane>
 
                 <Pane
-                    tab="money"
-                    visible={!away && tab === 'money'}
-                    mounted={money && visited.includes('money')}
-                    back={stacks.money}
+                    tab="stats"
+                    visible={!away && tab === 'stats'}
+                    mounted={stats && visited.includes('stats')}
+                    back={stacks.stats}
                 >
-                    {/* The debtor rows are the whole tab now: tapping one opens
-                        that patient's record, which is where a payment is taken.
-                        Nothing pushes *into* this cluster any more. */}
-                    <MoneyCluster goHome={home.money} onOpenRecord={openFromMoney} />
+                    <StatsScreen goHome={home.stats} />
                 </Pane>
 
                 <Pane

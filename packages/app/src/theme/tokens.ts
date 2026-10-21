@@ -24,6 +24,8 @@ export const color = {
     ink: '#111114',
     ink2: '#3a3a40',
     muted: '#8b8b92',
+    // A second series beside `ink`: the other branch on the stats screen's bars.
+    inkFaint: '#b4b4bc',
     inverse: '#ffffff',
 
     // The money hero's ground, and the ramp that sits on it. Text on a dark
@@ -38,6 +40,11 @@ export const color = {
     onDarkMuted: 'rgba(255,255,255,0.4)',
     successOnDark: '#8bf0b8',
     dueOnDark: '#ffb3b3',
+    accentOnDark: '#a9bbff',
+    // The stats chart's change chip, a good or a bad move, on the dark card.
+    successOnDarkSoft: 'rgba(139,240,184,0.12)',
+    dueOnDarkSoft: 'rgba(255,179,179,0.12)',
+    onDarkGuide: 'rgba(255,255,255,0.25)',
 
     accent: '#2f5bff',
     accentSoft: '#eaeeff',
@@ -161,6 +168,11 @@ export const shadow = {
     hero: '0 16px 40px -10px rgba(0,0,0,0.45)',
     dock: '0 1px 2px rgba(17,17,20,0.05), 0 10px 28px -8px rgba(17,17,20,0.22)',
     fab: '0 8px 20px rgba(47,91,255,0.35)',
+    // A selected stats tile lifts in its own colour.
+    tileProfit: '0 8px 20px -8px #12a150',
+    tileRevenue: '0 8px 20px -8px #111114',
+    tileCost: '0 8px 20px -8px #ef5f28',
+    tileNewPatients: '0 8px 20px -8px #2f5bff',
 } as const;
 
 // Gradients are CSS strings because React Native takes them as `background-
@@ -168,8 +180,19 @@ export const shadow = {
 // hero has one: a green cast at the top-left where the collected figure sits
 // and a warm one at the bottom-right by the due row, both far below the point
 // where they would read as a colour rather than as depth.
+//
+// The stats chart's glow takes the colour of the metric on the chart, in the
+// top-left and bottom-right corners, with the card's own ground between.
 export const gradient = {
     hero: 'linear-gradient(135deg, rgba(22,201,100,0.12) 0%, rgba(10,12,16,0) 45%, rgba(255,179,179,0.08) 100%)',
+    glowProfit:
+        'linear-gradient(135deg, rgba(139,240,184,0.22) 0%, rgba(14,17,22,0) 45%, rgba(14,17,22,0) 55%, rgba(139,240,184,0.22) 100%)',
+    glowRevenue:
+        'linear-gradient(135deg, rgba(255,255,255,0.22) 0%, rgba(14,17,22,0) 45%, rgba(14,17,22,0) 55%, rgba(255,255,255,0.22) 100%)',
+    glowCost:
+        'linear-gradient(135deg, rgba(255,179,179,0.22) 0%, rgba(14,17,22,0) 45%, rgba(14,17,22,0) 55%, rgba(255,179,179,0.22) 100%)',
+    glowNewPatients:
+        'linear-gradient(135deg, rgba(169,187,255,0.22) 0%, rgba(14,17,22,0) 45%, rgba(14,17,22,0) 55%, rgba(169,187,255,0.22) 100%)',
 } as const;
 
 export type Color = keyof typeof color;

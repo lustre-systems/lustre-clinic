@@ -13,9 +13,8 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import type { MenuAnchor } from '../../../components/ui';
 import { useT } from '../../../i18n';
 import { color, radius, size, space, Text } from '../../../theme';
-import { MoneyValue } from '../MoneyValue';
-import type { DebtorSort } from '../money';
-import { DEBTOR_SORT_LABEL } from '../money';
+import { MoneyValue } from '../../stats/MoneyValue';
+import { DEBTOR_SORT_LABEL, type DebtorSort } from './debtors';
 import { CaretDownIcon } from './icons';
 
 const MENU_GAP = 8;
@@ -57,7 +56,7 @@ export function OweHead({ total, sort, onOpenSort, sortOpen }: OweHeadProps) {
                             weight="bold"
                             tone="dueText"
                             compact
-                            testID="money-outstanding-total"
+                            testID="owes-total"
                         />
                     </View>
                 )}
@@ -74,7 +73,7 @@ export function OweHead({ total, sort, onOpenSort, sortOpen }: OweHeadProps) {
                 // push the heading down and open a hole above the list.
                 hitSlop={14}
                 style={({ pressed }) => [styles.sort, pressed && styles.pressed]}
-                testID="money-owe-sort"
+                testID="owes-sort"
             >
                 <Text variant="callout" weight="semibold" tone="ink2">
                     {t(DEBTOR_SORT_LABEL[sort])}
