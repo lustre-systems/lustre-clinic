@@ -183,16 +183,37 @@ export const shadow = {
 //
 // The stats chart's glow takes the colour of the metric on the chart, in the
 // top-left and bottom-right corners, with the card's own ground between.
+/**
+ * A corner glow at 135°: the colour at 0.22 in the top-left and bottom-right,
+ * easing to nothing in the middle. The fall-off is a smoothstep written out as
+ * stops, not two straight ramps meeting a flat band: a ramp's corners show as
+ * lines across a dark card, and so does each step of an 8-bit low-alpha ramp
+ * unless the slope keeps changing. Fading to the same colour at zero alpha,
+ * rather than to transparent black, keeps the middle from going grey.
+ */
+function glow(rgb: string): string {
+    const PEAK = 0.22;
+    const half = [0, 0.1, 0.2, 0.3, 0.4, 0.5].map((at) => {
+        const x = at / 0.5;
+        const alpha = PEAK * (1 - (3 * x * x - 2 * x * x * x));
+        return { at, alpha: Math.round(alpha * 1000) / 1000 };
+    });
+    const stops = [
+        ...half,
+        ...half
+            .slice(0, -1)
+            .reverse()
+            .map(({ at, alpha }) => ({ at: 1 - at, alpha })),
+    ];
+    return `linear-gradient(135deg, ${stops.map(({ at, alpha }) => `rgba(${rgb},${alpha}) ${Math.round(at * 100)}%`).join(', ')})`;
+}
+
 export const gradient = {
     hero: 'linear-gradient(135deg, rgba(22,201,100,0.12) 0%, rgba(10,12,16,0) 45%, rgba(255,179,179,0.08) 100%)',
-    glowProfit:
-        'linear-gradient(135deg, rgba(139,240,184,0.22) 0%, rgba(14,17,22,0) 45%, rgba(14,17,22,0) 55%, rgba(139,240,184,0.22) 100%)',
-    glowRevenue:
-        'linear-gradient(135deg, rgba(255,255,255,0.22) 0%, rgba(14,17,22,0) 45%, rgba(14,17,22,0) 55%, rgba(255,255,255,0.22) 100%)',
-    glowCost:
-        'linear-gradient(135deg, rgba(255,179,179,0.22) 0%, rgba(14,17,22,0) 45%, rgba(14,17,22,0) 55%, rgba(255,179,179,0.22) 100%)',
-    glowNewPatients:
-        'linear-gradient(135deg, rgba(169,187,255,0.22) 0%, rgba(14,17,22,0) 45%, rgba(14,17,22,0) 55%, rgba(169,187,255,0.22) 100%)',
+    glowProfit: glow('139,240,184'),
+    glowRevenue: glow('255,255,255'),
+    glowCost: glow('255,179,179'),
+    glowNewPatients: glow('169,187,255'),
 } as const;
 
 export type Color = keyof typeof color;

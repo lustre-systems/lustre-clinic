@@ -11,7 +11,7 @@ import type { StatsFigures } from '../data';
 import { formatEgp } from '../money';
 import { branchOrder, leadingShare } from '../stats';
 
-const BAR_HEIGHT = 170;
+const BAR_HEIGHT = 110;
 const MIN_SEGMENT = 4;
 const SHADES = [color.ink, color.inkFaint, color.muted, color.line] as const;
 
@@ -176,7 +176,7 @@ const styles = StyleSheet.create({
     dot: { width: 8, height: 8, borderRadius: radius.full },
     subtitle: { marginTop: -space[2.5] },
     // Room for the total over the tallest stack and the label under it, so no column overflows and pushes its label out of line.
-    bars: { flexDirection: 'row', alignItems: 'flex-end', height: BAR_HEIGHT + 64 },
+    bars: { flexDirection: 'row', alignItems: 'flex-end', height: BAR_HEIGHT + 54 },
     column: { flex: 1, height: '100%', justifyContent: 'flex-end', gap: space[1.5] },
     faded: { opacity: 0.35 },
     pressed: { transform: [{ scale: 0.94 }] },

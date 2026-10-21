@@ -12,7 +12,6 @@ import { MoneyValue } from '../MoneyValue';
 import { isMoney, METRIC_LABEL, METRICS, type Metric } from '../stats';
 import { SKIN } from './skin';
 
-const TILE_HEIGHT = 172;
 const PRESSED = 0.96;
 
 export type MetricTilesProps = {
@@ -87,7 +86,7 @@ function Tile({
                 {isMoney(metric) ? (
                     <MoneyValue
                         amount={value}
-                        variant="figure"
+                        variant="figure2"
                         currencyVariant="footnote"
                         weight="semibold"
                         tone={tone}
@@ -96,7 +95,7 @@ function Tile({
                         currencyStyle={styles.unit}
                     />
                 ) : (
-                    <Text variant="figure" script="sans" weight="semibold" tone={tone}>
+                    <Text variant="figure2" script="sans" weight="semibold" tone={tone}>
                         {String(value)}
                     </Text>
                 )}
@@ -119,11 +118,10 @@ function Tile({
 }
 
 const styles = StyleSheet.create({
-    grid: { flexDirection: 'row', flexWrap: 'wrap', gap: space[3] },
+    grid: { flexDirection: 'row', flexWrap: 'wrap', gap: space[2.5] },
     cell: { flexBasis: '45%', flexGrow: 1 },
     tile: {
-        minHeight: TILE_HEIGHT,
-        justifyContent: 'space-between',
+        gap: space[2.5],
         padding: space[5],
         borderRadius: radius.xl3,
     },

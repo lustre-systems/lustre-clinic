@@ -16,15 +16,15 @@ import { currencyOf, formatEgp } from '../money';
 import { chartPoints, type Delta, isMoney, METRIC_LABEL, type Metric } from '../stats';
 import { SKIN } from './skin';
 
-const HEIGHT = 200;
-const PAD = 22;
-const TOP = 44;
-const BOTTOM = 36;
-const AXIS = 26;
+const HEIGHT = 120;
+const PAD = 18;
+const TOP = 28;
+const BOTTOM = 30;
+const AXIS = 22;
 const HIT = 44;
-const TAG = 92;
-const TAG_HEIGHT = 26;
-const TAG_GAP = 12;
+const TAG = 84;
+const TAG_HEIGHT = 22;
+const TAG_GAP = 10;
 /** The most axis labels that fit; past it the axis names every second or third point. */
 const LABELS = 7;
 
@@ -75,7 +75,7 @@ export function StatsChart({
             : '';
     const focus = selected >= 0 ? points[selected] : undefined;
     const every = Math.ceil(points.length / LABELS);
-    const axis = Math.min(72, points.length > 1 ? ((width - 2 * PAD) / (points.length - 1)) * every : 72);
+    const axis = Math.min(64, points.length > 1 ? ((width - 2 * PAD) / (points.length - 1)) * every : 64);
 
     const figure = (amount: number, compact = false) =>
         isMoney(metric) ? formatEgp(amount, { compact, showCurrency: false }) : String(amount);
@@ -252,10 +252,10 @@ function clamp(value: number, min: number, max: number): number {
 
 const styles = StyleSheet.create({
     card: {
-        gap: space[3],
-        paddingTop: space[6],
+        gap: space[2],
+        paddingTop: space[5],
         paddingHorizontal: space[4],
-        paddingBottom: space[4],
+        paddingBottom: space[3],
         borderRadius: radius.xl4,
         backgroundColor: color.inkDeep,
         boxShadow: shadow.hero,
@@ -265,9 +265,9 @@ const styles = StyleSheet.create({
         alignItems: 'flex-start',
         justifyContent: 'space-between',
         gap: space[2],
-        paddingHorizontal: space[2],
+        paddingHorizontal: space[1.5],
     },
-    titles: { flexShrink: 1, gap: space[1.5], alignItems: 'flex-start' },
+    titles: { flexShrink: 1, gap: space[1], alignItems: 'flex-start' },
     dim: { opacity: 0.55 },
     figure: { flexDirection: 'row', alignItems: 'baseline', gap: space[1] },
     unit: { opacity: 0.6 },
@@ -288,7 +288,7 @@ const styles = StyleSheet.create({
         borderColor: color.onDarkLine,
     },
     hit: { position: 'absolute', width: HIT, height: HIT },
-    axis: { position: 'absolute', top: HEIGHT - 18, alignItems: 'center' },
+    axis: { position: 'absolute', top: HEIGHT - 16, alignItems: 'center' },
     axisDim: { opacity: 0.5 },
     hint: { opacity: 0.45, textAlign: 'center' },
 });
