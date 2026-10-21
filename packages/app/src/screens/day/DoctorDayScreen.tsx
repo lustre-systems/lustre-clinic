@@ -183,7 +183,8 @@ function DoctorDayScreenView({ onOpenRecord, open, onReturn, goHome = 0 }: Docto
         null;
 
     const appointments = useMemo(
-        () => clinicDay.filter((row) => row.branchId === branch),
+        // Cancelled rows are left out, as on the desk's day (`DayScreen`).
+        () => clinicDay.filter((row) => row.branchId === branch && row.status !== 'cancelled'),
         [clinicDay, branch],
     );
     const closed = isClosed(dateKey, schedule.data, branch);

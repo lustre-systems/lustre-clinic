@@ -370,7 +370,9 @@ function DayScreenView({
     const openRow = useLocalMutation(visitForAppointment);
     const noShow = useLocalMutation(api.markNoShow);
 
-    const appointments = clinicDay.filter((row) => row.branchId === branch);
+    // Cancelled rows hold no slot and nothing is left to do with them, so the
+    // day leaves them out; the patient's record still lists them.
+    const appointments = clinicDay.filter((row) => row.branchId === branch && row.status !== 'cancelled');
     const closed = isClosed(dateKey, schedule.data, branch);
 
     // An empty branch on a day the clinic is working says so, and offers the
