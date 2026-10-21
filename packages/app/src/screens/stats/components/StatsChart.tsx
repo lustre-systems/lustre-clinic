@@ -1,7 +1,7 @@
 // The black chart card at the top of the stats screen: the metric and what it
 // covers in the header, with its figure and the change on what came before,
-// then a line over the points inside the period. Tapping a point narrows the
-// screen to it; tapping it again goes back to the whole period.
+// then a line over the period and the ones before it. Tapping a point shows it;
+// tapping it again goes back to the one the pill opened on.
 //
 // The line is drawn left to right in English and right to left in Arabic, the
 // way the pills and the bars read. The SVG does not mirror by itself, so its
@@ -34,14 +34,14 @@ export type StatsChartProps = {
     value: number;
     /** What the figure is of, after the metric: "This month", or the selected point. */
     name: string;
-    /** The pill's own name, for the way back from a selected point. */
-    period: string;
+    /** Where a second tap on the selected point goes back to, or null when it is already there. */
+    back: string | null;
     delta: Delta | null;
     /** What the delta is measured against, for "vs last month" or "vs Sep". */
     against: string | null;
     values: readonly number[];
     labels: readonly string[];
-    /** -1 when the whole period is showing. */
+    /** -1 when nothing is selected, as on "All time". */
     selected: number;
     onSelect: (index: number) => void;
 };
@@ -50,7 +50,7 @@ export function StatsChart({
     metric,
     value,
     name,
-    period,
+    back,
     delta,
     against,
     values,
@@ -238,8 +238,8 @@ export function StatsChart({
             </View>
 
             <Text variant="footnote" tone="inverse" style={styles.hint}>
-                {selected >= 0
-                    ? t('Tap it again for all of {period}', { period })
+                {back
+                    ? t('Tap it again to go back to {period}', { period: back })
                     : t('Tap a point for a closer look')}
             </Text>
         </View>

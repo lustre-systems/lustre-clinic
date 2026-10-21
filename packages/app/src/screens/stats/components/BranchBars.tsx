@@ -26,6 +26,8 @@ export type BranchBarsProps = {
     total: StatsFigures | undefined;
     /** The pill's name, for that sentence. */
     periodName: string;
+    /** Where a second tap on the selected bar goes back to, or null when it is already there. */
+    back: string | null;
     /** -1 when nothing is selected. */
     selected: number;
     onSelect: (index: number) => void;
@@ -37,6 +39,7 @@ export function BranchBars({
     names,
     total,
     periodName,
+    back,
     selected,
     onSelect,
 }: BranchBarsProps) {
@@ -152,11 +155,9 @@ export function BranchBars({
                     </Text>
                 ) : null}
                 <Text variant="footnote" tone="muted">
-                    {t(
-                        selected >= 0
-                            ? 'Tap the bar again to see the whole period.'
-                            : 'Tap a bar to see its split.',
-                    )}
+                    {back
+                        ? t('Tap the bar again to go back to {period}.', { period: back })
+                        : t('Tap a bar to see its split.')}
                 </Text>
             </View>
         </View>

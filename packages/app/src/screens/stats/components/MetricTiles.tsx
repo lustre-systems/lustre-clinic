@@ -13,6 +13,8 @@ import { isMoney, METRIC_LABEL, METRICS, type Metric } from '../stats';
 import { SKIN } from './skin';
 
 const PRESSED = 0.96;
+/** Width over height, from the design's tiles (174 × 120 on a 390-wide phone). */
+const TILE_RATIO = 1.45;
 
 export type MetricTilesProps = {
     figures: Record<Metric, number>;
@@ -120,7 +122,12 @@ function Tile({
 const styles = StyleSheet.create({
     grid: { flexDirection: 'row', flexWrap: 'wrap', gap: space[2.5] },
     cell: { flexBasis: '45%', flexGrow: 1 },
+    // The design's shape, held whatever the phone's width: two to a row, a
+    // wider screen only makes each tile wider, and without a ratio they turn
+    // into strips. The figure and the hint sit at the ends.
     tile: {
+        aspectRatio: TILE_RATIO,
+        justifyContent: 'space-between',
         gap: space[2.5],
         padding: space[5],
         borderRadius: radius.xl3,

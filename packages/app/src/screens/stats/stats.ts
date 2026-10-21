@@ -3,7 +3,6 @@
 // `stats.overview`); what happens here is choosing which periods to ask for,
 // comparing one point with the one before it, and laying points out.
 import { type Locale, localizeCopy, type PaymentMethod } from '@lustre/shared';
-import { clock12 } from '../../components/domain/clock';
 import { getLocale } from '../../i18n/runtime';
 import { addDays, addMonths, keyParts, offsetForDate, weekdayOf } from '../day/time';
 import { type DateRange, FIRST_RECORD, type Period } from './money';
@@ -44,6 +43,10 @@ export type TrendSlot = {
 
 /** The most years "All time" reaches back; empty ones before the first visit are dropped. */
 export const YEARS = 12;
+
+const DAYS = 7;
+const WEEKS = 8;
+const MONTHS = 6;
 
 const HOUR = 60;
 
@@ -100,82 +103,65 @@ function monthEnd(key: string): string {
 }
 
 /**
- * The points inside the period a pill names, oldest first, up to now: "Today"
- * by the hour, "This week" by the day (from Sunday, like `periodRange`), "This
- * month" by the week (Sunday weeks, cut at the month's edges), "This year" by
- * the month and "All time" by the year. Nothing after now is asked for, so the
- * line ends at today rather than running on into zeros.
+ * The points each pill draws, oldest first, the last one being the period the
+ * pill names so far: "Today" is the last seven days (closed days at zero),
+ * "This week" the last eight weeks from Sunday, "This month" the last six
+ * months, "This year" and "All time" one point per year. Like for like, so the
+ * bars stand side by side; only the last is cut short at today, and its change
+ * chip compares with the same stretch the period before (`comparisonRange`).
  */
-export function trendSlots(
-    period: Period,
-    today: string,
-    locale: Locale = getLocale(),
-    nowMinute = 24 * HOUR,
-): TrendSlot[] {
+export function trendSlots(period: Period, today: string, locale: Locale = getLocale()): TrendSlot[] {
     const say = (copy: string, vars?: Record<string, string | number>) => localizeCopy(locale, copy, vars);
     const month = (key: string) => say(MONTHS_SHORT[keyParts(key).month - 1] ?? '');
     const weekday = (key: string) => say(WEEKDAYS_SHORT[weekdayOf(key)] ?? '');
 
     if (period === 'today') {
-        const hours = Math.min(24, Math.floor(nowMinute / HOUR) + 1);
-        return Array.from({ length: hours }, (_, h) => {
-            const { time, meridiem } = clock12(h * HOUR, locale);
-            const hour = time.split(':')[0] ?? '';
-            return {
-                range: rangeOf(today, today, { fromMinute: h * HOUR, toMinute: (h + 1) * HOUR }),
-                axis: `${hour}${meridiem}`,
-                name: `${hour} ${meridiem}`,
-            };
+        return Array.from({ length: DAYS }, (_, i) => {
+            const back = DAYS - 1 - i;
+            const key = addDays(today, -back);
+            const label = back === 0 ? say('Today') : weekday(key);
+            const name = back === 0 ? label : `${weekday(key)} ${keyParts(key).day} ${month(key)}`;
+            return { range: rangeOf(key, key), axis: label, name };
         });
     }
 
     if (period === 'week') {
-        const start = addDays(today, -weekdayOf(today));
-        return Array.from({ length: weekdayOf(today) + 1 }, (_, i) => {
-            const key = addDays(start, i);
+        const thisWeek = addDays(today, -weekdayOf(today));
+        return Array.from({ length: WEEKS }, (_, i) => {
+            const back = WEEKS - 1 - i;
+            const start = addDays(thisWeek, -7 * back);
+            const end = back === 0 ? today : addDays(start, 6);
+            const axis = `${keyParts(start).day} ${month(start)}`;
             return {
-                range: rangeOf(key, key),
-                axis: weekday(key),
-                name: key === today ? say('Today') : `${weekday(key)} ${keyParts(key).day} ${month(key)}`,
+                range: rangeOf(start, end),
+                axis,
+                name: back === 0 ? say('This week') : say('Week of {date}', { date: axis }),
             };
         });
     }
 
     if (period === 'month') {
-        const slots: TrendSlot[] = [];
-        let start = `${today.slice(0, 7)}-01`;
-        while (start <= today) {
-            const weekEnd = addDays(start, 6 - weekdayOf(start));
-            const end = [weekEnd, monthEnd(start), today].sort()[0] ?? today;
-            const first = keyParts(start).day;
-            const last = keyParts(end).day;
-            const span = first === last ? String(first) : `${first}–${last}`;
-            slots.push({ range: rangeOf(start, end), axis: span, name: `${span} ${month(start)}` });
-            start = addDays(end, 1);
-        }
-        return slots;
-    }
-
-    if (period === 'year') {
-        const year = today.slice(0, 4);
-        return Array.from({ length: keyParts(today).month }, (_, i) => {
-            const start = `${year}-${String(i + 1).padStart(2, '0')}-01`;
-            const end = start.slice(0, 7) === today.slice(0, 7) ? today : monthEnd(start);
+        const thisMonth = `${today.slice(0, 7)}-01`;
+        return Array.from({ length: MONTHS }, (_, i) => {
+            const back = MONTHS - 1 - i;
+            const start = addMonths(thisMonth, -back);
+            const end = back === 0 ? today : addDays(addMonths(start, 1), -1);
             return {
                 range: rangeOf(start, end),
                 axis: month(start),
-                name: say(MONTHS_LONG[i] ?? ''),
+                name: back === 0 ? say('This month') : say(MONTHS_LONG[keyParts(start).month - 1] ?? ''),
             };
         });
     }
 
     const year = keyParts(today).year;
     return Array.from({ length: YEARS }, (_, i) => {
-        const y = year - (YEARS - 1 - i);
+        const back = YEARS - 1 - i;
+        const y = year - back;
         return {
-            range: rangeOf(`${y}-01-01`, y === year ? today : `${y}-12-31`),
+            range: rangeOf(`${y}-01-01`, back === 0 ? today : `${y}-12-31`),
             axis: String(y),
-            name: String(y),
+            name: back === 0 ? say('This year') : String(y),
         };
     });
 }

@@ -44,6 +44,17 @@ export type BottomTabBarProps = {
     onChange: (tab: TabKey) => void;
 };
 
+/**
+ * Whether this phone has the Stats tab. A role code decides it (`seesStats`).
+ * A phone with no code yet counts as the owner's, but one whose day view is
+ * set to the desk is the desk's, and the desk does not see the clinic's
+ * figures.
+ */
+export function showsStats(granted: Role | null, view: Role): boolean {
+    if (granted === null) return seesStats(null) && view !== 'secretary';
+    return seesStats(granted);
+}
+
 const SIZE = 22;
 const STROKE = 2;
 
@@ -89,7 +100,7 @@ export function BottomTabBar({ active, role, granted, solo = false, onChange }: 
         { key: 'stats', label: 'Stats' },
         { key: 'settings', label: solo ? 'Settings' : ROLE_LABEL[role] },
     ];
-    const tabs = every.filter((tab) => tab.key !== 'stats' || seesStats(granted));
+    const tabs = every.filter((tab) => tab.key !== 'stats' || showsStats(granted, role));
 
     return (
         <View style={[styles.bar, { paddingBottom: space[3] + insets.bottom }]} testID="tab-bar">

@@ -1,9 +1,8 @@
-import { seesStats } from '@lustre/shared';
 // biome-ignore lint/style/noRestrictedImports: schedules the tab warm-up through `InteractionManager` and cancels it on cleanup — work deliberately deferred past the first paint
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { InteractionManager, StyleSheet, View } from 'react-native';
 import { useConnection, useCredential, useDeviceBackend } from '../api';
-import { BottomTabBar, GLYPH, type TabKey } from '../components/domain';
+import { BottomTabBar, GLYPH, showsStats, type TabKey } from '../components/domain';
 import { ErrorBoundary, Toast, useHardwareBack } from '../components/ui';
 import {
     useAlarmOpen,
@@ -97,9 +96,10 @@ export function AppShell() {
     // Device-local and persisted (`roleStore`), not shell state: a role held
     // here only would be re-chosen as Doctor by every cold launch.
     const { hydrated: roleReady, role, granted } = useRole();
-    // Only the admin's phone has the Stats tab and mounts the screen: every
+    // Only the owner's phone has the Stats tab and mounts the screen: an admin
+    // code, or a phone with no code that is not set to the desk's view. Every
     // read on it is one the server refuses the other roles.
-    const stats = seesStats(granted);
+    const stats = showsStats(granted, granted ?? role);
     // The server would not let this phone in (`api/credential`). The route is
     // the connection's kind of answer, so it takes the panes' place the same way.
     const { refusal } = useCredential();

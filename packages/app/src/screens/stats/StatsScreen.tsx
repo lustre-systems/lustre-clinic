@@ -3,12 +3,13 @@
 // page). Only the admin's phone has this tab (`seesStats`), and the server
 // refuses its reads to anyone else.
 //
-// The header and the tiles are the whole period; the chart's points are what is
-// inside it — the hours of today, the days of this week, the weeks of this
-// month, the months of this year, the years of all time. Tapping a point narrows
-// everything under the pills to it, and tapping it again goes back to the
-// period. The change chip compares the period with the same stretch the period
-// before (`comparisonRange`).
+// The chart's points are like for like — days, weeks, months, years — so the
+// line and the branch bars compare one with the next. The latest point, the
+// period so far, is selected by default and everything under the pills shows
+// it; its change chip compares with the same stretch the period before
+// (`comparisonRange`), not the whole of it. Tapping an earlier point shows that
+// one against the point before it, both whole; tapping it again goes back to
+// the latest. "All time" selects nothing and shows the whole history.
 //
 // Every figure is the server's. The client picks the ranges, compares two of
 // them and lays the points out (`stats.ts`).
@@ -53,42 +54,48 @@ function StatsScreenView({ goHome = 0 }: StatsScreenProps) {
     const [metric, setMetric] = useState<Metric>('profit');
     const [{ today, minute }, rereadNow] = useNow();
 
-    // The locale is in the key because the slots carry their labels.
-    const slots = useMemo(() => trendSlots(period, today, locale, minute), [period, today, locale, minute]);
+    const allTime = period === 'all';
+    // "All time" is the yearly line, so the two pills share one query. The
+    // locale is in the key because the slots carry their labels.
+    const slots = useMemo(
+        () => trendSlots(allTime ? 'year' : period, today, locale),
+        [allTime, period, today, locale],
+    );
     const trend = useStatsTrend(slots.map((slot) => slot.range));
     const whole = useMemo(() => periodRange(period, today), [period, today]);
-    const overview = useStatsOverview(whole);
+    const overview = useStatsOverview(whole, allTime);
     const before = useMemo(
         () => comparisonRange(period, today, minute, locale),
         [period, today, minute, locale],
     );
     const comparison = useStatsOverview(before?.range ?? whole, before !== null);
 
-    // Hours before the first visit of the day, and years before the clinic's
-    // first, are dropped from the front rather than drawn as a run of zeros.
-    const trims = period === 'today' || period === 'all';
+    // Years before the clinic's first are dropped from the front rather than
+    // drawn as a run of zeros.
+    const trims = period === 'year' || allTime;
     const lead = trims && trend.data ? emptyLead(trend.data) : 0;
     const points = trend.data?.slice(lead) ?? [];
     const shown = slots.slice(lead);
     const labels = shown.map((slot) => slot.axis);
 
-    const selected = picked !== null && picked < points.length ? picked : -1;
+    const last = points.length - 1;
+    const latest = allTime ? -1 : last;
+    const selected = picked !== null && picked <= last ? picked : latest;
     const focus = selected >= 0 ? points[selected] : undefined;
-    const current: StatsFigures | undefined = focus ?? overview.data;
-    const name = focus ? (shown[selected]?.name ?? '') : t(PERIOD_LABEL[period]);
+    const current: StatsFigures | undefined = allTime && selected < 0 ? overview.data : focus;
+    const name = selected >= 0 ? (shown[selected]?.name ?? '') : t(PERIOD_LABEL[period]);
+    const defaultName = allTime ? t(PERIOD_LABEL[period]) : (shown[last]?.name ?? '');
 
-    // An hour is narrower than the takings can be asked for, so a selected
-    // hour shows the day's.
-    const takingsRange = focus && period !== 'today' ? (shown[selected]?.range ?? whole) : whole;
-    const takings = useTakings(takingsRange);
+    const takings = useTakings(selected >= 0 ? (shown[selected]?.range ?? whole) : whole);
 
     function pickPeriod(next: Period) {
         setPeriod(next);
         setPicked(null);
     }
 
+    // A second tap on the point that is up goes back to where the pill opened.
     function selectPoint(index: number) {
-        setPicked((current) => (current === index ? null : index));
+        setPicked(index === selected ? null : index);
     }
 
     const scroller = useRef<ScrollView>(null);
@@ -99,32 +106,31 @@ function StatsScreenView({ goHome = 0 }: StatsScreenProps) {
         scroller.current?.scrollTo({ y: 0, animated: true });
     }, [goHome]);
 
-    const pull = usePullToRefresh(
-        () => {
-            rereadNow();
-            trend.refetch();
-            overview.refetch();
-            if (before) comparison.refetch();
-            takings.refetch();
-        },
-        trend.isLoading || overview.isLoading || takings.isLoading,
-    );
+    const pull = usePullToRefresh(() => {
+        rereadNow();
+        trend.refetch();
+        if (allTime) overview.refetch();
+        if (before) comparison.refetch();
+        takings.refetch();
+    }, trend.isLoading || takings.isLoading);
 
     const figures = current
         ? (Object.fromEntries(METRICS.map((key) => [key, metricOf(current, key)])) as Record<Metric, number>)
         : null;
     const branchesShown = branchOrder(points).length > 1;
-    const headLoading = trend.isLoading || overview.isLoading;
-    const headError = trend.error ?? overview.error;
+    const headLoading = trend.isLoading || (allTime && overview.isLoading);
+    const headError = trend.error ?? (allTime ? overview.error : null);
     const retryHead = () => {
         trend.refetch();
-        overview.refetch();
+        if (allTime) overview.refetch();
     };
-    // Only the whole period is compared. Two points side by side are rarely
-    // the same length — a three-day first week against a whole one — and a
-    // change between them would be the calendar's, not the clinic's.
-    const previous = focus ? undefined : comparison.data;
-    const against = focus ? null : (before?.label ?? null);
+    // The latest point is the period so far, so it is compared with the same
+    // stretch before it rather than with the whole of the point before; an
+    // earlier point is whole, and so is the one before it.
+    const onLatest = selected === last && !allTime;
+    const previous = onLatest ? comparison.data : selected > 0 ? points[selected - 1] : undefined;
+    const against = onLatest ? (before?.label ?? null) : selected > 0 ? (labels[selected - 1] ?? null) : null;
+    const backHint = selected !== latest;
 
     return (
         <ScrollView
@@ -157,7 +163,7 @@ function StatsScreenView({ goHome = 0 }: StatsScreenProps) {
                                 metric={metric}
                                 value={figures[metric]}
                                 name={name}
-                                period={t(PERIOD_LABEL[period])}
+                                back={backHint ? defaultName : null}
                                 delta={
                                     previous
                                         ? deltaOf(figures[metric], metricOf(previous, metric), metric)
@@ -179,6 +185,7 @@ function StatsScreenView({ goHome = 0 }: StatsScreenProps) {
                                     names={shown.map((slot) => slot.name)}
                                     total={overview.data}
                                     periodName={t(PERIOD_LABEL[period])}
+                                    back={backHint ? defaultName : null}
                                     selected={selected}
                                     onSelect={selectPoint}
                                 />
@@ -197,7 +204,7 @@ function StatsScreenView({ goHome = 0 }: StatsScreenProps) {
                         <TakingsCard
                             takings={shownTakings(takings.data)}
                             label={t('Collected · {period}', {
-                                period: takingsRange === whole ? t(PERIOD_LABEL[period]) : name,
+                                period: name,
                             })}
                         />
                     ) : null}
