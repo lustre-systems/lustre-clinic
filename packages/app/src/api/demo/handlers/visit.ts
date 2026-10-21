@@ -259,6 +259,12 @@ export const visitHandlers = {
             db.settings.clinicType === 'general',
         );
 
+        // `visitService.setProcedures`: a line keeps the cost it was first priced at.
+        const savedCost = new Map(
+            db.visitProcedures
+                .filter((line) => line.visitId === visit.id)
+                .map((line) => [line.procedureId, line.unitCost]),
+        );
         db.visitProcedures = db.visitProcedures.filter((line) => line.visitId !== visit.id);
 
         for (const [index, line] of resolved.entries()) {
@@ -268,7 +274,7 @@ export const visitHandlers = {
                 procedureId: line.procedure.id,
                 quantity: line.quantity,
                 unitPrice: input.procedures[index]?.unitPrice ?? line.procedure.defaultPrice,
-                unitCost: line.procedure.cost,
+                unitCost: savedCost.get(line.procedure.id) ?? line.procedure.cost,
                 tooth: line.tooth,
                 note: line.note,
             });

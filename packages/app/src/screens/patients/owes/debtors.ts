@@ -57,7 +57,8 @@ export function outstandingAge(iso: string, now: Date = new Date(serverNow())): 
             : localizeCopy(locale, '{count} months', { count: months });
     }
 
-    const years = Math.floor(days / 365);
+    // 360–364 days is twelve months but not a year by `/ 365`; call it one.
+    const years = Math.max(1, Math.floor(days / 365));
     return years === 1
         ? localizeCopy(locale, '1 year')
         : localizeCopy(locale, '{count} years', { count: years });

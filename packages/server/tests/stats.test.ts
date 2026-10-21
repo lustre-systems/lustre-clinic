@@ -117,6 +117,36 @@ describe('stats.overview', () => {
         expect(figures.cost).toBe(ROOT_CANAL_COST);
     });
 
+    test('editing a visit’s lines keeps the cost each one was priced at', async () => {
+        const clinic = await fixtures();
+        await procedureService.update({ id: clinic.rootCanal.id, cost: ROOT_CANAL_COST });
+        const appointment = await appointmentService.create({
+            patient: { kind: 'existing', patientId: clinic.patient.id },
+            branchId: clinic.branch.id,
+            startsAt: todaySlot(),
+            offsetMinutes: 0,
+            procedures: [{ procedureId: clinic.rootCanal.id, quantity: 1 }],
+        });
+        const visit = await visitService.checkIn({ appointmentId: appointment.id });
+
+        await procedureService.update({ id: clinic.rootCanal.id, cost: 200_000 });
+        await procedureService.update({ id: clinic.xray.id, cost: 1_000 });
+        await visitService.setProcedures({
+            visitId: visit.id,
+            procedures: [
+                { procedureId: clinic.rootCanal.id, quantity: 1 },
+                { procedureId: clinic.xray.id, quantity: 1 },
+            ],
+        });
+
+        const lines = await sql<{ procedure_id: string; unit_cost: number }[]>`
+            SELECT procedure_id, unit_cost FROM visit_procedures WHERE visit_id = ${visit.id}
+        `;
+        const costOf = (id: string) => lines.find((line) => line.procedure_id === id)?.unit_cost;
+        expect(costOf(clinic.rootCanal.id)).toBe(ROOT_CANAL_COST);
+        expect(costOf(clinic.xray.id)).toBe(1_000);
+    });
+
     test('a visit from before costs existed counts as costing nothing', async () => {
         const clinic = await fixtures();
         const visit = await rootCanalVisit(clinic.patient.id, clinic.branch.id, clinic.rootCanal.id);
@@ -229,6 +259,20 @@ describe('stats.trend', () => {
         ]);
 
         expect(points.map((point) => point.revenue)).toEqual([100_000, 0, 200_000]);
+    });
+});
+
+describe('a range narrowed to minutes of its day', () => {
+    test('counts a visit only inside the hour it fell in', async () => {
+        const clinic = await fixtures();
+        // `todaySlot()` is 00:30 UTC today.
+        await rootCanalVisit(clinic.patient.id, clinic.branch.id, clinic.rootCanal.id);
+        const today = isoDate(new Date());
+        const hour = (h: number) => ({ from: today, to: today, offsetMinutes: 0, fromMinute: h * 60, toMinute: (h + 1) * 60 });
+
+        const [first, second] = await statsService.trend([hour(0), hour(1)]);
+        expect(first?.revenue).toBe(ROOT_CANAL_PRICE);
+        expect(second?.revenue).toBe(0);
     });
 });
 

@@ -10,6 +10,8 @@ describe('outstanding age', () => {
         expect(outstandingAge('2026-07-28T09:00:00.000Z', now)).toBe('12 days');
         expect(outstandingAge('2026-05-02T09:00:00.000Z', now)).toBe('3 months');
         expect(outstandingAge('2025-01-14T09:00:00.000Z', now)).toBe('1 year');
+        // Twelve months by `/ 30`, short of a year by `/ 365`.
+        expect(outstandingAge('2025-08-14T12:00:00.000Z', now)).toBe('1 year');
     });
 });
 

@@ -389,6 +389,16 @@ export const visitService = {
                 );
             }
 
+            // A line keeps the cost it was first priced at, like `unitPrice`'s
+            // snapshot: correcting a reopened visit must not re-read the
+            // catalogue and rewrite its profit. Only a procedure new to the
+            // visit takes today's cost.
+            const before = await tx
+                .select({ procedureId: visitProcedures.procedureId, unitCost: visitProcedures.unitCost })
+                .from(visitProcedures)
+                .where(eq(visitProcedures.visitId, visit.id));
+            const savedCost = new Map(before.map((line) => [line.procedureId, line.unitCost]));
+
             await tx.delete(visitProcedures).where(eq(visitProcedures.visitId, visit.id));
 
             if (resolved.length > 0) {
@@ -397,6 +407,7 @@ export const visitService = {
                         id: Bun.randomUUIDv7(),
                         visitId: visit.id,
                         ...line,
+                        unitCost: savedCost.get(line.procedureId) ?? line.unitCost,
                     })),
                 );
             }
