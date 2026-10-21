@@ -423,6 +423,12 @@ export const COPY_AR = {
     'Add a branch': 'إضافة فرع',
     'Add a category': 'إضافة تصنيف',
     'Add procedure': 'إضافة إجراء',
+    'NEXT PROCEDURE': 'الإجراء التالي',
+    'Choose next procedure': 'اختيار الإجراء التالي',
+    'Change next procedure': 'تغيير الإجراء التالي',
+    'Clear next procedure': 'إزالة الإجراء التالي',
+    'On their next booking': 'مضاف إلى حجزه القادم',
+    'Their next booking will include it': 'سيُضاف إلى حجزه القادم',
     "Answers are filed under this. It can't change later.":
         'تُحفظ الإجابات تحت هذا المفتاح. لا يمكن تغييره بعد ذلك.',
     'Anything the doctor should know.': 'أي شيء يجب أن يعرفه الطبيب.',

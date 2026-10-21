@@ -35,6 +35,7 @@ import { computeTotal } from '../../util/money.ts';
 import { clinicDayOf } from '../../util/time.ts';
 import { broadcast } from '../../ws/index.ts';
 import { resolveProcedureLines } from '../procedure/procedure.rules.ts';
+import { type NextProcedure, pendingNext, setNext } from './visit.next.ts';
 import type {
     CheckInInput,
     CheckOutInput,
@@ -80,9 +81,15 @@ interface VisitPayment {
  * the patient's money too. A visit still open keeps its prices: the doctor
  * prices and checks it out.
  */
-interface Visit extends Omit<VisitRow, 'chargedTotal' | 'computedTotal'> {
+interface Visit
+    extends Omit<
+        VisitRow,
+        'chargedTotal' | 'computedTotal' | 'nextProcedureId' | 'nextProcedureTooth' | 'nextAppointmentId'
+    > {
     chargedTotal: number | null;
     computedTotal: number | null;
+    /** `appointmentId` is the booking that took it, null until one does. */
+    nextProcedure: (NextProcedure & { appointmentId: string | null }) | null;
     procedures: VisitLine[];
     payments: VisitPayment[] | null;
     paidTotal: number | null;
@@ -315,8 +322,18 @@ export const visitService = {
         return visit;
     },
 
+    async pendingNext(patientId: string): Promise<NextProcedure | null> {
+        const pending = await pendingNext(db, patientId);
+        return pending
+            ? { procedureId: pending.procedureId, name: pending.name, tooth: pending.tooth }
+            : null;
+    },
+
     async byId(id: string, viewer?: Viewer): Promise<Visit> {
-        const visit = await requireVisit(db, id);
+        const { nextProcedureId, nextProcedureTooth, nextAppointmentId, ...visit } = await requireVisit(
+            db,
+            id,
+        );
 
         const lines = await db
             .select({
@@ -344,6 +361,14 @@ export const visitService = {
             .from(payments)
             .where(eq(payments.visitId, id));
 
+        const [nextType] = nextProcedureId
+            ? await db
+                  .select({ name: procedureTypes.name })
+                  .from(procedureTypes)
+                  .where(eq(procedureTypes.id, nextProcedureId))
+                  .limit(1)
+            : [];
+
         const paidTotal = paymentRows.reduce((sum, p) => sum + p.amount, 0);
         const shown = viewer === undefined || seesPayments(viewer);
         // Priced for the doctor until checkout: a patient sent to the desk can
@@ -359,6 +384,15 @@ export const visitService = {
                     ? { ...l, lineTotal: l.unitPrice * l.quantity }
                     : { ...l, unitPrice: null, lineTotal: null },
             ),
+            nextProcedure:
+                nextProcedureId && nextType
+                    ? {
+                          procedureId: nextProcedureId,
+                          name: nextType.name,
+                          tooth: nextProcedureTooth,
+                          appointmentId: nextAppointmentId,
+                      }
+                    : null,
             payments: shown ? paymentRows : null,
             paidTotal: shown ? paidTotal : null,
             balance: shown ? visit.chargedTotal - paidTotal : null,
@@ -367,6 +401,9 @@ export const visitService = {
 
     async setProcedures(input: SetProceduresInput, viewer?: Viewer): Promise<Visit> {
         const lines = await resolveProcedureLines(input.procedures);
+        const [next] = input.nextProcedure
+            ? await resolveProcedureLines([{ ...input.nextProcedure, quantity: 1 }])
+            : [];
 
         const resolved = lines.map((line, i) => ({
             procedureId: line.procedure.id,
@@ -376,7 +413,7 @@ export const visitService = {
             note: line.note,
         }));
 
-        await db.transaction(async (tx) => {
+        const booked = await db.transaction(async (tx) => {
             const visit = await requireVisit(tx, input.visitId);
             if (visit.completedAt) {
                 throw new AppError(
@@ -403,8 +440,17 @@ export const visitService = {
             if (!visit.pricedAt) {
                 await tx.update(visits).set({ chargedTotal: computedTotal }).where(eq(visits.id, visit.id));
             }
+
+            if (input.nextProcedure === undefined) return null;
+            return setNext(
+                tx,
+                visit,
+                next ? { procedureId: next.procedure.id, tooth: next.tooth } : null,
+                new Date(),
+            );
         });
 
+        if (booked) broadcast(WS_EVENT.APPOINTMENT_UPDATED, { id: booked });
         broadcast(WS_EVENT.VISIT_UPDATED, { id: input.visitId });
         return this.byId(input.visitId, viewer);
     },

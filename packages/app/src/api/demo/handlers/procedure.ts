@@ -240,6 +240,9 @@ export const procedureHandlers = {
             completedAt: at,
             computedTotal: chargedTotal,
             chargedTotal,
+            nextProcedureId: null,
+            nextProcedureTooth: null,
+            nextAppointmentId: null,
             createdAt: at,
         };
         db.visits.push(visit);

@@ -8,6 +8,8 @@ listed.
 
 ## [Unreleased]
 
+- When editing a visit, the doctor can choose a next procedure (and its tooth): what the patient should have done next time. If the patient already has a booking coming up, it's added to the earliest one. If not, the next time the desk books them the booking opens with it already filled in.
+
 ## [1.9.0] - 2026-10-10
 
 - The reminder alarm's Snooze is now "Done for today": it stops the alarm for the rest of the day on both desk phones, even with the app closed, and it starts again tomorrow. The Reminders tab has the same button, and "Turn back on" if it was pressed by mistake.

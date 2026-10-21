@@ -28,6 +28,7 @@ import type {
     Branch,
     ClinicDay,
     ClinicSettings,
+    NextProcedure,
     Patient,
     PendingReminder,
     ProcedureCategory,
@@ -232,7 +233,13 @@ export const api = {
             tooth?: Tooth | null;
             note?: string | null;
         }>;
+        /** Left off keeps the visit's next procedure; null clears it. */
+        nextProcedure?: { procedureId: string; tooth: Tooth | null } | null;
     }): Promise<Visit> => wrap(() => trpcClient.visit.setProcedures.mutate(input)),
+
+    /** What this patient's next booking should be for, if a visit asked for something. */
+    pendingNext: (patientId: string): Promise<NextProcedure | null> =>
+        wrap(() => trpcClient.visit.pendingNext.query({ patientId })),
 
     checkOut: (input: {
         visitId: string;
@@ -351,6 +358,7 @@ export async function amend(input: {
     closed: boolean;
     procedures: Array<{ procedureId: string; quantity: number; unitPrice: number; tooth: Tooth | null }>;
     note?: string | null;
+    nextProcedure?: { procedureId: string; tooth: Tooth | null } | null;
 }): Promise<Visit> {
     // `closed` is what the screen was opened on, which a failed attempt has
     // already made stale: the reopen lands, `setProcedures` is refused for a
@@ -369,7 +377,11 @@ export async function amend(input: {
         if (current.completedAt) await api.reopenVisit(input.visitId);
     }
 
-    return api.setProcedures({ visitId: input.visitId, procedures: input.procedures });
+    return api.setProcedures({
+        visitId: input.visitId,
+        procedures: input.procedures,
+        nextProcedure: input.nextProcedure,
+    });
 }
 
 /**

@@ -91,6 +91,9 @@ export function writeOldPatientHistory(
         completedAt: cutoffAt,
         computedTotal: plan.openingBalance,
         chargedTotal: plan.openingBalance,
+        nextProcedureId: null,
+        nextProcedureTooth: null,
+        nextAppointmentId: null,
         createdAt: cutoffAt,
     };
     db.visits.push(visit);
