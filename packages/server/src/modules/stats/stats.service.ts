@@ -75,8 +75,11 @@ function amount(total: string | number | null): number {
 }
 
 async function figuresFor(period: StatsPeriod): Promise<StatsFigures> {
-    const { from } = dayRange(period.from, period.fromOffsetMinutes ?? period.offsetMinutes);
-    const { to } = dayRange(period.to, period.offsetMinutes);
+    const first = dayRange(period.from, period.fromOffsetMinutes ?? period.offsetMinutes);
+    const last = dayRange(period.to, period.offsetMinutes);
+    const from = new Date(first.from.getTime() + (period.fromMinute ?? 0) * 60_000);
+    const to =
+        period.toMinute === undefined ? last.to : new Date(last.from.getTime() + period.toMinute * 60_000);
 
     // Per visit rather than joined line by line, which would repeat a visit's
     // charge once for every line it has.

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'bun:test';
 import {
     branchOrder,
     chartPoints,
+    comparisonRange,
     deltaOf,
     emptyLead,
     leadingShare,
@@ -13,52 +14,95 @@ import {
 // A Wednesday.
 const TODAY = '2026-10-14';
 
-describe('the points each pill draws', () => {
-    it('is the last seven days for Today, ending today', () => {
-        const slots = trendSlots('today', TODAY);
-        expect(slots).toHaveLength(7);
-        expect(slots[0]?.range.from).toBe('2026-10-08');
-        expect(slots.at(-1)?.range).toMatchObject({ from: TODAY, to: TODAY });
-        expect(slots.at(-1)?.axis).toBe('Today');
-        expect(slots[0]?.axis).toBe('Thu');
+describe('the points inside each pill', () => {
+    it('is today by the hour, up to the hour it is now', () => {
+        const slots = trendSlots('today', TODAY, 'en', 10 * 60 + 15);
+        expect(slots).toHaveLength(11);
+        expect(slots.at(-1)?.range).toMatchObject({ from: TODAY, to: TODAY, fromMinute: 600, toMinute: 660 });
+        expect(slots.at(-1)?.axis).toBe('10AM');
+        expect(slots[0]?.name).toBe('12 AM');
     });
 
-    it('is eight weeks starting Sunday for This week, the last cut at today', () => {
+    it('is this week by the day, from Sunday to today', () => {
         const slots = trendSlots('week', TODAY);
-        expect(slots).toHaveLength(8);
-        expect(slots.at(-1)?.range).toMatchObject({ from: '2026-10-11', to: TODAY });
-        expect(slots.at(-2)?.range).toMatchObject({ from: '2026-10-04', to: '2026-10-10' });
-        expect(slots.at(-1)?.name).toBe('This week');
-        expect(slots.at(-2)?.name).toBe('Week of 4 Oct');
+        expect(slots.map((slot) => slot.axis)).toEqual(['Sun', 'Mon', 'Tue', 'Wed']);
+        expect(slots[0]?.range).toMatchObject({ from: '2026-10-11', to: '2026-10-11' });
+        expect(slots.at(-1)?.name).toBe('Today');
     });
 
-    it('is six whole months for This month, the last running to today', () => {
+    it('is this month by Sunday weeks, cut at the month and at today', () => {
         const slots = trendSlots('month', TODAY);
-        expect(slots.map((slot) => slot.axis)).toEqual(['May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct']);
-        expect(slots[4]?.range).toMatchObject({ from: '2026-09-01', to: '2026-09-30' });
-        expect(slots[4]?.name).toBe('September');
+        expect(slots.map((slot) => slot.axis)).toEqual(['1–3', '4–10', '11–14']);
+        expect(slots[1]?.range).toMatchObject({ from: '2026-10-04', to: '2026-10-10' });
+        expect(slots[1]?.name).toBe('4–10 Oct');
+    });
+
+    it('is this year by the month, the last running to today', () => {
+        const slots = trendSlots('year', TODAY);
+        expect(slots).toHaveLength(10);
+        expect(slots[8]?.range).toMatchObject({ from: '2026-09-01', to: '2026-09-30' });
+        expect(slots[8]?.name).toBe('September');
         expect(slots.at(-1)?.range).toMatchObject({ from: '2026-10-01', to: TODAY });
     });
 
-    it('is one point a year for This year', () => {
-        const slots = trendSlots('year', TODAY);
+    it('is all time by the year', () => {
+        const slots = trendSlots('all', TODAY);
         expect(slots).toHaveLength(YEARS);
         expect(slots.at(-2)?.range).toMatchObject({ from: '2025-01-01', to: '2025-12-31' });
-        expect(slots.at(-1)?.range).toMatchObject({ from: '2026-01-01', to: TODAY });
     });
 
     it('names the points in the language asked for, whatever the screen was drawn in first', () => {
-        const ar = trendSlots('week', TODAY, 'ar');
-        expect(ar.at(-1)?.name).toBe('هذا الأسبوع');
-        expect(ar.at(-2)?.axis).not.toContain('Oct');
-        expect(trendSlots('week', TODAY, 'en').at(-2)?.axis).toBe('4 Oct');
+        expect(trendSlots('week', TODAY, 'ar').at(-1)?.name).toBe('اليوم');
+        expect(trendSlots('month', TODAY, 'ar')[1]?.name).not.toContain('Oct');
     });
 
     it('carries the offset of each end’s own day, as the server wants', () => {
         // Egypt keeps DST: January is +02:00 and October 14 still +03:00.
-        const year = trendSlots('year', TODAY).at(-1)?.range;
-        expect(year?.fromOffsetMinutes).toBe(120);
-        expect(year?.offsetMinutes).toBe(180);
+        const range = trendSlots('all', TODAY).at(-1)?.range;
+        expect(range?.fromOffsetMinutes).toBe(120);
+        expect(range?.offsetMinutes).toBe(180);
+    });
+});
+
+describe('the same stretch the period before', () => {
+    const now = 10 * 60;
+
+    it('is yesterday up to this minute, for today', () => {
+        expect(comparisonRange('today', TODAY, now)?.range).toMatchObject({
+            from: '2026-10-13',
+            to: '2026-10-13',
+            toMinute: now,
+        });
+    });
+
+    it('is last week from Sunday to the same weekday', () => {
+        expect(comparisonRange('week', TODAY, now)?.range).toMatchObject({
+            from: '2026-10-04',
+            to: '2026-10-07',
+        });
+    });
+
+    it('is last month to the same day, cut at the month’s end', () => {
+        expect(comparisonRange('month', TODAY, now)?.range).toMatchObject({
+            from: '2026-09-01',
+            to: '2026-09-14',
+        });
+        expect(comparisonRange('month', '2026-03-31', now)?.range).toMatchObject({
+            from: '2026-02-01',
+            to: '2026-02-28',
+        });
+    });
+
+    it('is last year to the same date', () => {
+        expect(comparisonRange('year', TODAY, now)?.range).toMatchObject({
+            from: '2025-01-01',
+            to: '2025-10-14',
+        });
+        expect(comparisonRange('year', TODAY, now)?.label).toBe('last year');
+    });
+
+    it('is nothing for all time', () => {
+        expect(comparisonRange('all', TODAY, now)).toBeNull();
     });
 });
 

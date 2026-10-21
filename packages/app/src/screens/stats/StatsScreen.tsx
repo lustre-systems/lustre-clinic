@@ -3,21 +3,23 @@
 // page). Only the admin's phone has this tab (`seesStats`), and the server
 // refuses its reads to anyone else.
 //
-// One point is selected at a time, the latest by default, and everything under
-// the pills shows that point: the chart's header, the tiles, the highlighted
-// branch bar and how people paid. "All time" draws the years with nothing
-// selected and the whole history in the header; tapping a year there moves to
-// "This year" with that year selected.
+// The header and the tiles are the whole period; the chart's points are what is
+// inside it — the hours of today, the days of this week, the weeks of this
+// month, the months of this year, the years of all time. Tapping a point narrows
+// everything under the pills to it, and tapping it again goes back to the
+// period. The change chip compares the period with the same stretch the period
+// before (`comparisonRange`).
 //
-// Every figure is the server's. The client picks the ranges, compares a point
-// with the one before it and lays the points out (`stats.ts`).
+// Every figure is the server's. The client picks the ranges, compares two of
+// them and lays the points out (`stats.ts`).
 // biome-ignore lint/style/noRestrictedImports: two of them, both external — the imperative `scrollTo` when the tab is re-tapped, and the `AppState` subscription that re-reads the day on foreground
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AppState, ScrollView, StyleSheet, View } from 'react-native';
+import { serverNow } from '../../api/serverClock';
 import { ScreenHeader, usePullToRefresh } from '../../components/ui';
 import { useLocale, useT } from '../../i18n';
 import { color, size, space } from '../../theme';
-import { todayKey } from '../day/time';
+import { minutesOfDay, todayKey } from '../day/time';
 import { BranchBars } from './components/BranchBars';
 import { LoadState, SkeletonCard, SkeletonHeroCard } from './components/LoadState';
 import { MetricTiles } from './components/MetricTiles';
@@ -25,9 +27,10 @@ import { PeriodTabs } from './components/PeriodTabs';
 import { StatsChart } from './components/StatsChart';
 import { TakingsCard } from './components/TakingsCard';
 import { type StatsFigures, useStatsOverview, useStatsTrend, useTakings } from './data';
-import { type Period, periodRange } from './money';
+import { PERIOD_LABEL, type Period, periodRange } from './money';
 import {
     branchOrder,
+    comparisonRange,
     deltaOf,
     emptyLead,
     METRICS,
@@ -44,35 +47,40 @@ type StatsScreenProps = {
 
 function StatsScreenView({ goHome = 0 }: StatsScreenProps) {
     const t = useT();
+    const locale = useLocale();
     const [period, setPeriod] = useState<Period>('month');
     const [picked, setPicked] = useState<number | null>(null);
     const [metric, setMetric] = useState<Metric>('profit');
-    const [today, rereadToday] = useToday();
+    const [{ today, minute }, rereadNow] = useNow();
 
-    const locale = useLocale();
-    const allTime = period === 'all';
-    // "All time" is the yearly line, so the two pills share one query. The
-    // locale is in the key because the slots carry their labels.
-    const slots = useMemo(
-        () => trendSlots(allTime ? 'year' : period, today, locale),
-        [allTime, period, today, locale],
-    );
+    // The locale is in the key because the slots carry their labels.
+    const slots = useMemo(() => trendSlots(period, today, locale, minute), [period, today, locale, minute]);
     const trend = useStatsTrend(slots.map((slot) => slot.range));
-    const everything = useMemo(() => periodRange('all', today), [today]);
-    const overview = useStatsOverview(everything, allTime);
+    const whole = useMemo(() => periodRange(period, today), [period, today]);
+    const overview = useStatsOverview(whole);
+    const before = useMemo(
+        () => comparisonRange(period, today, minute, locale),
+        [period, today, minute, locale],
+    );
+    const comparison = useStatsOverview(before?.range ?? whole, before !== null);
 
-    const yearly = period === 'year' || allTime;
-    const lead = yearly && trend.data ? emptyLead(trend.data) : 0;
+    // Hours before the first visit of the day, and years before the clinic's
+    // first, are dropped from the front rather than drawn as a run of zeros.
+    const trims = period === 'today' || period === 'all';
+    const lead = trims && trend.data ? emptyLead(trend.data) : 0;
     const points = trend.data?.slice(lead) ?? [];
     const shown = slots.slice(lead);
     const labels = shown.map((slot) => slot.axis);
 
-    const last = points.length - 1;
-    const selected = allTime ? -1 : Math.min(picked ?? last, last);
-    const current: StatsFigures | undefined = allTime ? overview.data : points[selected];
-    const previous = selected > 0 ? points[selected - 1] : undefined;
+    const selected = picked !== null && picked < points.length ? picked : -1;
+    const focus = selected >= 0 ? points[selected] : undefined;
+    const current: StatsFigures | undefined = focus ?? overview.data;
+    const name = focus ? (shown[selected]?.name ?? '') : t(PERIOD_LABEL[period]);
 
-    const takings = useTakings(allTime ? everything : (shown[selected]?.range ?? everything));
+    // An hour is narrower than the takings can be asked for, so a selected
+    // hour shows the day's.
+    const takingsRange = focus && period !== 'today' ? (shown[selected]?.range ?? whole) : whole;
+    const takings = useTakings(takingsRange);
 
     function pickPeriod(next: Period) {
         setPeriod(next);
@@ -80,8 +88,7 @@ function StatsScreenView({ goHome = 0 }: StatsScreenProps) {
     }
 
     function selectPoint(index: number) {
-        if (allTime) setPeriod('year');
-        setPicked(index);
+        setPicked((current) => (current === index ? null : index));
     }
 
     const scroller = useRef<ScrollView>(null);
@@ -92,23 +99,32 @@ function StatsScreenView({ goHome = 0 }: StatsScreenProps) {
         scroller.current?.scrollTo({ y: 0, animated: true });
     }, [goHome]);
 
-    const pull = usePullToRefresh(() => {
-        rereadToday();
-        trend.refetch();
-        if (allTime) overview.refetch();
-        takings.refetch();
-    }, trend.isLoading || takings.isLoading);
+    const pull = usePullToRefresh(
+        () => {
+            rereadNow();
+            trend.refetch();
+            overview.refetch();
+            if (before) comparison.refetch();
+            takings.refetch();
+        },
+        trend.isLoading || overview.isLoading || takings.isLoading,
+    );
 
     const figures = current
         ? (Object.fromEntries(METRICS.map((key) => [key, metricOf(current, key)])) as Record<Metric, number>)
         : null;
     const branchesShown = branchOrder(points).length > 1;
-    const headLoading = trend.isLoading || (allTime && overview.isLoading);
-    const headError = trend.error ?? (allTime ? overview.error : null);
+    const headLoading = trend.isLoading || overview.isLoading;
+    const headError = trend.error ?? overview.error;
     const retryHead = () => {
         trend.refetch();
-        if (allTime) overview.refetch();
+        overview.refetch();
     };
+    // Only the whole period is compared. Two points side by side are rarely
+    // the same length — a three-day first week against a whole one — and a
+    // change between them would be the calendar's, not the clinic's.
+    const previous = focus ? undefined : comparison.data;
+    const against = focus ? null : (before?.label ?? null);
 
     return (
         <ScrollView
@@ -140,13 +156,14 @@ function StatsScreenView({ goHome = 0 }: StatsScreenProps) {
                             <StatsChart
                                 metric={metric}
                                 value={figures[metric]}
-                                name={allTime ? t('All time') : (shown[selected]?.name ?? '')}
+                                name={name}
+                                period={t(PERIOD_LABEL[period])}
                                 delta={
                                     previous
                                         ? deltaOf(figures[metric], metricOf(previous, metric), metric)
                                         : null
                                 }
-                                against={selected > 0 ? (labels[selected - 1] ?? null) : null}
+                                against={against}
                                 values={points.map((point) => metricOf(point, metric))}
                                 labels={labels}
                                 selected={selected}
@@ -160,6 +177,8 @@ function StatsScreenView({ goHome = 0 }: StatsScreenProps) {
                                     points={points}
                                     labels={labels}
                                     names={shown.map((slot) => slot.name)}
+                                    total={overview.data}
+                                    periodName={t(PERIOD_LABEL[period])}
                                     selected={selected}
                                     onSelect={selectPoint}
                                 />
@@ -178,7 +197,7 @@ function StatsScreenView({ goHome = 0 }: StatsScreenProps) {
                         <TakingsCard
                             takings={shownTakings(takings.data)}
                             label={t('Collected · {period}', {
-                                period: allTime ? t('All time') : (shown[selected]?.name ?? ''),
+                                period: takingsRange === whole ? t(PERIOD_LABEL[period]) : name,
                             })}
                         />
                     ) : null}
@@ -194,15 +213,17 @@ function StatsScreenView({ goHome = 0 }: StatsScreenProps) {
  */
 export const StatsScreen = memo(StatsScreenView);
 
-// Which local day the pills are measured from. The shell mounts a tab once and
-// hides it rather than unmounting it, so a day captured at first render would
-// be yesterday's by the next morning; it is re-read when the app comes back to
-// the foreground and on every pull. An unchanged day hashes to the same query
-// key, so a re-read on the same day is not a refetch.
-function useToday(): [string, () => void] {
-    const [today, setToday] = useState(todayKey);
+// Which local day, and which minute of it, the pills are measured from. The
+// shell mounts a tab once and hides it rather than unmounting it, so a day
+// captured at first render would be yesterday's by the next morning; both are
+// re-read when the app comes back to the foreground and on every pull. An
+// unchanged range hashes to the same query key, so a re-read is not a refetch
+// unless time has moved on.
+function useNow(): [{ today: string; minute: number }, () => void] {
+    const read = useCallback(() => ({ today: todayKey(), minute: minutesOfDay(serverNow()) }), []);
+    const [now, setNow] = useState(read);
 
-    const reread = useCallback(() => setToday(todayKey()), []);
+    const reread = useCallback(() => setNow(read()), [read]);
 
     useEffect(() => {
         const subscription = AppState.addEventListener('change', (state) => {
@@ -211,7 +232,7 @@ function useToday(): [string, () => void] {
         return () => subscription.remove();
     }, [reread]);
 
-    return [today, reread];
+    return [now, reread];
 }
 
 const styles = StyleSheet.create({

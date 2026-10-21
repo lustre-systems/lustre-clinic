@@ -1,6 +1,7 @@
-// The black chart card at the top of the stats screen: the metric and point in
-// the header with its figure and the change on the point before it, then a line
-// over the period's points. Tapping a point selects it everywhere on the screen.
+// The black chart card at the top of the stats screen: the metric and what it
+// covers in the header, with its figure and the change on what came before,
+// then a line over the points inside the period. Tapping a point narrows the
+// screen to it; tapping it again goes back to the whole period.
 //
 // The line is drawn left to right in English and right to left in Arabic, the
 // way the pills and the bars read. The SVG does not mirror by itself, so its
@@ -15,26 +16,32 @@ import { currencyOf, formatEgp } from '../money';
 import { chartPoints, type Delta, isMoney, METRIC_LABEL, type Metric } from '../stats';
 import { SKIN } from './skin';
 
-const HEIGHT = 120;
-const PAD = 18;
-const TOP = 28;
-const BOTTOM = 30;
-const AXIS = 22;
+const HEIGHT = 200;
+const PAD = 22;
+const TOP = 44;
+const BOTTOM = 36;
+const AXIS = 26;
 const HIT = 44;
-const TAG = 80;
+const TAG = 92;
+const TAG_HEIGHT = 26;
+const TAG_GAP = 12;
+/** The most axis labels that fit; past it the axis names every second or third point. */
+const LABELS = 7;
 
 export type StatsChartProps = {
     metric: Metric;
     /** The header's figure: the selected point's, or the whole period's when nothing is selected. */
     value: number;
-    /** What the figure is of, after the metric: "This month", "All time". */
+    /** What the figure is of, after the metric: "This month", or the selected point. */
     name: string;
+    /** The pill's own name, for the way back from a selected point. */
+    period: string;
     delta: Delta | null;
-    /** The point the delta is measured against, for "vs Sep". */
+    /** What the delta is measured against, for "vs last month" or "vs Sep". */
     against: string | null;
     values: readonly number[];
     labels: readonly string[];
-    /** -1 when nothing is selected, as on "All time". */
+    /** -1 when the whole period is showing. */
     selected: number;
     onSelect: (index: number) => void;
 };
@@ -43,6 +50,7 @@ export function StatsChart({
     metric,
     value,
     name,
+    period,
     delta,
     against,
     values,
@@ -66,6 +74,8 @@ export function StatsChart({
             ? `${line} L${drawX(last.x)},${HEIGHT - AXIS} L${drawX(first.x)},${HEIGHT - AXIS} Z`
             : '';
     const focus = selected >= 0 ? points[selected] : undefined;
+    const every = Math.ceil(points.length / LABELS);
+    const axis = Math.min(72, points.length > 1 ? ((width - 2 * PAD) / (points.length - 1)) * every : 72);
 
     const figure = (amount: number, compact = false) =>
         isMoney(metric) ? formatEgp(amount, { compact, showCurrency: false }) : String(amount);
@@ -137,14 +147,17 @@ export function StatsChart({
                         ) : null}
                         {points.map((p, i) =>
                             i === selected ? null : (
+                                // Ringed, so each point reads as something to tap
+                                // rather than a vertex of the line.
                                 <Circle
                                     // biome-ignore lint/suspicious/noArrayIndexKey: a point is its position
                                     key={i}
                                     cx={drawX(p.x)}
                                     cy={p.y}
-                                    r={3}
-                                    fill={color.inverse}
-                                    fillOpacity={0.7}
+                                    r={4.5}
+                                    fill={color.inkDeep}
+                                    stroke={skin.onDark}
+                                    strokeWidth={2}
                                 />
                             ),
                         )}
@@ -153,26 +166,35 @@ export function StatsChart({
                                 <Circle
                                     cx={drawX(focus.x)}
                                     cy={focus.y}
-                                    r={8}
+                                    r={10}
                                     fill={color.inkDeep}
                                     stroke={skin.onDark}
                                     strokeWidth={1.5}
                                 />
-                                <Circle cx={drawX(focus.x)} cy={focus.y} r={5} fill={skin.onDark} />
+                                <Circle cx={drawX(focus.x)} cy={focus.y} r={6} fill={skin.onDark} />
                             </>
                         ) : null}
                     </Svg>
                 ) : null}
 
                 {focus ? (
+                    // On its own ground, so the line it sits over cannot run
+                    // through the figure, and below the dot when there is no
+                    // room above it.
                     <View
                         style={[
                             styles.tag,
-                            { start: clamp(focus.x - TAG / 2, 0, width - TAG), top: focus.y - 30 },
+                            {
+                                start: clamp(focus.x - TAG / 2, 0, width - TAG),
+                                top:
+                                    focus.y - TAG_GAP - TAG_HEIGHT >= 0
+                                        ? focus.y - TAG_GAP - TAG_HEIGHT
+                                        : focus.y + TAG_GAP,
+                            },
                         ]}
                         pointerEvents="none"
                     >
-                        <Text variant="footnote" weight="semibold" tone={skin.onDarkTone} numberOfLines={1}>
+                        <Text variant="footnote" weight="bold" tone={skin.onDarkTone} numberOfLines={1}>
                             {figure(values[selected] ?? 0)}
                         </Text>
                     </View>
@@ -191,31 +213,35 @@ export function StatsChart({
                     />
                 ))}
 
-                {points.map((p, i) => (
-                    <View
-                        // biome-ignore lint/suspicious/noArrayIndexKey: a point is its position
-                        key={i}
-                        style={[
-                            styles.axis,
-                            {
-                                start: p.x - axisWidth(points.length, width) / 2,
-                                width: axisWidth(points.length, width),
-                            },
-                        ]}
-                        pointerEvents="none"
-                    >
-                        <Text
-                            variant="caption"
-                            weight={i === selected ? 'semibold' : 'medium'}
-                            tone="inverse"
-                            style={i === selected ? null : styles.axisDim}
-                            numberOfLines={1}
+                {points.map((p, i) =>
+                    i === selected ||
+                    (i % every === 0 && selected < 0) ||
+                    (i % every === 0 && Math.abs(i - selected) >= every) ? (
+                        <View
+                            // biome-ignore lint/suspicious/noArrayIndexKey: a point is its position
+                            key={i}
+                            style={[styles.axis, { start: p.x - axis / 2, width: axis }]}
+                            pointerEvents="none"
                         >
-                            {labels[i]}
-                        </Text>
-                    </View>
-                ))}
+                            <Text
+                                variant="caption"
+                                weight={i === selected ? 'bold' : 'medium'}
+                                tone="inverse"
+                                style={i === selected ? null : styles.axisDim}
+                                numberOfLines={1}
+                            >
+                                {labels[i]}
+                            </Text>
+                        </View>
+                    ) : null,
+                )}
             </View>
+
+            <Text variant="footnote" tone="inverse" style={styles.hint}>
+                {selected >= 0
+                    ? t('Tap it again for all of {period}', { period })
+                    : t('Tap a point for a closer look')}
+            </Text>
         </View>
     );
 }
@@ -224,18 +250,12 @@ function clamp(value: number, min: number, max: number): number {
     return Math.max(min, Math.min(max, value));
 }
 
-/** As wide as the gap between two points allows, so eight weeks of "26 Sep" do not run into each other. */
-function axisWidth(count: number, width: number): number {
-    if (count < 2) return 64;
-    return Math.min(64, (width - 2 * PAD) / (count - 1));
-}
-
 const styles = StyleSheet.create({
     card: {
-        gap: space[2],
-        paddingTop: space[5],
+        gap: space[3],
+        paddingTop: space[6],
         paddingHorizontal: space[4],
-        paddingBottom: space[2.5],
+        paddingBottom: space[4],
         borderRadius: radius.xl4,
         backgroundColor: color.inkDeep,
         boxShadow: shadow.hero,
@@ -245,9 +265,9 @@ const styles = StyleSheet.create({
         alignItems: 'flex-start',
         justifyContent: 'space-between',
         gap: space[2],
-        paddingHorizontal: space[1.5],
+        paddingHorizontal: space[2],
     },
-    titles: { flexShrink: 1, gap: space[1], alignItems: 'flex-start' },
+    titles: { flexShrink: 1, gap: space[1.5], alignItems: 'flex-start' },
     dim: { opacity: 0.55 },
     figure: { flexDirection: 'row', alignItems: 'baseline', gap: space[1] },
     unit: { opacity: 0.6 },
@@ -256,8 +276,19 @@ const styles = StyleSheet.create({
     deltaBad: { backgroundColor: color.dueOnDarkSoft },
     plot: { height: HEIGHT },
     svg: { position: 'absolute', top: 0, start: 0 },
-    tag: { position: 'absolute', width: TAG, alignItems: 'center' },
+    tag: {
+        position: 'absolute',
+        width: TAG,
+        height: TAG_HEIGHT,
+        alignItems: 'center',
+        justifyContent: 'center',
+        borderRadius: radius.full,
+        backgroundColor: color.inkDeep,
+        borderWidth: 1,
+        borderColor: color.onDarkLine,
+    },
     hit: { position: 'absolute', width: HIT, height: HIT },
-    axis: { position: 'absolute', top: HEIGHT - 16, alignItems: 'center' },
+    axis: { position: 'absolute', top: HEIGHT - 18, alignItems: 'center' },
     axisDim: { opacity: 0.5 },
+    hint: { opacity: 0.45, textAlign: 'center' },
 });

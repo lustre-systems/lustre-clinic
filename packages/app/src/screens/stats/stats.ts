@@ -3,6 +3,7 @@
 // `stats.overview`); what happens here is choosing which periods to ask for,
 // comparing one point with the one before it, and laying points out.
 import { type Locale, localizeCopy, type PaymentMethod } from '@lustre/shared';
+import { clock12 } from '../../components/domain/clock';
 import { getLocale } from '../../i18n/runtime';
 import { addDays, addMonths, keyParts, offsetForDate, weekdayOf } from '../day/time';
 import { type DateRange, FIRST_RECORD, type Period } from './money';
@@ -29,20 +30,22 @@ export function metricOf(figures: Figures, metric: Metric): number {
     return figures[metric];
 }
 
+/** A range as `stats.trend` takes it: whole days, optionally narrowed to minutes of the first and last. */
+export type StatsRange = DateRange & { fromMinute?: number; toMinute?: number };
+
 /** One point on the chart: the range it asks the server for and what to call it. */
 export type TrendSlot = {
-    range: DateRange;
+    range: StatsRange;
     /** Under the point on the chart and the branch bar. */
     axis: string;
     /** In the chart's header: "Profit · September". */
     name: string;
 };
 
-const DAYS = 7;
-const WEEKS = 8;
-const MONTHS = 6;
-/** The most years "This year" reaches back; empty ones before the first visit are dropped. */
+/** The most years "All time" reaches back; empty ones before the first visit are dropped. */
 export const YEARS = 12;
+
+const HOUR = 60;
 
 const WEEKDAYS_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'] as const;
 
@@ -76,73 +79,144 @@ const MONTHS_LONG = [
     'December',
 ] as const;
 
-function rangeOf(from: string, to: string): DateRange {
-    // A slot never runs past today, and never starts before the first record.
+function rangeOf(
+    from: string,
+    to: string,
+    minutes: { fromMinute?: number; toMinute?: number } = {},
+): StatsRange {
+    // A slot never starts before the first record.
     const start = from < FIRST_RECORD ? FIRST_RECORD : from;
-    return { from: start, to, offsetMinutes: offsetForDate(to), fromOffsetMinutes: offsetForDate(start) };
+    return {
+        from: start,
+        to,
+        offsetMinutes: offsetForDate(to),
+        fromOffsetMinutes: offsetForDate(start),
+        ...minutes,
+    };
+}
+
+function monthEnd(key: string): string {
+    return addDays(addMonths(`${key.slice(0, 7)}-01`, 1), -1);
 }
 
 /**
- * The points each pill draws, oldest first, the last one being the period the
- * pill names. "Today" is the last seven days, closed days included at zero;
- * "This week" the last eight weeks, starting Sunday like `periodRange`; "This
- * month" the last six months; "This year" and "All time" one point per year.
- * The current unit ends today rather than at its calendar end.
+ * The points inside the period a pill names, oldest first, up to now: "Today"
+ * by the hour, "This week" by the day (from Sunday, like `periodRange`), "This
+ * month" by the week (Sunday weeks, cut at the month's edges), "This year" by
+ * the month and "All time" by the year. Nothing after now is asked for, so the
+ * line ends at today rather than running on into zeros.
  */
-export function trendSlots(period: Period, today: string, locale: Locale = getLocale()): TrendSlot[] {
+export function trendSlots(
+    period: Period,
+    today: string,
+    locale: Locale = getLocale(),
+    nowMinute = 24 * HOUR,
+): TrendSlot[] {
     const say = (copy: string, vars?: Record<string, string | number>) => localizeCopy(locale, copy, vars);
     const month = (key: string) => say(MONTHS_SHORT[keyParts(key).month - 1] ?? '');
     const weekday = (key: string) => say(WEEKDAYS_SHORT[weekdayOf(key)] ?? '');
 
     if (period === 'today') {
-        return Array.from({ length: DAYS }, (_, i) => {
-            const back = DAYS - 1 - i;
-            const key = addDays(today, -back);
-            const label = back === 0 ? say('Today') : weekday(key);
-            const name = back === 0 ? label : `${weekday(key)} ${keyParts(key).day} ${month(key)}`;
-            return { range: rangeOf(key, key), axis: label, name };
+        const hours = Math.min(24, Math.floor(nowMinute / HOUR) + 1);
+        return Array.from({ length: hours }, (_, h) => {
+            const { time, meridiem } = clock12(h * HOUR, locale);
+            const hour = time.split(':')[0] ?? '';
+            return {
+                range: rangeOf(today, today, { fromMinute: h * HOUR, toMinute: (h + 1) * HOUR }),
+                axis: `${hour}${meridiem}`,
+                name: `${hour} ${meridiem}`,
+            };
         });
     }
 
     if (period === 'week') {
-        const thisWeek = addDays(today, -weekdayOf(today));
-        return Array.from({ length: WEEKS }, (_, i) => {
-            const back = WEEKS - 1 - i;
-            const start = addDays(thisWeek, -7 * back);
-            const end = back === 0 ? today : addDays(start, 6);
-            const axis = `${keyParts(start).day} ${month(start)}`;
+        const start = addDays(today, -weekdayOf(today));
+        return Array.from({ length: weekdayOf(today) + 1 }, (_, i) => {
+            const key = addDays(start, i);
             return {
-                range: rangeOf(start, end),
-                axis,
-                name: back === 0 ? say('This week') : say('Week of {date}', { date: axis }),
+                range: rangeOf(key, key),
+                axis: weekday(key),
+                name: key === today ? say('Today') : `${weekday(key)} ${keyParts(key).day} ${month(key)}`,
             };
         });
     }
 
     if (period === 'month') {
-        const thisMonth = `${today.slice(0, 7)}-01`;
-        return Array.from({ length: MONTHS }, (_, i) => {
-            const back = MONTHS - 1 - i;
-            const start = addMonths(thisMonth, -back);
-            const end = back === 0 ? today : addDays(addMonths(start, 1), -1);
+        const slots: TrendSlot[] = [];
+        let start = `${today.slice(0, 7)}-01`;
+        while (start <= today) {
+            const weekEnd = addDays(start, 6 - weekdayOf(start));
+            const end = [weekEnd, monthEnd(start), today].sort()[0] ?? today;
+            const first = keyParts(start).day;
+            const last = keyParts(end).day;
+            const span = first === last ? String(first) : `${first}–${last}`;
+            slots.push({ range: rangeOf(start, end), axis: span, name: `${span} ${month(start)}` });
+            start = addDays(end, 1);
+        }
+        return slots;
+    }
+
+    if (period === 'year') {
+        const year = today.slice(0, 4);
+        return Array.from({ length: keyParts(today).month }, (_, i) => {
+            const start = `${year}-${String(i + 1).padStart(2, '0')}-01`;
+            const end = start.slice(0, 7) === today.slice(0, 7) ? today : monthEnd(start);
             return {
                 range: rangeOf(start, end),
                 axis: month(start),
-                name: back === 0 ? say('This month') : say(MONTHS_LONG[keyParts(start).month - 1] ?? ''),
+                name: say(MONTHS_LONG[i] ?? ''),
             };
         });
     }
 
     const year = keyParts(today).year;
     return Array.from({ length: YEARS }, (_, i) => {
-        const back = YEARS - 1 - i;
-        const y = year - back;
+        const y = year - (YEARS - 1 - i);
         return {
-            range: rangeOf(`${y}-01-01`, back === 0 ? today : `${y}-12-31`),
+            range: rangeOf(`${y}-01-01`, y === year ? today : `${y}-12-31`),
             axis: String(y),
-            name: back === 0 ? say('This year') : String(y),
+            name: String(y),
         };
     });
+}
+
+/**
+ * The same stretch one period back, for the header's change chip: today so far
+ * against yesterday up to the same minute, this week so far against last week
+ * to the same weekday, and so on. A whole previous month against half of this
+ * one would read as a fall every month until the last week. Nothing for "All
+ * time", which has nothing before it.
+ */
+export function comparisonRange(
+    period: Period,
+    today: string,
+    nowMinute: number,
+    locale: Locale = getLocale(),
+): { range: StatsRange; label: string } | null {
+    const say = (copy: string) => localizeCopy(locale, copy);
+    const upTo = { toMinute: Math.min(24 * HOUR, nowMinute) };
+
+    if (period === 'today') {
+        const day = addDays(today, -1);
+        return { range: rangeOf(day, day, upTo), label: say('yesterday') };
+    }
+    if (period === 'week') {
+        const end = addDays(today, -7);
+        return { range: rangeOf(addDays(end, -weekdayOf(end)), end, upTo), label: say('last week') };
+    }
+    if (period === 'month') {
+        const start = addMonths(`${today.slice(0, 7)}-01`, -1);
+        const sameDay = `${start.slice(0, 7)}-${today.slice(8, 10)}`;
+        const end = [sameDay, monthEnd(start)].sort()[0] ?? start;
+        return { range: rangeOf(start, end, upTo), label: say('last month') };
+    }
+    if (period === 'year') {
+        const start = `${keyParts(today).year - 1}-01-01`;
+        const sameDay = `${start.slice(0, 4)}${today.slice(4)}`;
+        const end = [sameDay, monthEnd(`${sameDay.slice(0, 8)}01`)].sort()[0] ?? start;
+        return { range: rangeOf(start, end, upTo), label: say('last year') };
+    }
+    return null;
 }
 
 type Point = Figures & { branches: readonly unknown[] };

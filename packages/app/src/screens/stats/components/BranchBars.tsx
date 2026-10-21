@@ -11,7 +11,7 @@ import type { StatsFigures } from '../data';
 import { formatEgp } from '../money';
 import { branchOrder, leadingShare } from '../stats';
 
-const BAR_HEIGHT = 110;
+const BAR_HEIGHT = 170;
 const MIN_SEGMENT = 4;
 const SHADES = [color.ink, color.inkFaint, color.muted, color.line] as const;
 
@@ -20,12 +20,24 @@ export type BranchBarsProps = {
     labels: readonly string[];
     /** Each point's full name, for the sentence under the bars: "September", "Week of 4 Oct". */
     names: readonly string[];
+    /** The whole period, for the sentence under the bars while no bar is selected. */
+    total: StatsFigures | undefined;
+    /** The pill's name, for that sentence. */
+    periodName: string;
     /** -1 when nothing is selected. */
     selected: number;
     onSelect: (index: number) => void;
 };
 
-export function BranchBars({ points, labels, names, selected, onSelect }: BranchBarsProps) {
+export function BranchBars({
+    points,
+    labels,
+    names,
+    total,
+    periodName,
+    selected,
+    onSelect,
+}: BranchBarsProps) {
     const t = useT();
     const branches = branchOrder(points);
     const shade = (index: number) => SHADES[Math.min(index, SHADES.length - 1)];
@@ -38,8 +50,9 @@ export function BranchBars({ points, labels, names, selected, onSelect }: Branch
     const tallest = Math.max(1, ...heights.map((stack) => stack.reduce((sum, v) => sum + v, 0)));
     const labelled = selected >= 0 ? selected : points.length - 1;
 
-    const focus = selected >= 0 ? points[selected] : undefined;
+    const focus = selected >= 0 ? points[selected] : total;
     const share = focus ? leadingShare(focus) : null;
+    const shareOf = selected >= 0 ? (names[selected] ?? '') : periodName;
 
     return (
         <View style={styles.card} testID="stats-branches">
@@ -74,7 +87,11 @@ export function BranchBars({ points, labels, names, selected, onSelect }: Branch
                             accessibilityState={{ selected: on }}
                             accessibilityLabel={`${labels[i] ?? ''}, ${formatEgp(point.profit)}`}
                             onPress={() => onSelect(i)}
-                            style={[styles.column, selected >= 0 && !on && styles.faded]}
+                            style={({ pressed }) => [
+                                styles.column,
+                                selected >= 0 && !on && styles.faded,
+                                pressed && styles.pressed,
+                            ]}
                             testID={`stats-bar-${i}`}
                         >
                             <Text
@@ -123,14 +140,21 @@ export function BranchBars({ points, labels, names, selected, onSelect }: Branch
             </View>
 
             <View style={styles.note}>
-                <Text variant="subhead" tone="ink2">
-                    {share && focus
-                        ? t('{point}: {branch} brought {percent}% of the profit.', {
-                              point: names[selected] ?? '',
-                              branch: share.name,
-                              percent: share.percent,
-                          })
-                        : t('Tap a bar to see its split.')}
+                {share ? (
+                    <Text variant="subhead" tone="ink2">
+                        {t('{point}: {branch} brought {percent}% of the profit.', {
+                            point: shareOf,
+                            branch: share.name,
+                            percent: share.percent,
+                        })}
+                    </Text>
+                ) : null}
+                <Text variant="footnote" tone="muted">
+                    {t(
+                        selected >= 0
+                            ? 'Tap the bar again to see the whole period.'
+                            : 'Tap a bar to see its split.',
+                    )}
                 </Text>
             </View>
         </View>
@@ -151,15 +175,18 @@ const styles = StyleSheet.create({
     legendItem: { flexDirection: 'row', alignItems: 'center', gap: space[1], flexShrink: 1 },
     dot: { width: 8, height: 8, borderRadius: radius.full },
     subtitle: { marginTop: -space[2.5] },
-    bars: { flexDirection: 'row', alignItems: 'flex-end', height: 150 },
+    // Room for the total over the tallest stack and the label under it, so no column overflows and pushes its label out of line.
+    bars: { flexDirection: 'row', alignItems: 'flex-end', height: BAR_HEIGHT + 64 },
     column: { flex: 1, height: '100%', justifyContent: 'flex-end', gap: space[1.5] },
     faded: { opacity: 0.35 },
+    pressed: { transform: [{ scale: 0.94 }] },
     total: { textAlign: 'center' },
     hidden: { textAlign: 'center', opacity: 0 },
     stack: { gap: 2, paddingHorizontal: 3 },
     segment: { width: '100%', borderRadius: 6 },
     label: { textAlign: 'center' },
     note: {
+        gap: space[1],
         paddingVertical: space[3],
         paddingHorizontal: space[3.5],
         borderRadius: radius.lg,

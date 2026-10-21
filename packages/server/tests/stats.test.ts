@@ -268,7 +268,13 @@ describe('a range narrowed to minutes of its day', () => {
         // `todaySlot()` is 00:30 UTC today.
         await rootCanalVisit(clinic.patient.id, clinic.branch.id, clinic.rootCanal.id);
         const today = isoDate(new Date());
-        const hour = (h: number) => ({ from: today, to: today, offsetMinutes: 0, fromMinute: h * 60, toMinute: (h + 1) * 60 });
+        const hour = (h: number) => ({
+            from: today,
+            to: today,
+            offsetMinutes: 0,
+            fromMinute: h * 60,
+            toMinute: (h + 1) * 60,
+        });
 
         const [first, second] = await statsService.trend([hour(0), hour(1)]);
         expect(first?.revenue).toBe(ROOT_CANAL_PRICE);

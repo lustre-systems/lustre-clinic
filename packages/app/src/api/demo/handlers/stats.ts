@@ -22,8 +22,14 @@ type BranchFigures = StatsFigures['branches'][number];
 /** `statsService.overview`: profit is revenue less each line's snapshotted cost, split by branch. */
 function figuresFor(period: StatsPeriod): StatsFigures {
     const db = getDb();
-    const { from, to } = rangeOf(period);
+    const days = rangeOf(period);
     const offsetMinutes = period.offsetMinutes ?? 0;
+    // `statsService`'s minute bounds: the range opens and closes that far into its first and last day.
+    const from = new Date(days.from.getTime() + (period.fromMinute ?? 0) * 60_000);
+    const to =
+        period.toMinute === undefined
+            ? days.to
+            : new Date(dayRange(period.to, offsetMinutes).from.getTime() + period.toMinute * 60_000);
 
     const inPeriod = new Map(
         db.appointments
