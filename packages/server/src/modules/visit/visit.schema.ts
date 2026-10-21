@@ -36,7 +36,15 @@ export const setProceduresInput = z.object({
             }),
         )
         .max(100),
+    /**
+     * What to do at the patient's next visit (`visit.next.ts`). Left off keeps
+     * what is there; null clears it.
+     */
+    nextProcedure: z.object({ procedureId: z.uuid(), tooth: toothSchema.nullish() }).nullable().optional(),
 });
+
+/** What this patient's next booking should be for, if a visit asked for something. */
+export const pendingNextInput = z.object({ patientId: z.uuid() });
 
 export const setPriceInput = z.object({
     visitId: z.uuid(),

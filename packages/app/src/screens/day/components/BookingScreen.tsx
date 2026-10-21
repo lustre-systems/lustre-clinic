@@ -267,6 +267,35 @@ export function BookingScreen({
         setPlan(planFrom(rescheduling.procedures, catalogue.data));
     }
 
+    // A new booking for someone on file opens on the procedure their last visit
+    // asked for next (`visit.next.ts`). Making the booking is what uses it up,
+    // so the desk can take the line off and it is still spent.
+    const owedTo =
+        rescheduling === undefined && patient.mode === 'existing' ? (patient.picked?.id ?? null) : null;
+    const owed = useLocalQuery(`next-procedure:${owedTo}`, () => api.pendingNext(owedTo ?? ''), {
+        enabled: owedTo !== null,
+    });
+    const [owedSeeded, setOwedSeeded] = useState(owedTo === null);
+    if (!owedSeeded && owed.data !== undefined && catalogue.data) {
+        setOwedSeeded(true);
+        if (owed.data && plan.length === 0) {
+            setPlan(
+                planFrom(
+                    [
+                        {
+                            ...owed.data,
+                            id: `next-${owed.data.procedureId}`,
+                            quantity: 1,
+                            note: null,
+                            quotedPrice: null,
+                        },
+                    ],
+                    catalogue.data,
+                ),
+            );
+        }
+    }
+
     // Every day the branch works in the fortnight ahead, not just the one on
     // screen: "which days can take a 45-minute visit" cannot be answered from a
     // single day, and a strip offering a day whose every time is gone is the

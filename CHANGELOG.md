@@ -9,6 +9,7 @@ listed.
 ## [Unreleased]
 
 - Cancelled appointments no longer show on the day view, for the desk or the doctor, so the day only lists appointments that are actually happening. Their slot shows as free and can be booked. They are still listed on the patient's record.
+- When editing a visit, the doctor can choose a next procedure (and its tooth): what the patient should have done next time. If the patient already has a booking coming up, it's added to the earliest one. If not, the next time the desk books them the booking opens with it already filled in.
 
 ## [1.9.0] - 2026-10-10
 
