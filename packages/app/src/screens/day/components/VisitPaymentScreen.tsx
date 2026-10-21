@@ -45,6 +45,7 @@ import {
     paidEntry,
     procedureDiscount,
     quickAmounts,
+    quickChosen,
     typedEntry,
 } from '../money';
 import { dateKey, dayOfMonth, formatLongDate, monthShort } from '../time';
@@ -155,6 +156,7 @@ export function VisitPaymentScreen({
     const nothing = paidPiastres === 0;
 
     const quick = quickAmounts(ceiling);
+    const chosen = quickChosen(paidPiastres, quick);
     // What the field is measured from: nothing at the desk, where it is money
     // handed over now, and what is already on the visit on a correction, where
     // it is the running total.
@@ -568,19 +570,11 @@ export function VisitPaymentScreen({
                 ) : null}
 
                 <View style={styles.quick}>
-                    <QuickChip
-                        label="Full"
-                        selected={paidPiastres === quick.full && quick.full > 0}
-                        onPress={() => choose(quick.full)}
-                    />
-                    <QuickChip
-                        label="Half"
-                        selected={paidPiastres === quick.half && quick.half > 0}
-                        onPress={() => choose(quick.half)}
-                    />
+                    <QuickChip label="Full" selected={chosen === 'full'} onPress={() => choose(quick.full)} />
+                    <QuickChip label="Half" selected={chosen === 'half'} onPress={() => choose(quick.half)} />
                     <QuickChip
                         label="Nothing"
-                        selected={paidPiastres === quick.nothing}
+                        selected={chosen === 'nothing'}
                         onPress={() => choose(quick.nothing)}
                     />
                 </View>

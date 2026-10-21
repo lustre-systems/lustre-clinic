@@ -8,7 +8,7 @@
  */
 import { describe, expect, it } from 'bun:test';
 import path from 'node:path';
-import { alreadyPaidBy, paidBy, paidEntry, quickAmounts, typedEntry } from './money';
+import { alreadyPaidBy, paidBy, paidEntry, quickAmounts, quickChosen, typedEntry } from './money';
 
 const CHARGED = 600_000;
 
@@ -55,6 +55,38 @@ describe('the quick amounts', () => {
     });
 });
 
+describe('the quick amounts after a reprice', () => {
+    // Hana Sameh, 26 Sep: paid 4,500, then repriced to one 900 procedure. The
+    // chips used to be the paid total plus what was left over it — nothing,
+    // once the charge fell under what was paid — so all three landed on the
+    // old 4,500 and none lit next to the 900 in the field.
+    const COLLECTED = 450_000;
+    const REPRICED = 90_000;
+
+    it('opens on the new charge with Full lit, giving the difference back', () => {
+        const quick = quickAmounts(REPRICED);
+        const entry = paidEntry(Math.min(COLLECTED, REPRICED));
+        expect(entry).toEqual({ text: '900', piastres: REPRICED });
+        expect(quickChosen(entry.piastres, quick)).toBe('full');
+        expect(entry.piastres - COLLECTED).toBe(-360_000);
+    });
+
+    it('sets the new charge, half of it and nothing, each lighting its own chip', () => {
+        const quick = quickAmounts(REPRICED);
+        expect(quick).toEqual({ full: REPRICED, half: 45_000, nothing: 0 });
+        for (const chip of ['full', 'half', 'nothing'] as const) {
+            expect(quickChosen(paidEntry(quick[chip]).piastres, quick)).toBe(chip);
+        }
+        // None of them is what was paid before the reprice.
+        expect(Object.values(quick)).not.toContain(COLLECTED);
+    });
+
+    it('lights nothing for a figure that is none of them', () => {
+        expect(quickChosen(30_000, quickAmounts(REPRICED))).toBeNull();
+        expect(quickChosen(0, quickAmounts(0))).toBe('nothing');
+    });
+});
+
 describe('the paid field', () => {
     it('shows whole pounds and records the exact figure it was opened on', () => {
         expect(paidEntry(12_050)).toEqual({ text: '121', piastres: 12_050 });
@@ -94,6 +126,25 @@ describe('the payment screen', () => {
 
     it('measures a correction against the whole charge', async () => {
         expect(await source).toContain('const ceiling = correcting ? charged : due;');
+    });
+
+    it('lights the chip the field is on', async () => {
+        const text = await source;
+        expect(text).toContain('const chosen = quickChosen(paidPiastres, quick);');
+        for (const chip of ['full', 'half', 'nothing'])
+            expect(text).toContain(`selected={chosen === '${chip}'}`);
+    });
+
+    // The field's opening figure is a `useState` initializer, so a reprice has
+    // to mount the screen afresh rather than hand it a new visit.
+    it('is mounted again for each charge', async () => {
+        const read = (file: string) => Bun.file(path.join(import.meta.dir, file)).text();
+        expect(await read('DayScreen.tsx')).toMatch(
+            /key=\{`payment:\$\{visit\.seq\}:\$\{payable\.chargedTotal\}`\}/,
+        );
+        expect(await read('components/VisitPage.tsx')).toMatch(
+            /key=\{`pay:\$\{visit\.id\}:\$\{priced\.chargedTotal\}`\}/,
+        );
     });
 
     it('records the field’s exact piastres, not the pounds it shows', async () => {

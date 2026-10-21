@@ -64,6 +64,21 @@ export function quickAmounts(ceiling: number): { full: number; half: number; not
 }
 
 /**
+ * The chip the field is on, if any: lit only when the field holds its figure
+ * to the piastre. Full wins a tie with Half (a one-piastre ceiling), and
+ * Full and Half against nothing to pay would only repeat Nothing.
+ */
+export function quickChosen(
+    piastres: number,
+    quick: { full: number; half: number; nothing: number },
+): 'full' | 'half' | 'nothing' | null {
+    if (piastres === quick.full && quick.full > 0) return 'full';
+    if (piastres === quick.half && quick.half > 0) return 'half';
+    if (piastres === quick.nothing) return 'nothing';
+    return null;
+}
+
+/**
  * How much under `procedureTotal` (a procedure's default price) `charged` is, as
  * a whole percent — or null when there is nothing to show: no discount, or no
  * default to measure one against. A discount that is some but not all of the

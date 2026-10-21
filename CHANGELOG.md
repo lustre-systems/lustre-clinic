@@ -8,6 +8,8 @@ listed.
 
 ## [Unreleased]
 
+- After a checked-out visit's procedures are changed so it costs less than was paid, the payment screen's Full, Half and Nothing set the new charge, half of it and 0, and the button that matches the amount is the one highlighted. This has worked since 1.9.0 (phones on 1.8.x still show the old behaviour) and now has a test.
+
 ## [1.9.0] - 2026-10-10
 
 - The reminder alarm's Snooze is now "Done for today": it stops the alarm for the rest of the day on both desk phones, even with the app closed, and it starts again tomorrow. The Reminders tab has the same button, and "Turn back on" if it was pressed by mistake.
