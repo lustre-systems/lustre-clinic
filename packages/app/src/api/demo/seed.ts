@@ -95,6 +95,11 @@ interface Catalogue {
     all: ProcedureTypeRow[];
 }
 
+/** About a third of the price, in whole pounds, so the stats screen has a margin to show. */
+function demoCost(defaultPrice: number): number {
+    return Math.round((defaultPrice * 35) / 100 / 100) * 100;
+}
+
 function procedure(
     name: string,
     defaultPrice: number,
@@ -106,6 +111,7 @@ function procedure(
         parentId: null,
         name,
         defaultPrice,
+        cost: demoCost(defaultPrice),
         hasQuantity: false,
         isToothSpecific: false,
         isCheckup: false,
@@ -345,6 +351,7 @@ function writeClosedVisit(
             procedureId: line.procedure.id,
             quantity: line.quantity ?? 1,
             unitPrice: line.procedure.defaultPrice,
+            unitCost: line.procedure.cost,
             tooth: line.tooth ?? null,
             note: null,
         });

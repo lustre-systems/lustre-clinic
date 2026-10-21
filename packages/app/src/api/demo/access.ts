@@ -4,7 +4,7 @@
  * place rather than in every handler. The lists below are the server's routers
  * read off by kind, and have to be changed with them.
  */
-import { ERROR_CODE, managesClinic, seesPayments, viewOf } from '@lustre/shared';
+import { ERROR_CODE, managesClinic, seesPayments, seesStats, viewOf } from '@lustre/shared';
 import { authorizeDemo, type DemoCaller } from './handlers/device';
 import { DemoError } from './rules';
 
@@ -16,13 +16,19 @@ const PAYMENT = new Set([
     'balance.outstanding',
     'balance.byPatient',
     'balance.settle',
-    'balance.summary',
-    'balance.takings',
-    'stats.summary',
     'visit.recordPayment',
     'visit.setPaid',
     'visit.setPaidMethod',
     'visit.deletePayment',
+]);
+
+/** `statsProcedure`: the clinic's own figures, which only an admin may see. */
+const STATS = new Set([
+    'balance.summary',
+    'balance.takings',
+    'stats.summary',
+    'stats.overview',
+    'stats.trend',
 ]);
 
 /** `setupProcedure`: setting the clinic up, which only an admin may. */
@@ -73,6 +79,7 @@ export function admit(path: string, token: string | null, input?: unknown): Demo
     if (PUBLIC.has(path)) return { token, deviceId: null, role: null };
     const caller = authorizeDemo(token);
     if (PAYMENT.has(path) && !seesPayments(caller.role)) throw forbidden('see payments');
+    if (STATS.has(path) && !seesStats(caller.role)) throw forbidden("see the clinic's figures");
     if (path === 'visit.reopen' && !seesPayments(caller.role)) throw forbidden('reopen a finished visit');
     if (SETUP.has(path) && !managesClinic(caller.role)) throw forbidden('change how the clinic is set up');
     const fields = input && typeof input === 'object' ? Object.keys(input) : [];
@@ -113,9 +120,23 @@ interface HistoryEntry {
     isOpeningBalance: boolean;
 }
 
+/** What a procedure costs the clinic, which only a role that sees the stats is shown (`procedureService.tree`). */
+function withheldCost(path: string, output: object): object {
+    if (path === 'procedure.list') return (output as object[]).map((row) => withheld(row, ['cost']));
+    if (path === 'procedure.tree') {
+        return (output as { children: object[] }[]).map((node) => ({
+            ...withheld(node, ['cost']),
+            children: node.children.map((child) => withheld(child, ['cost'])),
+        }));
+    }
+    return output;
+}
+
 /** What `path` answered, less what the caller's role may not see. */
-export function shownTo(path: string, output: unknown, caller: DemoCaller): unknown {
-    if (seesPayments(caller.role) || !output || typeof output !== 'object') return output;
+export function shownTo(path: string, answer: unknown, caller: DemoCaller): unknown {
+    if (!answer || typeof answer !== 'object') return answer;
+    const output = seesStats(caller.role) ? answer : withheldCost(path, answer);
+    if (seesPayments(caller.role)) return output;
     if (path === 'migration.progress') return withheld(output, ['openingBalanceTotal']);
     if (VISIT_ANSWERS.has(path)) return withheldVisit(output as Parameters<typeof withheldVisit>[0]);
     if (path === 'patient.byId') {

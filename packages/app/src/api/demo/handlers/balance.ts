@@ -39,7 +39,12 @@ function paidFor(visitId: string): number {
  * range crossing a DST changeover has two, and using one for both opens the
  * window an hour off at the far end.
  */
-function rangeOf(input: { from: string; to: string; offsetMinutes?: number; fromOffsetMinutes?: number }): {
+export function rangeOf(input: {
+    from: string;
+    to: string;
+    offsetMinutes?: number;
+    fromOffsetMinutes?: number;
+}): {
     from: Date;
     to: Date;
 } {

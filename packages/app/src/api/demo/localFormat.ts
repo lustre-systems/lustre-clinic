@@ -68,7 +68,21 @@ export function parseLocal(raw: string): DemoDb {
     if (!hasEveryTable(parsed.db)) {
         throw new LocalStoreError('the clinic file is missing part of the clinic');
     }
-    return revive(parsed.db);
+    return upgrade(revive(parsed.db));
+}
+
+/**
+ * Rows written by an older build, brought up to today's shape. Each step fills
+ * what that build did not write with what it meant.
+ *
+ * - Costs: a procedure nobody priced the cost of costs nothing, and so does a
+ *   line on a visit from before costs existed — the stats screen counts old
+ *   visits as all profit rather than guessing.
+ */
+function upgrade(db: DemoDb): DemoDb {
+    for (const row of db.procedureTypes) row.cost ??= 0;
+    for (const line of db.visitProcedures) line.unitCost ??= 0;
+    return db;
 }
 
 function hasEveryTable(db: object): boolean {

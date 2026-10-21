@@ -100,6 +100,18 @@ describe('the clinic file', () => {
         expect(read.branches).toEqual(db.branches);
     });
 
+    it('reads a file from before costs as costing nothing', () => {
+        const db = freshLocalDb();
+        const old = JSON.parse(serializeLocal(db));
+        old.db.procedureTypes = [{ id: 'p', name: 'Checkup', defaultPrice: 100 }];
+        old.db.visitProcedures = [{ id: 'l', visitId: 'v', procedureId: 'p', quantity: 1, unitPrice: 100 }];
+
+        const read = parseLocal(JSON.stringify(old));
+
+        expect(read.procedureTypes[0]?.cost).toBe(0);
+        expect(read.visitProcedures[0]?.unitCost).toBe(0);
+    });
+
     it('refuses a file it cannot read rather than calling it empty', () => {
         expect(() => parseLocal('{not json')).toThrow(LocalStoreError);
         expect(() => parseLocal(JSON.stringify({ version: 1, db: {} }))).toThrow(LocalStoreError);

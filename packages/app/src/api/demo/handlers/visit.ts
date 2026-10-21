@@ -217,6 +217,7 @@ export const visitHandlers = {
                 procedureId: line.procedureId,
                 quantity: line.quantity,
                 unitPrice: line.quotedPrice ?? procedure?.defaultPrice ?? 0,
+                unitCost: procedure?.cost ?? 0,
                 tooth: line.tooth,
                 note: line.note,
             });
@@ -267,6 +268,7 @@ export const visitHandlers = {
                 procedureId: line.procedure.id,
                 quantity: line.quantity,
                 unitPrice: input.procedures[index]?.unitPrice ?? line.procedure.defaultPrice,
+                unitCost: line.procedure.cost,
                 tooth: line.tooth,
                 note: line.note,
             });
