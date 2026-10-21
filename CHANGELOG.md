@@ -8,6 +8,8 @@ listed.
 
 ## [Unreleased]
 
+- Cancelled appointments no longer show on the day view, for the desk or the doctor, so the day only lists appointments that are actually happening. Their slot shows as free and can be booked. They are still listed on the patient's record.
+
 ## [1.9.0] - 2026-10-10
 
 - The reminder alarm's Snooze is now "Done for today": it stops the alarm for the rest of the day on both desk phones, even with the app closed, and it starts again tomorrow. The Reminders tab has the same button, and "Turn back on" if it was pressed by mistake.
