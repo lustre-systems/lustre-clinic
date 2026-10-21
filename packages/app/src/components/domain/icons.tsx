@@ -109,6 +109,9 @@ export const GLYPH = {
     hide: EyeOff,
     info: Info,
     lab: FlaskConical,
+    // The arrow round a clock, not a bare undo arrow: it lists what was done,
+    // and must not read as "tap to take it back".
+    lastDone: History,
     leaveDemo: LogOut,
     backups: DatabaseBackup,
     money: CreditCard,

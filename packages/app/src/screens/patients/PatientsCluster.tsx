@@ -31,6 +31,7 @@
 // remounts and re-reads rather than showing what it held before the write.
 import { memo, useRef, useState } from 'react';
 import { PushView } from '../../components/ui';
+import type { LastDoneTarget } from '../../lastDone';
 import { beneath, isOpen, isTop, rendered, useRouteStack } from '../../navigation';
 import type { PatientTarget } from '../../shell/routes';
 import { ReschedulePage, VisitPage } from '../day';
@@ -163,6 +164,8 @@ function PatientsClusterView({ open, goHome = 0, onBook }: PatientsClusterProps)
                 goHome={goHome}
                 onOpen={(patientId) => routes.push({ name: 'record', patientId })}
                 onNewPatient={(prefill) => routes.push({ name: 'edit', prefill })}
+                covered={routes.stack.open.length > 0}
+                onOpenLastDone={(target) => routes.push(routeFor(target))}
             />
 
             {/* Bottom to top, the order they were opened in. A popped route is
@@ -263,6 +266,17 @@ function PatientsClusterView({ open, goHome = 0, onBook }: PatientsClusterProps)
             ))}
         </>
     );
+}
+
+function routeFor(target: LastDoneTarget): Route {
+    switch (target.kind) {
+        case 'patient':
+            return { name: 'record', patientId: target.patientId };
+        case 'visit':
+            return { name: 'visit', appointmentId: target.appointmentId, visitId: target.visitId };
+        case 'booking':
+            return { name: 'reschedule', appointmentId: target.appointmentId };
+    }
 }
 
 /**
