@@ -9,7 +9,7 @@ import { useT } from '../../../i18n';
 import { color, radius, space, Text } from '../../../theme';
 import type { StatsFigures } from '../data';
 import { formatEgp } from '../money';
-import { branchOrder, leadingShare } from '../stats';
+import { branchOrder, hasSplit, leadingShare } from '../stats';
 
 const BAR_HEIGHT = 110;
 const MIN_SEGMENT = 4;
@@ -147,18 +147,24 @@ export function BranchBars({
             <View style={styles.note}>
                 {share ? (
                     <Text variant="subhead" tone="ink2">
-                        {t('{point}: {branch} brought {percent}% of the profit.', {
-                            point: shareOf,
-                            branch: share.name,
-                            percent: share.percent,
-                        })}
+                        {share.alone
+                            ? t('{point}: only {branch} was open.', { point: shareOf, branch: share.name })
+                            : t('{point}: {branch} brought {percent}% of the profit.', {
+                                  point: shareOf,
+                                  branch: share.name,
+                                  percent: share.percent,
+                              })}
                     </Text>
                 ) : null}
-                <Text variant="footnote" tone="muted">
-                    {back
-                        ? t('Tap the bar again to go back to {period}.', { period: back })
-                        : t('Tap a bar to see its split.')}
-                </Text>
+                {back ? (
+                    <Text variant="footnote" tone="muted">
+                        {t('Tap the bar again to go back to {period}.', { period: back })}
+                    </Text>
+                ) : hasSplit(points) ? (
+                    <Text variant="footnote" tone="muted">
+                        {t('Tap a bar to see its split.')}
+                    </Text>
+                ) : null}
             </View>
         </View>
     );

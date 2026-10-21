@@ -5,6 +5,7 @@ import {
     comparisonRange,
     deltaOf,
     emptyLead,
+    hasSplit,
     leadingShare,
     shownTakings,
     trendSlots,
@@ -147,12 +148,19 @@ describe('branches', () => {
     });
 
     it('say who brought most of a point’s profit', () => {
-        expect(leadingShare(point(62, 38))).toEqual({ name: 'Maadi', percent: 62 });
+        expect(leadingShare(point(62, 38))).toEqual({ name: 'Maadi', percent: 62, alone: false });
         expect(leadingShare(point(0, 0))).toBeNull();
     });
 
     it('leave a branch that lost money out of the share', () => {
-        expect(leadingShare(point(100, -40))).toEqual({ name: 'Maadi', percent: 100 });
+        expect(leadingShare(point(100, -40))).toEqual({ name: 'Maadi', percent: 100, alone: false });
+    });
+
+    it('say a day with one branch open was that branch’s, with no split to tap for', () => {
+        const day = { branches: [{ branchId: 'm', name: 'Maadi', profit: 500 }] };
+        expect(leadingShare(day)?.alone).toBe(true);
+        expect(hasSplit([day, day])).toBe(false);
+        expect(hasSplit([day, point(60, 40)])).toBe(true);
     });
 });
 

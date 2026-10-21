@@ -260,12 +260,23 @@ export function branchOrder(points: readonly BranchPoint[]): { branchId: string;
 }
 
 /** The branch that brought most of a point's profit, and its share; nothing when there was no profit to share. */
-export function leadingShare(point: BranchPoint): { name: string; percent: number } | null {
+export function leadingShare(point: BranchPoint): { name: string; percent: number; alone: boolean } | null {
     const positive = point.branches.filter((row) => row.profit > 0);
     const total = positive.reduce((sum, row) => sum + row.profit, 0);
     if (total <= 0) return null;
     const lead = positive.reduce((best, row) => (row.profit > best.profit ? row : best));
-    return { name: lead.name, percent: Math.round((lead.profit / total) * 100) };
+    // One branch open is not a split: a clinic day belongs to one branch, so a
+    // day's "100%" says nothing the bar does not.
+    return {
+        name: lead.name,
+        percent: Math.round((lead.profit / total) * 100),
+        alone: point.branches.length === 1,
+    };
+}
+
+/** Whether any point has two branches in it, and so a split worth tapping for. */
+export function hasSplit(points: readonly BranchPoint[]): boolean {
+    return points.some((point) => point.branches.length > 1);
 }
 
 /**

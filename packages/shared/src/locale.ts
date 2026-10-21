@@ -260,6 +260,7 @@ export const COPY_AR = {
     'Collected · {period}': 'المحصّل · {period}',
     'Profit, stacked by branch': 'الربح موزّعًا على الفروع',
     'Tap a bar to see its split.': 'اضغط على عمود لترى التوزيع.',
+    '{point}: only {branch} was open.': '{point}: كان {branch} وحده مفتوحًا.',
     'Tap the bar again to go back to {period}.': 'اضغط على العمود مرة أخرى للرجوع إلى {period}.',
     'Tap a point for a closer look': 'اضغط على نقطة لتراها عن قرب',
     'Tap it again to go back to {period}': 'اضغط عليها مرة أخرى للرجوع إلى {period}',
