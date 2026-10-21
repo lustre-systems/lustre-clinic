@@ -66,8 +66,14 @@ export const reorderProceduresInput = z.object({
     ids: z.array(z.uuid()).min(1).max(500),
 });
 
-export type CreateProcedureInput = z.infer<typeof createProcedureInput>;
-export type CreateCategoryInput = z.infer<typeof createCategoryInput>;
+/** The schema defaults `cost` on the wire; a caller inside the server, a seed or a test, may leave it out. */
+type CostOptional<T extends { cost: number }> = Omit<T, 'cost'> & { cost?: number };
+type CategoryInput = z.infer<typeof createCategoryInput>;
+
+export type CreateProcedureInput = CostOptional<z.infer<typeof createProcedureInput>>;
+export type CreateCategoryInput = Omit<CategoryInput, 'first'> & {
+    first: CostOptional<CategoryInput['first']>;
+};
 export type UpdateProcedureInput = z.infer<typeof updateProcedureInput>;
 export type ProcedureTreeInput = z.infer<typeof procedureTreeInput>;
 export type ReorderProceduresInput = z.infer<typeof reorderProceduresInput>;

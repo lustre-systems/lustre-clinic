@@ -134,18 +134,22 @@ export const patients = pgTable(
     ],
 );
 
-export const procedureTypes = pgTable('procedure_types', {
-    id: uuid('id').primaryKey(),
-    parentId: uuid('parent_id').references((): AnyPgColumn => procedureTypes.id),
-    name: text('name').notNull(),
-    defaultPrice: integer('default_price').notNull(),
-    cost: integer('cost').notNull().default(0),
-    hasQuantity: boolean('has_quantity').notNull().default(false),
-    isToothSpecific: boolean('is_tooth_specific').notNull().default(false),
-    isCheckup: boolean('is_checkup').notNull().default(false),
-    active: boolean('active').notNull().default(true),
-    sortOrder: integer('sort_order').notNull().default(0),
-}, (t) => [check('procedure_types_cost_non_negative', sql`${t.cost} >= 0`)]);
+export const procedureTypes = pgTable(
+    'procedure_types',
+    {
+        id: uuid('id').primaryKey(),
+        parentId: uuid('parent_id').references((): AnyPgColumn => procedureTypes.id),
+        name: text('name').notNull(),
+        defaultPrice: integer('default_price').notNull(),
+        cost: integer('cost').notNull().default(0),
+        hasQuantity: boolean('has_quantity').notNull().default(false),
+        isToothSpecific: boolean('is_tooth_specific').notNull().default(false),
+        isCheckup: boolean('is_checkup').notNull().default(false),
+        active: boolean('active').notNull().default(true),
+        sortOrder: integer('sort_order').notNull().default(0),
+    },
+    (t) => [check('procedure_types_cost_non_negative', sql`${t.cost} >= 0`)],
+);
 
 export const appointments = pgTable(
     'appointments',
