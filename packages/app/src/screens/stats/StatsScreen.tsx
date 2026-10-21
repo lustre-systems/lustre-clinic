@@ -12,7 +12,7 @@
 //
 // Every figure is the server's. The client picks the ranges, compares two of
 // them and lays the points out (`stats.ts`).
-// biome-ignore lint/style/noRestrictedImports: two of them, both external — the imperative `scrollTo` when the tab is re-tapped, and the `AppState` subscription that re-reads the day on foreground
+// biome-ignore lint/style/noRestrictedImports: two of them, both external — the imperative `scrollTo` when the tab is re-tapped, and the `AppState` subscription and timer that re-read the clock
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AppState, ScrollView, StyleSheet, View } from 'react-native';
 import { serverNow } from '../../api/serverClock';
@@ -214,22 +214,44 @@ function StatsScreenView({ goHome = 0 }: StatsScreenProps) {
 export const StatsScreen = memo(StatsScreenView);
 
 // Which local day, and which minute of it, the pills are measured from. The
-// shell mounts a tab once and hides it rather than unmounting it, so a day
-// captured at first render would be yesterday's by the next morning; both are
-// re-read when the app comes back to the foreground and on every pull. An
-// unchanged range hashes to the same query key, so a re-read is not a refetch
-// unless time has moved on.
+// shell mounts a tab once and hides it rather than unmounting it, and a desk
+// phone can sit on it all day, so both are re-read on a timer as well as when
+// the app comes back to the foreground and on every pull. Without the timer
+// "Today" stops adding hours and the change chip keeps comparing with
+// yesterday up to the minute the tab was first opened.
+//
+// The minute moves in steps of five: it is in the comparison's query key, and
+// a refetch every minute buys nothing a five-minute-old comparison does not
+// already say. A re-read that lands on the same step keeps the same object, so
+// it costs no render.
+const STEP_MINUTES = 5;
+
 function useNow(): [{ today: string; minute: number }, () => void] {
-    const read = useCallback(() => ({ today: todayKey(), minute: minutesOfDay(serverNow()) }), []);
+    const read = useCallback(
+        () => ({
+            today: todayKey(),
+            minute: Math.floor(minutesOfDay(serverNow()) / STEP_MINUTES) * STEP_MINUTES,
+        }),
+        [],
+    );
     const [now, setNow] = useState(read);
 
-    const reread = useCallback(() => setNow(read()), [read]);
+    const reread = useCallback(() => {
+        const next = read();
+        setNow((current) =>
+            current.today === next.today && current.minute === next.minute ? current : next,
+        );
+    }, [read]);
 
     useEffect(() => {
         const subscription = AppState.addEventListener('change', (state) => {
             if (state === 'active') reread();
         });
-        return () => subscription.remove();
+        const timer = setInterval(reread, STEP_MINUTES * 60_000);
+        return () => {
+            subscription.remove();
+            clearInterval(timer);
+        };
     }, [reread]);
 
     return [now, reread];
