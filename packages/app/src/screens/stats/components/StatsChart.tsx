@@ -16,9 +16,9 @@ import { currencyOf, formatEgp } from '../money';
 import { chartPoints, type Delta, isMoney, METRIC_LABEL, type Metric } from '../stats';
 import { SKIN } from './skin';
 
-const HEIGHT = 120;
+const HEIGHT = 150;
 const PAD = 18;
-const TOP = 28;
+const TOP = 34;
 const BOTTOM = 30;
 const AXIS = 22;
 const HIT = 44;

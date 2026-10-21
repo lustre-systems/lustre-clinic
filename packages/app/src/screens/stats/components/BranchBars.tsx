@@ -13,6 +13,8 @@ import { branchOrder, leadingShare } from '../stats';
 
 const BAR_HEIGHT = 110;
 const MIN_SEGMENT = 4;
+/** A bar's own width, whatever its slot: four weeks must not draw four slabs. */
+const BAR_WIDTH = 22;
 const SHADES = [color.ink, color.inkFaint, color.muted, color.line] as const;
 
 export type BranchBarsProps = {
@@ -177,14 +179,14 @@ const styles = StyleSheet.create({
     subtitle: { marginTop: -space[2.5] },
     // Room for the total over the tallest stack and the label under it, so no column overflows and pushes its label out of line.
     bars: { flexDirection: 'row', alignItems: 'flex-end', height: BAR_HEIGHT + 54 },
-    column: { flex: 1, height: '100%', justifyContent: 'flex-end', gap: space[1.5] },
+    column: { flex: 1, height: '100%', justifyContent: 'flex-end', alignItems: 'center', gap: space[1.5] },
     faded: { opacity: 0.35 },
     pressed: { transform: [{ scale: 0.94 }] },
-    total: { textAlign: 'center' },
-    hidden: { textAlign: 'center', opacity: 0 },
-    stack: { gap: 2, paddingHorizontal: 3 },
+    total: { alignSelf: 'stretch', textAlign: 'center' },
+    hidden: { alignSelf: 'stretch', textAlign: 'center', opacity: 0 },
+    stack: { width: BAR_WIDTH, gap: 2 },
     segment: { width: '100%', borderRadius: 6 },
-    label: { textAlign: 'center' },
+    label: { alignSelf: 'stretch', textAlign: 'center' },
     note: {
         gap: space[1],
         paddingVertical: space[3],
