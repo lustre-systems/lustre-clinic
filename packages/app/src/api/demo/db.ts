@@ -255,8 +255,9 @@ const STORE_KEY = 'lustre.demo.db';
  * 12: `roleGrants` and `devices`, and settings carry `requireProvisioning`.
  * 13: settings carry `clinicType`.
  * 14: procedures carry `cost`, and visit lines `unitCost`.
+ * 15: a year of history at both branches, for the stats screen.
  */
-const STORE_VERSION = 14;
+const STORE_VERSION = 15;
 
 let db: DemoDb | null = null;
 

@@ -180,6 +180,7 @@ const cat = (name: string, sortOrder: number) => ({
     parentId: null,
     name,
     defaultPrice: 0,
+    cost: 0,
     hasQuantity: false,
     isToothSpecific: false,
     isCheckup: false,
@@ -203,6 +204,9 @@ const proc = (
     parentId: parent.id,
     name,
     defaultPrice,
+    // About a third of the price in whole pounds, so the stats screen has a
+    // margin to show.
+    cost: Math.round((defaultPrice * 35) / 100 / 100) * 100,
     hasQuantity: opts.quantity ?? false,
     isToothSpecific: opts.tooth ?? false,
     isCheckup: opts.checkup ?? false,
@@ -442,7 +446,7 @@ const rosterPatients = roster.map(([name, phone, gender, birthDate], index) =>
 const allPatients = [nour, kareem, sara, yassin, mona, omar, hoda, laila, monaSecond, ...rosterPatients];
 
 interface Line {
-    procedure: { id: string; defaultPrice: number };
+    procedure: { id: string; defaultPrice: number; cost: number };
     quantity?: number;
     unitPrice?: number;
     tooth?: Tooth;
@@ -1063,6 +1067,17 @@ for (let offset = generatedRange.previousFirst; offset <= generatedRange.previou
     generateDay(offset);
 }
 
+// A year before that, thinner than the two months the screens open on, so the
+// stats screen has months, weeks and a previous year to compare. Each month
+// takes a different cap on its days so the line has a shape rather than a
+// plateau. After everything else for the same reason as the month above.
+const HISTORY_DAYS = 335;
+const MONTHLY_CAP = [6, 4, 7, 5, 8, 6, 3, 7, 5, 8, 6, 4];
+for (let back = 1; back <= HISTORY_DAYS; back += 1) {
+    const offset = generatedRange.previousFirst - back;
+    generateDay(offset, false, MONTHLY_CAP[Math.floor(back / 30) % MONTHLY_CAP.length] ?? 5);
+}
+
 bookings.sort((a, b) => a.startsAt.getTime() - b.startsAt.getTime());
 
 const usedRefs = new Set<string>();
@@ -1163,6 +1178,7 @@ for (const booking of bookings) {
                 procedureId: line.procedure.id,
                 quantity: line.quantity ?? 1,
                 unitPrice: line.unitPrice ?? line.procedure.defaultPrice,
+                unitCost: line.procedure.cost,
                 tooth: line.tooth ?? null,
                 note: line.note ?? null,
             });
