@@ -13,8 +13,8 @@ import { branchOrder, leadingShare } from '../stats';
 
 const BAR_HEIGHT = 110;
 const MIN_SEGMENT = 4;
-/** A bar's own width, whatever its slot: four weeks must not draw four slabs. */
-const BAR_WIDTH = 22;
+/** The design's column (six months on a 390-wide phone), as a ceiling: four weeks must not draw four slabs. */
+const BAR_MAX_WIDTH = 40;
 const SHADES = [color.ink, color.inkFaint, color.muted, color.line] as const;
 
 export type BranchBarsProps = {
@@ -184,8 +184,8 @@ const styles = StyleSheet.create({
     pressed: { transform: [{ scale: 0.94 }] },
     total: { alignSelf: 'stretch', textAlign: 'center' },
     hidden: { alignSelf: 'stretch', textAlign: 'center', opacity: 0 },
-    stack: { width: BAR_WIDTH, gap: 2 },
-    segment: { width: '100%', borderRadius: 6 },
+    stack: { alignSelf: 'stretch', alignItems: 'center', gap: 2, paddingHorizontal: 3 },
+    segment: { width: '100%', maxWidth: BAR_MAX_WIDTH, borderRadius: 6 },
     label: { alignSelf: 'stretch', textAlign: 'center' },
     note: {
         gap: space[1],

@@ -13,8 +13,6 @@ import { isMoney, METRIC_LABEL, METRICS, type Metric } from '../stats';
 import { SKIN } from './skin';
 
 const PRESSED = 0.96;
-/** Close to a tile's width at two to a row on a phone, so the tiles read as squares rather than strips. */
-const TILE_HEIGHT = 150;
 
 export type MetricTilesProps = {
     figures: Record<Metric, number>;
@@ -123,8 +121,6 @@ const styles = StyleSheet.create({
     grid: { flexDirection: 'row', flexWrap: 'wrap', gap: space[2.5] },
     cell: { flexBasis: '45%', flexGrow: 1 },
     tile: {
-        minHeight: TILE_HEIGHT,
-        justifyContent: 'space-between',
         gap: space[2.5],
         padding: space[5],
         borderRadius: radius.xl3,
