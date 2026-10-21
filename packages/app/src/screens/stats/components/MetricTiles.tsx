@@ -52,6 +52,7 @@ function Tile({
     const t = useT();
     const skin = SKIN[metric];
     const tone = on ? 'inverse' : skin.text;
+    const Glyph = skin.glyph;
     const scale = useRef(new Animated.Value(1)).current;
     const reducedMotion = useReducedMotion();
 
@@ -74,16 +75,19 @@ function Tile({
                 ]}
                 testID={`stats-tile-${metric}`}
             >
-                <Text
-                    variant="eyebrow"
-                    script="sans"
-                    weight="bold"
-                    tone={tone}
-                    style={on ? styles.subOn : styles.sub}
-                    numberOfLines={1}
-                >
-                    {t(METRIC_LABEL[metric])}
-                </Text>
+                <View style={styles.head}>
+                    <Text
+                        variant="eyebrow"
+                        script="sans"
+                        weight="bold"
+                        tone={tone}
+                        style={on ? styles.subOn : styles.sub}
+                        numberOfLines={1}
+                    >
+                        {t(METRIC_LABEL[metric])}
+                    </Text>
+                    <Glyph size={18} color={on ? color.inverse : skin.textColor} strokeWidth={2} />
+                </View>
 
                 {isMoney(metric) ? (
                     <MoneyValue
@@ -135,6 +139,7 @@ const styles = StyleSheet.create({
     sub: { opacity: 0.75 },
     subOn: { opacity: 0.85 },
     unit: { opacity: 0.6 },
+    head: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: space[2] },
     hint: { flexDirection: 'row', alignItems: 'center', gap: space[1.5] },
     swatch: { width: 14, height: 3, borderRadius: radius.full, backgroundColor: color.inverse },
 });

@@ -274,6 +274,47 @@ export function leadingShare(point: BranchPoint): { name: string; percent: numbe
     };
 }
 
+type WorkingBranch = { name: string; profit: number; workingDays: number };
+
+/**
+ * Which branch earns more for each day it is open, and by how much, in whole
+ * tens of pounds. Per working day because the branches open on different days
+ * of the week: the one open more often brings more profit without being the
+ * better day. Nothing unless at least two branches were open.
+ */
+export function perDayLead(point: {
+    branches: readonly WorkingBranch[];
+}): { best: string; other: string; amount: number } | null {
+    const open = point.branches
+        .filter((row) => row.workingDays > 0)
+        .map((row) => ({ name: row.name, perDay: row.profit / row.workingDays }))
+        .sort((a, b) => b.perDay - a.perDay);
+    const best = open[0];
+    const worst = open[open.length - 1];
+    if (!best || !worst || open.length < 2) return null;
+    const amount = Math.round((best.perDay - worst.perDay) / 1000) * 1000;
+    return amount > 0 ? { best: best.name, other: worst.name, amount } : null;
+}
+
+/**
+ * A point against the average of the others on the chart, as a whole
+ * percentage. Points with no profit at all — a closed day, a year before the
+ * clinic — are left out of the average, so a week with a Friday in it is not
+ * dragged down by the day nobody worked.
+ */
+export function versusAverage(
+    points: readonly { profit: number }[],
+    index: number,
+): { percent: number; up: boolean } | null {
+    const point = points[index];
+    const others = points.filter((row, i) => i !== index && row.profit > 0);
+    if (!point || others.length === 0) return null;
+    const average = others.reduce((sum, row) => sum + row.profit, 0) / others.length;
+    if (average <= 0) return null;
+    const percent = Math.round(((point.profit - average) / average) * 100);
+    return { percent: Math.abs(percent), up: percent >= 0 };
+}
+
 /** Whether any point has two branches in it, and so a split worth tapping for. */
 export function hasSplit(points: readonly BranchPoint[]): boolean {
     return points.some((point) => point.branches.length > 1);

@@ -5,17 +5,40 @@
 // period has no height to stack, so it draws nothing rather than a bar going
 // down through the others; the total on top is still the honest figure.
 import { Pressable, StyleSheet, View } from 'react-native';
-import { useT } from '../../../i18n';
+import { useLocale, useT } from '../../../i18n';
 import { color, radius, space, Text } from '../../../theme';
 import type { StatsFigures } from '../data';
 import { formatEgp } from '../money';
-import { branchOrder, hasSplit, leadingShare } from '../stats';
+import { branchOrder, hasSplit, leadingShare, perDayLead, versusAverage } from '../stats';
 
 const BAR_HEIGHT = 110;
 const MIN_SEGMENT = 4;
 /** The design's column (six months on a 390-wide phone), as a ceiling: four weeks must not draw four slabs. */
 const BAR_MAX_WIDTH = 40;
 const SHADES = [color.ink, color.inkFaint, color.muted, color.line] as const;
+
+/** What one point on the chart is, for "an average day" and the like. */
+export type PointUnit = 'day' | 'week' | 'month' | 'year';
+
+/** Copy per unit and direction: Arabic words the noun differently for each, so each is a whole sentence. */
+const VERSUS_AVERAGE: Record<PointUnit, { up: string; down: string }> = {
+    day: {
+        up: '{point}: {percent}% above an average day.',
+        down: '{point}: {percent}% below an average day.',
+    },
+    week: {
+        up: '{point}: {percent}% above an average week.',
+        down: '{point}: {percent}% below an average week.',
+    },
+    month: {
+        up: '{point}: {percent}% above an average month.',
+        down: '{point}: {percent}% below an average month.',
+    },
+    year: {
+        up: '{point}: {percent}% above an average year.',
+        down: '{point}: {percent}% below an average year.',
+    },
+};
 
 export type BranchBarsProps = {
     points: readonly StatsFigures[];
@@ -26,6 +49,8 @@ export type BranchBarsProps = {
     total: StatsFigures | undefined;
     /** The pill's name, for that sentence. */
     periodName: string;
+    /** What one point is, for the comparison under the bars. */
+    unit: PointUnit;
     /** Where a second tap on the selected bar goes back to, or null when it is already there. */
     back: string | null;
     /** -1 when nothing is selected. */
@@ -39,6 +64,7 @@ export function BranchBars({
     names,
     total,
     periodName,
+    unit,
     back,
     selected,
     onSelect,
@@ -56,8 +82,39 @@ export function BranchBars({
     const labelled = selected >= 0 ? selected : points.length - 1;
 
     const focus = selected >= 0 ? points[selected] : total;
-    const share = focus ? leadingShare(focus) : null;
+    const locale = useLocale();
     const shareOf = selected >= 0 ? (names[selected] ?? '') : periodName;
+    const insight = focus ? insightOf(focus) : null;
+
+    // The most useful thing the bars can say about the point that is up: with
+    // both branches open, which one earns more for each day it opens; with one,
+    // how the point did against the others on the chart; failing both, whose
+    // profit it was.
+    function insightOf(point: StatsFigures): string | null {
+        const lead = perDayLead(point);
+        if (lead) {
+            return t('{point}: {best} made {amount} more per working day than {other}.', {
+                point: shareOf,
+                best: lead.best,
+                other: lead.other,
+                amount: formatEgp(lead.amount, { locale }),
+            });
+        }
+        const versus = selected >= 0 ? versusAverage(points, selected) : null;
+        if (versus) {
+            const copy = VERSUS_AVERAGE[unit];
+            return t(versus.up ? copy.up : copy.down, { point: shareOf, percent: versus.percent });
+        }
+        const share = leadingShare(point);
+        if (!share) return null;
+        return share.alone
+            ? t('{point}: only {branch} was open.', { point: shareOf, branch: share.name })
+            : t('{point}: {branch} brought {percent}% of the profit.', {
+                  point: shareOf,
+                  branch: share.name,
+                  percent: share.percent,
+              });
+    }
 
     return (
         <View style={styles.card} testID="stats-branches">
@@ -145,15 +202,9 @@ export function BranchBars({
             </View>
 
             <View style={styles.note}>
-                {share ? (
+                {insight ? (
                     <Text variant="subhead" tone="ink2">
-                        {share.alone
-                            ? t('{point}: only {branch} was open.', { point: shareOf, branch: share.name })
-                            : t('{point}: {branch} brought {percent}% of the profit.', {
-                                  point: shareOf,
-                                  branch: share.name,
-                                  percent: share.percent,
-                              })}
+                        {insight}
                     </Text>
                 ) : null}
                 {back ? (

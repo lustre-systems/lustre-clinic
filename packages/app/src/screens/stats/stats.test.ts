@@ -7,8 +7,10 @@ import {
     emptyLead,
     hasSplit,
     leadingShare,
+    perDayLead,
     shownTakings,
     trendSlots,
+    versusAverage,
     YEARS,
 } from './stats';
 
@@ -196,5 +198,29 @@ describe('how people pay', () => {
         });
         expect(shown.byMethod.map((row) => row.method)).toEqual(['cash', 'visa']);
         expect(shown.total).toBe(900);
+    });
+});
+
+describe('what the branch bars say', () => {
+    it('compares the branches per working day, not in total', () => {
+        // Maadi opens three days to Nasr City's two: more profit, a worse day.
+        const point = {
+            branches: [
+                { name: 'Maadi', profit: 900_000, workingDays: 3 },
+                { name: 'Nasr City', profit: 800_000, workingDays: 2 },
+            ],
+        };
+        expect(perDayLead(point)).toEqual({ best: 'Nasr City', other: 'Maadi', amount: 100_000 });
+    });
+
+    it('says nothing per day with one branch open', () => {
+        expect(perDayLead({ branches: [{ name: 'Maadi', profit: 500, workingDays: 1 }] })).toBeNull();
+    });
+
+    it('compares a point with the average of the others, leaving out closed days', () => {
+        const days = [{ profit: 100 }, { profit: 0 }, { profit: 300 }, { profit: 240 }];
+        expect(versusAverage(days, 3)).toEqual({ percent: 20, up: true });
+        expect(versusAverage(days, 0)).toEqual({ percent: 63, up: false });
+        expect(versusAverage([{ profit: 100 }], 0)).toBeNull();
     });
 });

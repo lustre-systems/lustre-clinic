@@ -21,7 +21,7 @@ import { ScreenHeader, usePullToRefresh } from '../../components/ui';
 import { useLocale, useT } from '../../i18n';
 import { color, size, space } from '../../theme';
 import { minutesOfDay, todayKey } from '../day/time';
-import { BranchBars } from './components/BranchBars';
+import { BranchBars, type PointUnit } from './components/BranchBars';
 import { LoadState, SkeletonCard, SkeletonHeroCard } from './components/LoadState';
 import { MetricTiles } from './components/MetricTiles';
 import { PeriodTabs } from './components/PeriodTabs';
@@ -40,6 +40,15 @@ import {
     shownTakings,
     trendSlots,
 } from './stats';
+
+/** What one point on the chart is, per pill. */
+const POINT_UNIT: Record<Period, PointUnit> = {
+    today: 'day',
+    week: 'week',
+    month: 'month',
+    year: 'year',
+    all: 'year',
+};
 
 type StatsScreenProps = {
     /** Bumped when the Stats tab is tapped while it is already up: back to the top. */
@@ -186,6 +195,7 @@ function StatsScreenView({ goHome = 0 }: StatsScreenProps) {
                                     names={shown.map((slot) => slot.name)}
                                     total={overview.data}
                                     periodName={t(PERIOD_LABEL[period])}
+                                    unit={POINT_UNIT[period]}
                                     back={backHint ? defaultName : null}
                                     selected={selected}
                                     onSelect={selectPoint}
