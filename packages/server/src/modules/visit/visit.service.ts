@@ -274,6 +274,7 @@ export const visitService = {
                     note: appointmentProcedures.note,
                     quotedPrice: appointmentProcedures.quotedPrice,
                     defaultPrice: procedureTypes.defaultPrice,
+                    cost: procedureTypes.cost,
                 })
                 .from(appointmentProcedures)
                 .innerJoin(procedureTypes, eq(appointmentProcedures.procedureId, procedureTypes.id))
@@ -288,6 +289,7 @@ export const visitService = {
                         procedureId: line.procedureId,
                         quantity: line.quantity,
                         unitPrice: line.quotedPrice ?? line.defaultPrice,
+                        unitCost: line.cost,
                         tooth: line.tooth,
                         note: line.note,
                     })),
@@ -372,6 +374,7 @@ export const visitService = {
             procedureId: line.procedure.id,
             quantity: line.quantity,
             unitPrice: input.procedures[i]?.unitPrice ?? line.procedure.defaultPrice,
+            unitCost: line.procedure.cost,
             tooth: line.tooth,
             note: line.note,
         }));

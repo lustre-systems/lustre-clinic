@@ -12,6 +12,7 @@ export const createProcedureInput = z.object({
     parentId: z.uuid().nullish(),
     name: z.string().trim().min(1).max(MAX_PROCEDURE_NAME),
     defaultPrice: price,
+    cost: price.default(0),
     hasQuantity: z.boolean().default(false),
     isToothSpecific: z.boolean().default(false),
     isCheckup: z.boolean().default(false),
@@ -23,6 +24,7 @@ export const updateProcedureInput = z.object({
     parentId: z.uuid().nullish(),
     name: z.string().trim().min(1).max(MAX_PROCEDURE_NAME).optional(),
     defaultPrice: price.optional(),
+    cost: price.optional(),
     hasQuantity: z.boolean().optional(),
     isToothSpecific: z.boolean().optional(),
     isCheckup: z.boolean().optional(),
@@ -48,6 +50,7 @@ export const createCategoryInput = z.object({
     first: z.object({
         name: z.string().trim().min(1).max(MAX_PROCEDURE_NAME),
         defaultPrice: price,
+        cost: price.default(0),
         hasQuantity: z.boolean().default(false),
         isToothSpecific: z.boolean().default(false),
         isCheckup: z.boolean().default(false),
