@@ -179,8 +179,6 @@ export function deltaOf(current: number, previous: number | undefined, metric: M
     return { percent: Math.abs(percent), up, good: metric === 'cost' ? !up || percent === 0 : up };
 }
 
-export type BranchShare = { branchId: string; name: string; profit: number };
-
 type BranchPoint = { branches: readonly { branchId: string; name: string; profit: number }[] };
 
 /**

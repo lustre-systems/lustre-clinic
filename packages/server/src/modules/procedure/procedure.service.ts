@@ -25,7 +25,7 @@ import type {
 export type Procedure = typeof procedureTypes.$inferSelect;
 
 /** A catalogue row as a phone reads it: `cost` is null on one that may not see it. */
-export type ShownProcedure = Omit<Procedure, 'cost'> & { cost: number | null };
+type ShownProcedure = Omit<Procedure, 'cost'> & { cost: number | null };
 
 interface ProcedureNode extends ShownProcedure {
     children: ShownProcedure[];

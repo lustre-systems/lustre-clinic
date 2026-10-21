@@ -31,4 +31,3 @@ export const statsTrendInput = z.object({ periods: z.array(period).min(1).max(12
 
 export type StatsSummaryInput = z.infer<typeof statsSummaryInput>;
 export type StatsPeriod = z.infer<typeof period>;
-export type StatsTrendInput = z.infer<typeof statsTrendInput>;

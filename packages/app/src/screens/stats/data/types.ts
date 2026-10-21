@@ -22,7 +22,6 @@ export type OutstandingReport = Iso<RouterOutput['balance']['outstanding']>;
 export type PatientBalance = OutstandingReport['patients'][number];
 
 export type StatsFigures = Iso<RouterOutput['stats']['overview']>;
-export type BranchFigures = StatsFigures['branches'][number];
 
 export type TakingsReport = Iso<RouterOutput['balance']['takings']>;
 export type MethodTaking = TakingsReport['byMethod'][number];

@@ -8,6 +8,8 @@ listed.
 
 ## [Unreleased]
 
+- The Money tab is now Stats, and only the admin's phone has it. It charts profit, revenue, cost or new patients over the last days, weeks, months or years, shows profit split by branch, and how people paid. The secretary's "Who owe" list moved to an "Owes money" filter on the Patients tab, by the search, with the same total, sort and search. Profit is revenue less what each procedure costs the clinic, which the admin sets per procedure in Settings → Procedures; visits recorded before a cost was set count as costing nothing.
+
 ## [1.9.0] - 2026-10-10
 
 - The reminder alarm's Snooze is now "Done for today": it stops the alarm for the rest of the day on both desk phones, even with the app closed, and it starts again tomorrow. The Reminders tab has the same button, and "Turn back on" if it was pressed by mistake.

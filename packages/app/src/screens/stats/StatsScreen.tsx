@@ -37,7 +37,7 @@ import {
     trendSlots,
 } from './stats';
 
-export type StatsScreenProps = {
+type StatsScreenProps = {
     /** Bumped when the Stats tab is tapped while it is already up: back to the top. */
     goHome?: number;
 };
