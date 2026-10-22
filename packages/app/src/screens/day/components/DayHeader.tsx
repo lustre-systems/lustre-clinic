@@ -47,7 +47,7 @@ export type DayHeaderProps = {
     branchId: string | null;
     onPickBranch: (branchId: string) => void;
     onOpenCalendar: () => void;
-    /** The "Last done" button, which rides beside the date pill (`DayLastDone`). */
+    /** The "Last done" button, centred between the two pills (`DayLastDone`). */
     history?: ReactNode;
 };
 
@@ -159,25 +159,31 @@ export function DayHeader({
                     </Pressable>
                 </View>
 
-                <View style={styles.end}>
-                    {history}
-                    <Pressable
-                        accessibilityRole="button"
-                        accessibilityLabel={t('{relative}, {date}. Open the calendar', {
-                            relative: relativeDayLabel(dateKey),
-                            date: formatDate(dateKey),
-                        })}
-                        onPress={onOpenCalendar}
-                        style={({ pressed }) => [styles.pill, pressed && styles.pressed]}
-                        testID="day-date-pill"
-                    >
-                        <CalendarIcon />
-                        <Text variant="footnote" script="mono" weight="medium" tone="ink2">
-                            {formatDatePill(dateKey)}
-                        </Text>
-                        <Chevron direction="down" size={7} />
-                    </Pressable>
-                </View>
+                <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={t('{relative}, {date}. Open the calendar', {
+                        relative: relativeDayLabel(dateKey),
+                        date: formatDate(dateKey),
+                    })}
+                    onPress={onOpenCalendar}
+                    style={({ pressed }) => [styles.pill, pressed && styles.pressed]}
+                    testID="day-date-pill"
+                >
+                    <CalendarIcon />
+                    <Text variant="footnote" script="mono" weight="medium" tone="ink2">
+                        {formatDatePill(dateKey)}
+                    </Text>
+                    <Chevron direction="down" size={7} />
+                </Pressable>
+
+                {/* Over the row rather than in it, so it sits at the true centre
+                    whatever the two pills beside it measure, and opens out
+                    evenly both ways. */}
+                {history ? (
+                    <View style={styles.centre} pointerEvents="box-none">
+                        {history}
+                    </View>
+                ) : null}
             </View>
 
             <DropdownMenu
@@ -200,7 +206,15 @@ const styles = StyleSheet.create({
         paddingBottom: space[3],
     },
     row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-    end: { flexDirection: 'row', alignItems: 'center', gap: space[2] },
+    centre: {
+        position: 'absolute',
+        top: 0,
+        bottom: 0,
+        start: 0,
+        end: 0,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
     pill: {
         flexDirection: 'row',
         alignItems: 'center',

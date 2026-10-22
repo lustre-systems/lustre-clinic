@@ -5,13 +5,13 @@
  * When the tab it sits on is opened and something has been done since the
  * sheet was last looked at, it widens to show its label — "Last done ↺", the
  * icon on the far side from the words — spinning the icon backwards as it goes,
- * holds for two seconds and folds back, spinning forward again. Nothing new, no movement: after
- * fifty tab switches a day it would otherwise be noise. A tap plays it too,
- * whatever is new, as the sheet opens. Reduced motion skips it altogether.
+ * holds for two seconds and folds back, spinning forward again. Nothing new,
+ * no movement: after fifty tab switches a day it would otherwise be noise. A
+ * tap plays it too, whatever is new, as the sheet opens. Reduced motion skips
+ * it altogether.
  *
- * The round slot is all it takes in the row, the height of the pills beside
- * it. The label grows into the row's empty middle rather than pushing the
- * branch pill, so nothing else on the row moves.
+ * It is as wide as it is drawn, so whatever holds it decides which way it
+ * grows: centred, as the day header holds it, it opens out evenly both ways.
  */
 // biome-ignore lint/style/noRestrictedImports: starts the expand animation, which runs on the UI thread, when the tab it sits on is opened
 import { useEffect, useState, useSyncExternalStore } from 'react';
@@ -133,14 +133,9 @@ export function LastDoneButton({ active, onPress }: LastDoneButtonProps) {
 }
 
 const styles = StyleSheet.create({
-    slot: { width: SLOT, height: SLOT },
+    slot: { height: SLOT },
     pressed: { opacity: 0.72 },
-    // Anchored to the end of the slot and grown towards the start: `end` and the
-    // row both flip in Arabic, so it mirrors as a whole.
     pill: {
-        position: 'absolute',
-        top: 0,
-        end: 0,
         height: SLOT,
         borderRadius: radius.full,
         backgroundColor: color.surface,
