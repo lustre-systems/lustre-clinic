@@ -96,15 +96,13 @@ export function useDayLastDone({
     return { button, layer };
 }
 
-// The book button's corner, mirrored: the same inset and the same centre line,
-// so the two read as a pair across the bottom of the day.
-const BOOK_FAB = 52;
-const BUTTON = 44;
+// The book button's corner, mirrored: the same inset and the same size, so the
+// two read as a pair across the bottom of the day.
 
 const styles = StyleSheet.create({
     corner: {
         position: 'absolute',
         start: size.gutter,
-        bottom: space[6] + (BOOK_FAB - BUTTON) / 2,
+        bottom: space[6],
     },
 });

@@ -34,8 +34,8 @@ import { hasUnseen, lastDone } from './store';
 
 const HistoryIcon = icon(GLYPH.lastDone, { width: 2.2 });
 
-/** A thumb target: it floats over the list, not on a header row. */
-const SLOT = 44;
+/** The book button's size: the two sit as a pair across the bottom of the day. */
+const SLOT = 52;
 const HOLD_MS = 2000;
 // Two full turns each way: back as it opens, forward again as it closes, so it
 // winds back to where it started. Longer than `ui/motion`'s promote and
@@ -120,7 +120,7 @@ export function LastDoneButton({ active, onPress }: LastDoneButtonProps) {
             <Animated.View style={[styles.pill, pill]}>
                 <View style={styles.track}>
                     <Animated.View style={[styles.glyph, glyph]}>
-                        <HistoryIcon size={19} stroke={color.ink} />
+                        <HistoryIcon size={22} stroke={color.ink} />
                     </Animated.View>
                     <Animated.View style={label} onLayout={measure}>
                         <Text variant="callout" weight="semibold" numberOfLines={1}>
