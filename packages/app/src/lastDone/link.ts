@@ -19,7 +19,11 @@
 import type { AppRouter } from '@lustre/server/src/trpc/router.ts';
 import type { TRPCLink } from '@trpc/client';
 import { observable } from '@trpc/server/observable';
-import { subscribeToDataReset } from '../api/dataReset';
+import { dataGeneration, subscribeToDataReset } from '../api/dataReset';
+import { getDb } from '../api/demo/db';
+import { deviceBackend } from '../api/demo/flag';
+import { openDeviceDb } from '../api/demo/link';
+import { demoEntries } from './demo';
 import { type BeforeWrite, describeWrite, type LastDoneDraft } from './entry';
 import {
     appointmentOfVisit,
@@ -41,6 +45,21 @@ subscribeToDataReset(() => {
     forgetFacts();
     lastDone.clear();
 });
+
+let seededFor = -1;
+
+/**
+ * A demo opens with a few lines already in the log (`demo.ts`), so the button
+ * has something to show. Asked on the first request of each data generation —
+ * entering the demo, reseeding it, or launching into it.
+ */
+function seedDemo(): void {
+    if (deviceBackend() !== 'demo' || seededFor === dataGeneration()) return;
+    seededFor = dataGeneration();
+    void openDeviceDb('demo')
+        .then(() => lastDone.seedIfEmpty(demoEntries(getDb(), Date.now())))
+        .catch(() => undefined);
+}
 
 let sequence = 0;
 
@@ -91,6 +110,7 @@ export function lastDoneLink(lookup: Lookup): TRPCLink<AppRouter> {
     return () =>
         ({ op, next }) =>
             observable((observer) => {
+                seedDemo();
                 const before = op.type === 'mutation' ? beforeWrite(op.path, op.input) : null;
 
                 const subscription = next(op).subscribe({

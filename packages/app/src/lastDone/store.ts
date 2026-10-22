@@ -119,6 +119,13 @@ export function createLastDoneStore(key: string = KEY, now: () => number = Date.
             emit({ ...state, seenAt: Math.max(now(), state.entries[0]?.at ?? 0) });
             void hydrate().then(persist);
         },
+        /** A demo's opening log (`demo.ts`): only into an empty one, and all of it new. */
+        async seedIfEmpty(entries: readonly LastDoneEntry[]): Promise<void> {
+            await hydrate();
+            if (state.entries.length > 0 || entries.length === 0) return;
+            emit({ ...state, entries: prune(entries, now()), seenAt: 0 });
+            persist();
+        },
         clear(): void {
             discarded = true;
             emit({ ...state, entries: [], seenAt: 0 });

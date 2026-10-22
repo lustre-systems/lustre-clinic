@@ -233,3 +233,23 @@ describe('the sheet’s words', async () => {
         expect(subline(procedure, 'en', true)).toBe('Ahmed Ali · Filling — 14 +1');
     });
 });
+
+describe('the demo’s opening log', async () => {
+    const { demoEntries } = await import('./demo');
+    const { seedDemoDb } = await import('../api/demo/seed');
+
+    it('names demo patients, newest first, and fills only an empty log', async () => {
+        const now = Date.now();
+        const entries = demoEntries(seedDemoDb(), now);
+        expect(entries.length).toBeGreaterThan(2);
+        expect(entries.every((e) => e.patientName !== null && e.at < now)).toBe(true);
+
+        stored.clear();
+        const store = createLastDoneStore('demo-t', () => now);
+        await store.seedIfEmpty(entries);
+        expect(hasUnseen(store.getSnapshot())).toBe(true);
+
+        await store.seedIfEmpty([entry('other', now)]);
+        expect(store.getSnapshot().entries).toHaveLength(entries.length);
+    });
+});
