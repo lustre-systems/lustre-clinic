@@ -18,7 +18,7 @@ import { ERROR_CODE, WS_EVENT } from '@lustre/shared';
 import type { RouterInput, RouterOutput } from '../../types';
 import { getDb, save } from '../db';
 import { broadcast } from '../events';
-import { assertAmount, DemoError, dayRange } from '../rules';
+import { ageFromBirthDate, assertAmount, DemoError, dayRange } from '../rules';
 import type { Dated } from '../wire';
 import { insertPayment } from './visit';
 
@@ -123,6 +123,8 @@ export const balanceHandlers = {
                     patientId,
                     name: patient?.name ?? '',
                     phone: patient?.phone ?? '',
+                    age: ageFromBirthDate(patient?.birthDate ?? null),
+                    gender: patient?.gender ?? null,
                     balance: entry.balance,
                     // A positive total cannot be reached without at least one
                     // unpaid visit, so the filter above has already settled this.

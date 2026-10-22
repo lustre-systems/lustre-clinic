@@ -367,7 +367,8 @@ export function AppShell() {
                     mounted={stats && visited.includes('stats')}
                     back={stacks.stats}
                 >
-                    <StatsScreen goHome={home.stats} />
+                    {/* Warmed up hidden, so the chart is told when it is on show to draw itself then. */}
+                    <StatsScreen goHome={home.stats} onScreen={!away && tab === 'stats'} />
                 </Pane>
 
                 <Pane

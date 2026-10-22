@@ -7,9 +7,17 @@
 // way the pills and the bars read. The SVG does not mirror by itself, so its
 // x is flipped here; the overlays (the tap targets, the tag over the selected
 // point and the axis labels) sit on `start`, which the layout mirrors for us.
-import { useState } from 'react';
-import { type LayoutChangeEvent, Pressable, StyleSheet, View } from 'react-native';
+//
+// A new run of points — the screen coming up, or another pill's — draws itself in
+// the reading direction, the area filling in behind it and each dot appearing
+// as the line reaches it. The same points with new figures (another metric, a
+// refresh) do not draw again: each point eases from where it was to where it is
+// now, and the dot, its tag and the tap targets ride along.
+// biome-ignore lint/style/noRestrictedImports: drives the line's draw and its morph with `Animated.timing` imperatively, and stops them on cleanup
+import { useEffect, useRef, useState } from 'react';
+import { Animated, type LayoutChangeEvent, Pressable, StyleSheet, View } from 'react-native';
 import Svg, { Circle, Line, Path } from 'react-native-svg';
+import { duration, easing, useReducedMotion } from '../../../components/ui';
 import { useIsRTL, useLocale, useT } from '../../../i18n';
 import { color, radius, shadow, space, Text } from '../../../theme';
 import { currencyOf, formatEgp } from '../money';
@@ -44,6 +52,8 @@ export type StatsChartProps = {
     /** -1 when nothing is selected, as on "All time". */
     selected: number;
     onSelect: (index: number) => void;
+    /** Whether the screen is up. The line draws itself in each time it comes up, and waits while it is hidden. */
+    onScreen?: boolean;
 };
 
 export function StatsChart({
@@ -57,6 +67,7 @@ export function StatsChart({
     labels,
     selected,
     onSelect,
+    onScreen = true,
 }: StatsChartProps) {
     const t = useT();
     const rtl = useIsRTL();
@@ -64,16 +75,26 @@ export function StatsChart({
     const skin = SKIN[metric];
     const [width, setWidth] = useState(0);
 
-    const points = chartPoints(values, { width, height: HEIGHT, pad: PAD, top: TOP, bottom: BOTTOM });
+    // The labels name the points, so new labels are a new line to draw; the
+    // same labels with new values are the same line moving.
+    const series = labels.join('|');
+    const target = chartPoints(values, { width, height: HEIGHT, pad: PAD, top: TOP, bottom: BOTTOM });
+    const heights = useEasedHeights(
+        target.map((p) => p.y),
+        series,
+    );
+    const points = target.map((p, i) => ({ x: p.x, y: heights[i] ?? p.y }));
+    const drawn = useDrawn(width > 0 && onScreen ? series : null);
+    const { path: reached, reaches } = along(points, drawn);
     const drawX = (x: number) => (rtl ? width - x : x);
-    const line = points.map((p, i) => `${i === 0 ? 'M' : 'L'}${drawX(p.x)},${p.y}`).join(' ');
-    const first = points[0];
-    const last = points[points.length - 1];
+    const line = reached.map((p, i) => `${i === 0 ? 'M' : 'L'}${drawX(p.x)},${p.y}`).join(' ');
+    const first = reached[0];
+    const last = reached[reached.length - 1];
     const area =
-        first && last && points.length > 1
+        first && last && reached.length > 1
             ? `${line} L${drawX(last.x)},${HEIGHT - AXIS} L${drawX(first.x)},${HEIGHT - AXIS} Z`
             : '';
-    const focus = selected >= 0 ? points[selected] : undefined;
+    const focus = selected >= 0 && reaches(selected) ? points[selected] : undefined;
     const every = Math.ceil(points.length / LABELS);
     const axis = Math.min(64, points.length > 1 ? ((width - 2 * PAD) / (points.length - 1)) * every : 64);
 
@@ -100,18 +121,27 @@ export function StatsChart({
                 </View>
 
                 {delta && against ? (
-                    <View style={[styles.delta, delta.good ? styles.deltaGood : styles.deltaBad]}>
+                    // No change is neither news nor a warning: no arrow, no colour.
+                    <View
+                        style={[
+                            styles.delta,
+                            delta.flat ? styles.deltaFlat : delta.good ? styles.deltaGood : styles.deltaBad,
+                        ]}
+                    >
                         <Text
                             variant="footnote"
                             weight="semibold"
-                            tone={delta.good ? 'successOnDark' : 'dueOnDark'}
+                            tone={delta.flat ? 'inverse' : delta.good ? 'successOnDark' : 'dueOnDark'}
+                            style={delta.flat ? styles.dim : null}
                             testID="stats-chart-delta"
                         >
-                            {t('{arrow} {percent}% vs {point}', {
-                                arrow: delta.up ? '▲' : '▼',
-                                percent: delta.percent,
-                                point: against,
-                            })}
+                            {delta.flat
+                                ? t('{percent}% vs {point}', { percent: delta.percent, point: against })
+                                : t('{arrow} {percent}% vs {point}', {
+                                      arrow: delta.up ? '▲' : '▼',
+                                      percent: delta.percent,
+                                      point: against,
+                                  })}
                         </Text>
                     </View>
                 ) : null}
@@ -146,7 +176,7 @@ export function StatsChart({
                             />
                         ) : null}
                         {points.map((p, i) =>
-                            i === selected ? null : (
+                            i === selected || !reaches(i) ? null : (
                                 // Ringed, so each point reads as something to tap
                                 // rather than a vertex of the line.
                                 <Circle
@@ -246,6 +276,120 @@ export function StatsChart({
     );
 }
 
+/**
+ * Runs `frame` from 0 to 1 and calls it once more on 1 when it lands, so the
+ * end state is applied even at duration 0. Returns the stop for cleanup.
+ */
+function tween(ms: number, curve: (t: number) => number, frame: (t: number) => void): () => void {
+    const progress = new Animated.Value(0);
+    const id = progress.addListener(({ value }) => frame(value));
+    const timing = Animated.timing(progress, {
+        toValue: 1,
+        duration: ms,
+        easing: curve,
+        useNativeDriver: false,
+    });
+
+    timing.start(({ finished }) => {
+        if (finished) frame(1);
+    });
+    return () => {
+        timing.stop();
+        progress.removeListener(id);
+    };
+}
+
+/**
+ * How much of the line is drawn, 0 to 1. Starts again from nothing whenever
+ * `series` changes; null holds it at nothing, for a plot with no width yet or a screen that is hidden.
+ */
+function useDrawn(series: string | null): number {
+    const reducedMotion = useReducedMotion();
+    // Tagged with its series, so a new one reads as nothing drawn from its very
+    // first render rather than flashing whole for a frame before the effect.
+    const [state, setState] = useState({ series, drawn: 0 });
+
+    useEffect(() => {
+        // Hidden, it goes back to nothing drawn, so coming up draws it again.
+        if (series === null) {
+            setState({ series, drawn: 0 });
+            return;
+        }
+        return tween(reducedMotion ? 0 : duration.draw, easing.sheet, (drawn) => setState({ series, drawn }));
+    }, [series, reducedMotion]);
+
+    return state.series === series ? state.drawn : 0;
+}
+
+/**
+ * Where each point sits on its way to `to`. Interrupted, it eases on from
+ * wherever the line had got to. A new `series` is a new line, which `useDrawn`
+ * brings in, so its points start where they belong.
+ */
+function useEasedHeights(to: readonly number[], series: string): readonly number[] {
+    const reducedMotion = useReducedMotion();
+    const key = to.join(',');
+    const [shown, setShown] = useState<readonly number[]>(to);
+    // What is on screen right now, read when a new target interrupts the last.
+    const live = useRef({ heights: shown, series });
+
+    useEffect(() => {
+        const target = key ? key.split(',').map(Number) : [];
+        const from =
+            live.current.series === series && live.current.heights.length === target.length
+                ? live.current.heights
+                : target;
+        const show = (heights: readonly number[]) => {
+            live.current = { heights, series };
+            setShown(heights);
+        };
+        return tween(reducedMotion ? 0 : duration.promote, easing.promote, (t) =>
+            show(target.map((y, i) => (from[i] ?? y) + (y - (from[i] ?? y)) * t)),
+        );
+    }, [key, series, reducedMotion]);
+
+    // The render before the effect catches up with a new run of points.
+    return shown.length === to.length && live.current.series === series ? shown : to;
+}
+
+type Point = { x: number; y: number };
+
+/**
+ * The first `fraction` of the line by length, cut mid-segment where it ends,
+ * and whether it has reached a given point yet.
+ */
+function along(
+    points: readonly Point[],
+    fraction: number,
+): { path: Point[]; reaches: (i: number) => boolean } {
+    const at = [0];
+    for (let i = 1; i < points.length; i++) {
+        const a = points[i - 1] as Point;
+        const b = points[i] as Point;
+        at.push((at[i - 1] ?? 0) + Math.hypot(b.x - a.x, b.y - a.y));
+    }
+    const reach = (at[at.length - 1] ?? 0) * fraction;
+    const reaches = (i: number) => fraction >= 1 || (at[i] ?? Number.POSITIVE_INFINITY) <= reach;
+
+    const path: Point[] = [];
+    for (let i = 0; i < points.length; i++) {
+        const b = points[i] as Point;
+        if (reaches(i)) {
+            path.push(b);
+            continue;
+        }
+        const a = points[i - 1];
+        const start = at[i - 1] ?? 0;
+        const span = (at[i] ?? start) - start;
+        if (a && span > 0) {
+            const t = (reach - start) / span;
+            path.push({ x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t });
+        }
+        break;
+    }
+    return { path, reaches };
+}
+
 function clamp(value: number, min: number, max: number): number {
     return Math.max(min, Math.min(max, value));
 }
@@ -274,6 +418,7 @@ const styles = StyleSheet.create({
     delta: { paddingVertical: space[1], paddingHorizontal: space[2], borderRadius: radius.full },
     deltaGood: { backgroundColor: color.successOnDarkSoft },
     deltaBad: { backgroundColor: color.dueOnDarkSoft },
+    deltaFlat: { backgroundColor: color.onDarkTrack },
     plot: { height: HEIGHT },
     svg: { position: 'absolute', top: 0, start: 0 },
     tag: {

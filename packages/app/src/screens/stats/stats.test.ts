@@ -122,13 +122,18 @@ describe('years before the clinic’s first', () => {
 
 describe('the change on the point before', () => {
     it('is a whole percentage, good when it went up', () => {
-        expect(deltaOf(112, 100, 'profit')).toEqual({ percent: 12, up: true, good: true });
-        expect(deltaOf(88, 100, 'revenue')).toEqual({ percent: 12, up: false, good: false });
+        expect(deltaOf(112, 100, 'profit')).toEqual({ percent: 12, up: true, flat: false, good: true });
+        expect(deltaOf(88, 100, 'revenue')).toEqual({ percent: 12, up: false, flat: false, good: false });
     });
 
     it('is good for cost when it went down', () => {
         expect(deltaOf(80, 100, 'cost')?.good).toBe(true);
         expect(deltaOf(120, 100, 'cost')?.good).toBe(false);
+    });
+
+    it('is neither good nor bad when it rounds to no change', () => {
+        expect(deltaOf(100, 100, 'profit')).toEqual({ percent: 0, up: false, flat: true, good: false });
+        expect(deltaOf(1001, 1000, 'cost')).toEqual({ percent: 0, up: false, flat: true, good: false });
     });
 
     it('is nothing from zero or with nothing before', () => {

@@ -20,22 +20,37 @@
 // leaves what is loaded up — stale, not gone (§7.14). The search is debounced
 // because it runs over Tailscale; stale answers are dropped by the query key.
 //
-// "Owes money", by the search, swaps the rows for everyone who owes the clinic
-// (`owes/OwesBody`), and the search then filters that list on the phone. It is
-// the desk's old "Who owe" list from the Money tab, so only a role that sees
-// payments has the chip.
+// The section label above the rows is also how the list is ordered: tapped, it
+// drops Recent, Alphabetical and Who owes. Who owes swaps the rows for everyone
+// who owes the clinic (`balance.outstanding`), largest balance first, and the
+// search then filters that list on the phone.
+//
+// Every mode's rows go through the one `renderItem`, as a `PatientRow` that
+// fades up into place (`ui/FadeUp`) the first time that mode shows it — so a
+// mode added to the menu animates like the others without asking to. A doctor's phone is not shown balances,
+// so it has the first two only.
 import { seesPayments } from '@lustre/shared';
 // biome-ignore lint/style/noRestrictedImports: two of them, both external — the imperative `scrollToOffset` on the FlatList ref when the tab is re-tapped, and the search debounce's `setTimeout`
 import { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, FlatList, Keyboard, Pressable, StyleSheet, View } from 'react-native';
-import { PatientRow } from '../../components/domain';
+import {
+    ActivityIndicator,
+    FlatList,
+    Keyboard,
+    Pressable,
+    type View as RNView,
+    StyleSheet,
+    View,
+} from 'react-native';
+import { PatientRow, type PatientSummary } from '../../components/domain';
 import {
     Banner,
     Button,
-    Chip,
+    Chevron,
+    DropdownMenu,
     EmptyState,
+    FadeUp,
+    type MenuAnchor,
     SearchField,
-    SectionLabel,
     SkeletonRows,
     Toast,
     useKeyboardHeight,
@@ -44,13 +59,15 @@ import {
 import { useT } from '../../i18n';
 import { useRole } from '../../shell/useRole';
 import { color, radius, size, space, Text } from '../../theme';
+import { MoneyValue } from '../stats/MoneyValue';
 import { PatientsIcon, PlusIcon, RetryIcon, SearchIcon } from './components/icons';
 import { PAGE_SIZE, patientsApi } from './data/api';
 import { errorText } from './data/errors';
 import { usePagedQuery, useQueryEach } from './data/hooks';
 import type { Patient } from './data/types';
 import { useOutstanding } from './owes/data';
-import { OwesBody } from './owes/OwesBody';
+import { matchDebtors } from './owes/debtors';
+import { OwesEmpty } from './owes/OwesEmpty';
 import { type PatientPrefill, prefillOf } from './patientForm';
 
 export type PatientListScreenProps = {
@@ -76,19 +93,29 @@ export type PatientListScreenProps = {
 };
 
 const DEBOUNCE_MS = 250;
+const MODE_MENU_GAP = 8;
+
+type ListMode = 'recent' | 'name' | 'owes';
+
+const MODE_LABEL: Record<ListMode, string> = {
+    recent: 'Recent',
+    name: 'Alphabetical',
+    owes: 'Who owes',
+};
 
 export function PatientListScreen({ onNewPatient, onOpen, goHome = 0 }: PatientListScreenProps) {
-    const t = useT();
     const keyboard = useKeyboardHeight();
     const [term, setTerm] = useState('');
     const [toast, setToast] = useState<string | null>(null);
-    const [owesOn, setOwesOn] = useState(false);
+    const [mode, setMode] = useState<ListMode>('recent');
     const query = useDebounced(term, DEBOUNCE_MS);
     const searching = query.trim().length > 0;
 
     // A doctor's phone is refused balances by the server, so it does not ask.
     const { granted } = useRole();
-    const owing = owesOn && seesPayments(granted);
+    const owing = mode === 'owes' && seesPayments(granted);
+    const modes: ListMode[] = seesPayments(granted) ? ['recent', 'name', 'owes'] : ['recent', 'name'];
+    const order = mode === 'name' ? 'name' : 'newest';
     const outstanding = useOutstanding(owing);
 
     // Two queries rather than one keyed by the term: leaving the recent page
@@ -99,8 +126,8 @@ export function PatientListScreen({ onNewPatient, onOpen, goHome = 0 }: PatientL
     // answer, and the first keystroke would spend the round trip showing "No
     // patients found" instead of the skeleton.
     const recent = usePagedQuery(
-        ['recent'],
-        (offset) => patientsApi.recent(offset),
+        ['recent', order],
+        (offset) => patientsApi.recent(offset, order),
         (page, offset) =>
             page.patients.length === PAGE_SIZE && offset + PAGE_SIZE < page.total
                 ? offset + PAGE_SIZE
@@ -115,7 +142,10 @@ export function PatientListScreen({ onNewPatient, onOpen, goHome = 0 }: PatientL
 
     const list = searching ? results : recent;
     const pages = searching ? results.pages : recent.pages?.map((page) => page.patients);
-    const rows = distinct(pages?.flat() ?? []);
+    // A search answers in its own order; Alphabetical puts what it found A–Z.
+    const found = distinct(pages?.flat() ?? []);
+    const rows =
+        searching && order === 'name' ? [...found].sort((a, b) => a.name.localeCompare(b.name)) : found;
 
     const pageIds = (pages ?? [])
         .map((page) => page.map((patient) => patient.id))
@@ -135,6 +165,24 @@ export function PatientListScreen({ onNewPatient, onOpen, goHome = 0 }: PatientL
     });
     const dueByPatient = seesPayments(granted) ? new Map(lastDue.current) : new Map<string, number>();
 
+    // What is on screen, whichever mode drew it. A debtor carries the balance
+    // the report derived; any other row the one read for its page.
+    const listed: Listed[] = owing
+        ? matchDebtors(outstanding.data?.patients ?? [], term).map((row) => ({
+              id: row.patientId,
+              patient: { ...row, id: row.patientId },
+              balance: row.balance,
+          }))
+        : rows.map((patient) => ({ id: patient.id, patient, balance: dueByPatient.get(patient.id) ?? 0 }));
+
+    // A row fades up the first time its mode shows it, and not again when the
+    // list only redraws it — a balance arriving, a page loading under it, or
+    // the virtualized list remounting it after a scroll. Changing mode starts
+    // over, and the mode is in the row's key, so the new list arrives afresh.
+    const view = owing ? 'owes' : order;
+    const seen = useRef({ view, ids: new Set<string>() });
+    if (seen.current.view !== view) seen.current = { view, ids: new Set() };
+
     // The list on screen and its balances, and no further than that: the record
     // behind a row is read when it is opened, and the other tabs are refreshed by
     // their own pull. A refresh while searching re-runs the search, not the whole
@@ -152,7 +200,7 @@ export function PatientListScreen({ onNewPatient, onOpen, goHome = 0 }: PatientL
     // the signal is a number that says a tap happened, and the answer is a call
     // on the view. It is skipped on mount — a list that has just been mounted is
     // already at the top, and animating there would be a jolt for nothing.
-    const scroller = useRef<FlatList<Patient>>(null);
+    const scroller = useRef<FlatList<Listed>>(null);
     const shown = useRef(goHome);
     useEffect(() => {
         if (shown.current === goHome) return;
@@ -192,16 +240,22 @@ export function PatientListScreen({ onNewPatient, onOpen, goHome = 0 }: PatientL
                 clear of them: the content simply ends behind the keyboard. */}
             <FlatList
                 ref={scroller}
-                data={owing ? [] : rows}
-                keyExtractor={(patient) => patient.id}
+                data={listed}
+                keyExtractor={(row) => `${view}:${row.id}`}
                 extraData={dueByPatient}
-                renderItem={({ item }) => (
-                    <PatientRow
-                        patient={item}
-                        balance={dueByPatient.get(item.id) ?? 0}
-                        onPress={() => openPatient(item.id)}
-                    />
-                )}
+                renderItem={({ item, index }) => {
+                    const fresh = !seen.current.ids.has(item.id);
+                    seen.current.ids.add(item.id);
+                    return (
+                        <FadeUp index={index} animate={fresh}>
+                            <PatientRow
+                                patient={item.patient}
+                                balance={item.balance}
+                                onPress={() => openPatient(item.id)}
+                            />
+                        </FadeUp>
+                    );
+                }}
                 onEndReached={() => {
                     if (!owing && !list.moreError) list.loadMore();
                 }}
@@ -227,17 +281,6 @@ export function PatientListScreen({ onNewPatient, onOpen, goHome = 0 }: PatientL
                             />
                         </View>
 
-                        {seesPayments(granted) ? (
-                            <View style={styles.filters}>
-                                <Chip
-                                    label="Owes money"
-                                    selected={owing}
-                                    onPress={() => setOwesOn((on) => !on)}
-                                    testID="owes-filter"
-                                />
-                            </View>
-                        ) : null}
-
                         {!owing && list.error && pages && (
                             <View style={styles.inset}>
                                 <Banner
@@ -247,14 +290,22 @@ export function PatientListScreen({ onNewPatient, onOpen, goHome = 0 }: PatientL
                             </View>
                         )}
 
-                        {!owing && rows.length > 0 && (
-                            <SectionLabel>{t(searching ? 'RESULTS' : 'RECENT')}</SectionLabel>
-                        )}
+                        <ModeLabel
+                            mode={owing ? 'owes' : mode === 'owes' ? 'recent' : mode}
+                            modes={modes}
+                            // Search results are not "recent"; the other two still say what order they are in.
+                            label={searching && !owing && mode !== 'name' ? 'RESULTS' : undefined}
+                            // The report's own total, hidden while searching rather than
+                            // recomputed over the matches: a figure that shrank as you typed
+                            // would read as the clinic being owed less than it is.
+                            owed={owing && !searching ? outstanding.data?.total : undefined}
+                            onChange={setMode}
+                        />
                     </>
                 }
                 ListEmptyComponent={
                     owing ? (
-                        <OwesBody outstanding={outstanding} term={term} onOpen={openPatient} />
+                        <OwesEmpty outstanding={outstanding} searching={term.trim() !== ''} />
                     ) : list.loading && !pages ? (
                         <SkeletonRows count={7} ruled />
                     ) : list.error && !pages ? (
@@ -282,6 +333,85 @@ export function PatientListScreen({ onNewPatient, onOpen, goHome = 0 }: PatientL
             />
 
             <Toast visible={toast !== null} message={toast ?? ''} onDismiss={() => setToast(null)} />
+        </View>
+    );
+}
+
+type Listed = { id: string; patient: PatientSummary; balance: number };
+
+/**
+ * The section label over the rows, which is also the control that orders them:
+ * the eyebrow and its muted colour, a caret beside it, and the menu of the
+ * other orders under it. Who owes carries the total owed on the same line.
+ */
+function ModeLabel({
+    mode,
+    modes,
+    label,
+    owed,
+    onChange,
+}: {
+    mode: ListMode;
+    modes: ListMode[];
+    label?: string;
+    owed?: number;
+    onChange: (mode: ListMode) => void;
+}) {
+    const t = useT();
+    const button = useRef<RNView>(null);
+    const [anchor, setAnchor] = useState<MenuAnchor | null>(null);
+
+    // The menu is a Modal, so it wants window coordinates; the label sits in a
+    // scroller and says nothing about where it currently is. Measured on press,
+    // because scrolling moves it and nothing tells the label that it did.
+    function open() {
+        button.current?.measureInWindow((_x, y, _width, height) =>
+            setAnchor({ top: y + height + MODE_MENU_GAP, start: size.gutter }),
+        );
+    }
+
+    return (
+        <View style={styles.mode}>
+            <Pressable
+                ref={button}
+                accessibilityRole="button"
+                accessibilityLabel={`${t('Order patients')} — ${t(MODE_LABEL[mode])}`}
+                accessibilityState={{ expanded: anchor !== null }}
+                onPress={open}
+                // A 44px target without a 44px row: the label is an eyebrow over the list.
+                hitSlop={14}
+                style={({ pressed }) => [styles.modeButton, pressed && styles.modePressed]}
+                testID="patients-mode"
+            >
+                <Text variant="eyebrow" tone="muted">
+                    {t(label ?? MODE_LABEL[mode])}
+                </Text>
+                <Chevron direction={anchor ? 'up' : 'down'} size={6} />
+            </Pressable>
+
+            {owed === undefined ? null : (
+                <View style={styles.owed}>
+                    <MoneyValue
+                        amount={owed}
+                        variant="footnote"
+                        currencyVariant="footnote"
+                        weight="bold"
+                        tone="dueText"
+                        compact
+                        testID="owes-total"
+                    />
+                </View>
+            )}
+
+            <DropdownMenu
+                visible={anchor !== null}
+                onClose={() => setAnchor(null)}
+                options={modes.map((value) => ({ value, label: MODE_LABEL[value] }))}
+                value={mode}
+                onChange={onChange}
+                anchor={anchor ?? undefined}
+                accessibilityLabel="Order patients"
+            />
         </View>
     );
 }
@@ -445,7 +575,22 @@ const styles = StyleSheet.create({
     pressed: { opacity: 0.72 },
 
     search: { paddingHorizontal: size.gutter, paddingBottom: space[3] },
-    filters: { flexDirection: 'row', paddingHorizontal: size.gutter, paddingBottom: space[3] },
+    mode: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: space[2],
+        minHeight: space[6],
+        paddingHorizontal: size.gutter,
+    },
+    modeButton: { flexDirection: 'row', alignItems: 'center', gap: space[1] },
+    modePressed: { opacity: 0.6 },
+    owed: {
+        paddingVertical: space[0.5],
+        paddingHorizontal: space[2.5],
+        borderRadius: radius.full,
+        backgroundColor: color.dueSoft,
+    },
     inset: { paddingHorizontal: size.gutter, paddingBottom: space[2] },
     more: { alignItems: 'center', paddingVertical: space[5] },
 });

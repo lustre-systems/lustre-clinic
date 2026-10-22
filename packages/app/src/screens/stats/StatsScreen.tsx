@@ -53,9 +53,11 @@ const POINT_UNIT: Record<Period, PointUnit> = {
 type StatsScreenProps = {
     /** Bumped when the Stats tab is tapped while it is already up: back to the top. */
     goHome?: number;
+    /** Whether the tab is up. It is mounted hidden ahead of the first tap, and the chart draws its line in when it comes up. */
+    onScreen?: boolean;
 };
 
-function StatsScreenView({ goHome = 0 }: StatsScreenProps) {
+function StatsScreenView({ goHome = 0, onScreen = true }: StatsScreenProps) {
     const t = useT();
     const locale = useLocale();
     const [period, setPeriod] = useState<Period>('month');
@@ -184,6 +186,7 @@ function StatsScreenView({ goHome = 0 }: StatsScreenProps) {
                                 labels={labels}
                                 selected={selected}
                                 onSelect={selectPoint}
+                                onScreen={onScreen}
                             />
 
                             <MetricTiles figures={figures} metric={metric} onSelect={setMetric} />
@@ -227,7 +230,8 @@ function StatsScreenView({ goHome = 0 }: StatsScreenProps) {
 
 /**
  * Thin as the props are, the memo is the boundary that keeps the whole screen
- * out of a tab switch: `goHome` comes from the shell unchanged.
+ * out of a tab switch: `goHome` comes from the shell unchanged, and `onScreen`
+ * only changes on a switch to or from this tab.
  */
 export const StatsScreen = memo(StatsScreenView);
 

@@ -225,7 +225,8 @@ export function emptyLead(points: readonly Point[]): number {
     return lead;
 }
 
-export type Delta = { percent: number; up: boolean; good: boolean };
+/** `flat` when it rounds to 0%: neither direction, so neither good nor bad. */
+export type Delta = { percent: number; up: boolean; flat: boolean; good: boolean };
 
 /**
  * The selected point against the one before it, as a whole percentage. Nothing
@@ -235,8 +236,9 @@ export type Delta = { percent: number; up: boolean; good: boolean };
 export function deltaOf(current: number, previous: number | undefined, metric: Metric): Delta | null {
     if (previous === undefined || previous <= 0) return null;
     const percent = Math.round(((current - previous) / previous) * 100);
-    const up = percent >= 0;
-    return { percent: Math.abs(percent), up, good: metric === 'cost' ? !up || percent === 0 : up };
+    const up = percent > 0;
+    const flat = percent === 0;
+    return { percent: Math.abs(percent), up, flat, good: !flat && (metric === 'cost' ? !up : up) };
 }
 
 type BranchPoint = { branches: readonly { branchId: string; name: string; profit: number }[] };
