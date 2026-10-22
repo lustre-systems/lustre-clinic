@@ -1,17 +1,17 @@
 /**
- * The history button on a heading row: a small round icon that opens the
+ * The history button on the day view's header: a small round icon that opens the
  * "Last done" sheet.
  *
  * When the tab it sits on is opened and something has been done since the
  * sheet was last looked at, it widens to show its label — "Last done ↺", the
  * icon on the far side from the words — spinning the icon backwards as it goes,
  * holds for two seconds and folds back, spinning forward again. Nothing new, no movement: after
- * fifty tab switches a day it would otherwise be noise. Reduced motion skips it
- * altogether.
+ * fifty tab switches a day it would otherwise be noise. A tap plays it too,
+ * whatever is new, as the sheet opens. Reduced motion skips it altogether.
  *
- * The round slot is all it takes in the row. The label grows over the heading
- * beside it rather than pushing it, so nothing else on the row moves, and on a
- * narrow phone the title and both buttons still fit.
+ * The round slot is all it takes in the row, the height of the pills beside
+ * it. The label grows into the row's empty middle rather than pushing the
+ * branch pill, so nothing else on the row moves.
  */
 // biome-ignore lint/style/noRestrictedImports: starts the expand animation, which runs on the UI thread, when the tab it sits on is opened
 import { useEffect, useState, useSyncExternalStore } from 'react';
@@ -34,7 +34,7 @@ import { hasUnseen, lastDone } from './store';
 
 const HistoryIcon = icon(GLYPH.lastDone, { width: 2.2 });
 
-const SLOT = 36;
+const SLOT = space[8];
 const HOLD_MS = 2000;
 // Two full turns each way: back as it opens, forward again as it closes, so it
 // winds back to where it started. Longer than `ui/motion`'s promote and
@@ -67,14 +67,16 @@ export function LastDoneButton({ active, onPress }: LastDoneButtonProps) {
     const ready = active && state.hydrated && labelWidth > 0;
     const unseen = hasUnseen(state);
 
-    // biome-ignore lint/correctness/useExhaustiveDependencies: only opening the tab plays it — a write made while it is up waits for the next opening
-    useEffect(() => {
+    function rest() {
         cancelAnimation(open);
         cancelAnimation(turn);
         open.value = 0;
         turn.value = 0;
-        if (!ready || !unseen || reduced) return;
+    }
 
+    function play() {
+        rest();
+        if (reduced || labelWidth === 0) return;
         open.value = withSequence(
             withTiming(1, { duration: OPEN_MS, easing: PROMOTE }),
             withDelay(HOLD_MS, withTiming(0, { duration: CLOSE_MS, easing: SETTLE })),
@@ -83,6 +85,12 @@ export function LastDoneButton({ active, onPress }: LastDoneButtonProps) {
             withTiming(-360 * TURNS, { duration: OPEN_MS, easing: PROMOTE }),
             withDelay(HOLD_MS, withTiming(0, { duration: CLOSE_MS, easing: SETTLE })),
         );
+    }
+
+    // biome-ignore lint/correctness/useExhaustiveDependencies: only opening the tab plays it unasked — a write made while it is up waits for the next opening
+    useEffect(() => {
+        if (ready && unseen) play();
+        else rest();
     }, [ready]);
 
     const pill = useAnimatedStyle(() => ({
@@ -100,7 +108,10 @@ export function LastDoneButton({ active, onPress }: LastDoneButtonProps) {
         <Pressable
             accessibilityRole="button"
             accessibilityLabel={t('Last done')}
-            onPress={onPress}
+            onPress={() => {
+                play();
+                onPress();
+            }}
             hitSlop={8}
             style={({ pressed }) => [styles.slot, pressed && styles.pressed]}
             testID="last-done"
@@ -113,7 +124,7 @@ export function LastDoneButton({ active, onPress }: LastDoneButtonProps) {
                         </Text>
                     </Animated.View>
                     <Animated.View style={[styles.glyph, glyph]}>
-                        <HistoryIcon size={17} stroke={color.ink} />
+                        <HistoryIcon size={16} stroke={color.ink} />
                     </Animated.View>
                 </View>
             </Animated.View>
@@ -124,8 +135,8 @@ export function LastDoneButton({ active, onPress }: LastDoneButtonProps) {
 const styles = StyleSheet.create({
     slot: { width: SLOT, height: SLOT },
     pressed: { opacity: 0.72 },
-    // Anchored to the end of the slot and grown towards the start, over the
-    // heading: `end` and the row both flip in Arabic, so it mirrors as a whole.
+    // Anchored to the end of the slot and grown towards the start: `end` and the
+    // row both flip in Arabic, so it mirrors as a whole.
     pill: {
         position: 'absolute',
         top: 0,

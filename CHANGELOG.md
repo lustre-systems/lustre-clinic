@@ -8,7 +8,7 @@ listed.
 
 ## [Unreleased]
 
-- A new "Last done" button (the clock with a turning arrow) next to New patient on the Patients tab lists what was done on this phone, newest first: bookings, moves, cancellations, no-shows, check-ins, finished visits, saved procedures, payments, patients added or edited and old visits. Tapping a line opens that booking, visit or patient. Only saves that went through are listed. The list stays on the phone, holding the last 30 actions from the past 7 days. When something new has been done since the list was last opened, the button briefly shows its name as the Patients tab opens.
+- A new "Last done" button (the clock with a turning arrow) at the top of the day view, next to the date, lists what was done on this phone, newest first: bookings, moves, cancellations, no-shows, check-ins, finished visits, saved procedures, payments, patients added or edited and old visits. It is on every phone, the doctor's included. Tapping a line opens that booking, visit or patient. Only saves that went through are listed. The list stays on the phone, holding the last 30 actions from the past 7 days. When something new has been done since the list was last opened, the button briefly shows its name as the day view opens.
 
 ## [1.9.0] - 2026-10-10
 

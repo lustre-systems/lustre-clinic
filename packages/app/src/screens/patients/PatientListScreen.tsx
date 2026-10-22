@@ -21,7 +21,7 @@
 // because it runs over Tailscale; stale answers are dropped by the query key.
 import { seesPayments } from '@lustre/shared';
 // biome-ignore lint/style/noRestrictedImports: two of them, both external — the imperative `scrollToOffset` on the FlatList ref when the tab is re-tapped, and the search debounce's `setTimeout`
-import { type ReactNode, useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, FlatList, Keyboard, Pressable, StyleSheet, View } from 'react-native';
 import { PatientRow } from '../../components/domain';
 import {
@@ -36,8 +36,6 @@ import {
     usePullToRefresh,
 } from '../../components/ui';
 import { useT } from '../../i18n';
-import { LastDoneButton, LastDoneSheet, type LastDoneTarget, lastDone } from '../../lastDone';
-import { usePaneVisible } from '../../shell/paneVisible';
 import { useRole } from '../../shell/useRole';
 import { color, radius, size, space, Text } from '../../theme';
 import { PatientsIcon, PlusIcon, RetryIcon, SearchIcon } from './components/icons';
@@ -67,24 +65,12 @@ export type PatientListScreenProps = {
      * itself is kept — it is what the desk typed, not a route.
      */
     goHome?: number;
-    /** A line in the "Last done" sheet, tapped. Absent, the lines still list but open nothing. */
-    onOpenLastDone?: (target: LastDoneTarget) => void;
-    /** Something is pushed over the list, so opening the tab does not show the heading. */
-    covered?: boolean;
 };
 
 const DEBOUNCE_MS = 250;
 
-export function PatientListScreen({
-    onNewPatient,
-    onOpen,
-    goHome = 0,
-    onOpenLastDone,
-    covered = false,
-}: PatientListScreenProps) {
+export function PatientListScreen({ onNewPatient, onOpen, goHome = 0 }: PatientListScreenProps) {
     const t = useT();
-    const paneVisible = usePaneVisible();
-    const [history, setHistory] = useState(false);
     const keyboard = useKeyboardHeight();
     const [term, setTerm] = useState('');
     const [toast, setToast] = useState<string | null>(null);
@@ -213,20 +199,7 @@ export function PatientListScreen({
                 {...pull.scrollProps}
                 ListHeaderComponent={
                     <>
-                        <ListHeader
-                            total={recent.pages?.[0]?.total}
-                            onNewPatient={() => register()}
-                            history={
-                                <LastDoneButton
-                                    active={paneVisible && !covered}
-                                    onPress={() => {
-                                        Keyboard.dismiss();
-                                        lastDone.markSeen();
-                                        setHistory(true);
-                                    }}
-                                />
-                            }
-                        />
+                        <ListHeader total={recent.pages?.[0]?.total} onNewPatient={() => register()} />
 
                         <View style={styles.search}>
                             <SearchField
@@ -274,12 +247,6 @@ export function PatientListScreen({
                 ListFooterComponent={
                     <MoreFooter error={list.moreError} loading={list.loadingMore} onRetry={list.loadMore} />
                 }
-            />
-
-            <LastDoneSheet
-                visible={history}
-                onClose={() => setHistory(false)}
-                onOpen={(target) => onOpenLastDone?.(target)}
             />
 
             <Toast visible={toast !== null} message={toast ?? ''} onDismiss={() => setToast(null)} />
@@ -359,16 +326,7 @@ function distinct(patients: Patient[]): Patient[] {
  * `New patient` opposite. The count is the clinic's total, not the rows loaded so
  * far. It is absent until the number is known rather than animating up from zero.
  */
-function ListHeader({
-    total,
-    onNewPatient,
-    history,
-}: {
-    total?: number;
-    onNewPatient: () => void;
-    /** The "Last done" button, which rides beside New patient. */
-    history: ReactNode;
-}) {
+function ListHeader({ total, onNewPatient }: { total?: number; onNewPatient: () => void }) {
     const t = useT();
     return (
         <View style={styles.header}>
@@ -383,10 +341,7 @@ function ListHeader({
                 )}
             </View>
 
-            <View style={styles.actions}>
-                {history}
-                <NewPatientButton onPress={onNewPatient} />
-            </View>
+            <NewPatientButton onPress={onNewPatient} />
         </View>
     );
 }
@@ -446,7 +401,6 @@ const styles = StyleSheet.create({
         paddingBottom: space[2.5],
     },
     titles: { flexDirection: 'row', alignItems: 'baseline', gap: space[2.5] },
-    actions: { flexDirection: 'row', alignItems: 'center', gap: space[2] },
     newPatient: {
         flexDirection: 'row',
         alignItems: 'center',
