@@ -15,6 +15,7 @@
  * first. A write can land before the Patients tab has ever been opened, and
  * writing it straight out would replace the stored log with a list of one.
  */
+import { dateKey } from '@lustre/shared';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LAST_DONE_KINDS, type LastDoneEntry } from './entry';
 
@@ -135,3 +136,8 @@ export function createLastDoneStore(key: string = KEY, now: () => number = Date.
 }
 
 export const lastDone = createLastDoneStore();
+
+/** How many of the log's lines are from `today`, the clinic's day key — the Done tab's count. */
+export function todayCount(state: LastDoneState, today: string): number {
+    return state.entries.filter((entry) => dateKey(entry.at) === today).length;
+}

@@ -72,7 +72,7 @@ import { draftFor, type PatientDraft } from './patientDraft';
 import { relativeDayLabel, todayKey } from './time';
 import { useNowMinutes } from './useNow';
 
-type DayTab = 'day' | 'reminders';
+type DayTab = 'day' | 'reminders' | 'done';
 
 /**
  * The pages that stack over the schedule. The three visit pages carry no data:
@@ -356,7 +356,6 @@ function DayScreenView({
     // branch the schedule has working (`currentBranch.ts`).
     const day = useLocalQuery(`day:${dateKey}`, () => api.byDate(dateKey));
     const history = useDayLastDone({
-        covered: routes.stack.open.length > 0,
         onOpenRecord,
         onChanged: () => day.refetch(),
     });
@@ -621,36 +620,43 @@ function DayScreenView({
                 branchId={branch}
                 onPickBranch={pickBranch}
                 onOpenCalendar={() => setCalendar(openCalendar)}
-                history={history.button}
             />
 
-            {reminderCount > 0 || tab === 'reminders' ? (
-                <View style={styles.tabs}>
-                    <SegmentedControl<DayTab>
-                        accessibilityLabel="Day or reminders"
-                        value={tab}
-                        onChange={setTab}
-                        segments={[
-                            {
-                                // The day being shown, not today: the pill sat
-                                // on "Today" while the screen was on 18 Aug.
-                                value: 'day',
-                                label: `${relativeDayLabel(dateKey)} · ${appointments.length}`,
-                                icon: (selected) => (
-                                    <ClockIcon size={15} stroke={selected ? color.ink : color.ink2} />
-                                ),
-                            },
-                            {
-                                value: 'reminders',
-                                label: `${t('Reminders')} · ${reminderCount}`,
-                                icon: (selected) => (
-                                    <ChatIcon size={15} stroke={selected ? color.ink : color.ink2} />
-                                ),
-                            },
-                        ]}
-                    />
-                </View>
-            ) : null}
+            {/* Always up now: Done is on it whether or not there are
+                reminders to send. */}
+            <View style={styles.tabs}>
+                <SegmentedControl<DayTab>
+                    accessibilityLabel="Day, reminders or done"
+                    value={tab}
+                    onChange={(next) => {
+                        if (tab === 'done' || next === 'done') history.seen();
+                        setTab(next);
+                    }}
+                    segments={[
+                        {
+                            // The day being shown, not today: the pill sat
+                            // on "Today" while the screen was on 18 Aug.
+                            value: 'day',
+                            label: `${relativeDayLabel(dateKey)} · ${appointments.length}`,
+                            icon: (selected) => (
+                                <ClockIcon size={15} stroke={selected ? color.ink : color.ink2} />
+                            ),
+                        },
+                        ...(reminderCount > 0 || tab === 'reminders'
+                            ? [
+                                  {
+                                      value: 'reminders' as const,
+                                      label: `${t('Reminders')} · ${reminderCount}`,
+                                      icon: (selected: boolean) => (
+                                          <ChatIcon size={15} stroke={selected ? color.ink : color.ink2} />
+                                      ),
+                                  },
+                              ]
+                            : []),
+                        history.segment,
+                    ]}
+                />
+            </View>
 
             {day.status === 'error' && day.error && appointments.length > 0 ? (
                 <Banner
@@ -687,7 +693,9 @@ function DayScreenView({
             {noShow.error ? <Banner tone="warning" message={describeError(noShow.error).title} /> : null}
 
             <View style={styles.body}>
-                {tab === 'reminders' ? (
+                {tab === 'done' ? (
+                    history.list
+                ) : tab === 'reminders' ? (
                     <Reminders
                         query={reminders}
                         pull={pull}

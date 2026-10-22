@@ -1374,9 +1374,9 @@ export const COPY_AR = {
     'The reminder alarm repeats until the list is clear.': 'يتكرر منبّه التذكيرات حتى تفرغ القائمة.',
     'The reminder alarm could not be changed — try again.': 'تعذّر تغيير منبّه التذكيرات — حاول مرة أخرى.',
 
-    // --- "Last done": the history button on the Patients heading and its sheet
-    'Last done': 'آخر ما فعلت',
-    'What you did': 'ما فعلته',
+    // --- "Last done": the day view's Done tab
+    'Day, reminders or done': 'اليوم أو التذكيرات أو ما تم',
+    'Day or done': 'اليوم أو ما تم',
     'On this phone': 'على هذا الهاتف',
     'What you do on this phone shows up here.': 'ما تفعله على هذا الهاتف يظهر هنا.',
     'Just now': 'الآن',
