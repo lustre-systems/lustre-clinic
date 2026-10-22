@@ -23,6 +23,32 @@ export const TITLE: Record<LastDoneKind, string> = {
     oldVisit: 'Added old visit',
 };
 
+/**
+ * The same, short enough for the day header's button, which has only the room
+ * between two pills: a word or two, then the first name (`buttonLabel`).
+ */
+const SHORT: Record<LastDoneKind, string> = {
+    book: 'Booked',
+    move: 'Moved',
+    cancel: 'Cancelled',
+    noShow: 'No-show',
+    checkIn: 'Checked in',
+    finish: 'Finished',
+    procedures: 'Procedures',
+    payment: 'Payment',
+    paymentFix: 'Payment',
+    addPatient: 'New patient',
+    editPatient: 'Edited',
+    oldVisit: 'Old visit',
+};
+
+/** "Checked in · Yara" — what the button says it did last. */
+export function buttonLabel(entry: LastDoneEntry, locale: Locale): string {
+    const first = entry.patientName?.trim().split(/\s+/)[0];
+    const said = localizeCopy(locale, SHORT[entry.kind]);
+    return first ? `${said} · ${first}` : said;
+}
+
 const MINUTE = 60_000;
 const HOUR = 60 * MINUTE;
 

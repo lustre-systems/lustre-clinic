@@ -47,7 +47,7 @@ export type DayHeaderProps = {
     branchId: string | null;
     onPickBranch: (branchId: string) => void;
     onOpenCalendar: () => void;
-    /** The "Last done" button, centred between the two pills (`DayLastDone`). */
+    /** The "Last done" button, in the space between the two pills (`DayLastDone`). */
     history?: ReactNode;
 };
 
@@ -159,6 +159,10 @@ export function DayHeader({
                     </Pressable>
                 </View>
 
+                {/* The space between the two pills is the button's whole
+                    room: it opens out inside it and never over either pill. */}
+                {history ? <View style={styles.gap}>{history}</View> : null}
+
                 <Pressable
                     accessibilityRole="button"
                     accessibilityLabel={t('{relative}, {date}. Open the calendar', {
@@ -175,15 +179,6 @@ export function DayHeader({
                     </Text>
                     <Chevron direction="down" size={7} />
                 </Pressable>
-
-                {/* Over the row rather than in it, so it sits at the true centre
-                    whatever the two pills beside it measure, and opens out
-                    evenly both ways. */}
-                {history ? (
-                    <View style={styles.centre} pointerEvents="box-none">
-                        {history}
-                    </View>
-                ) : null}
             </View>
 
             <DropdownMenu
@@ -206,15 +201,7 @@ const styles = StyleSheet.create({
         paddingBottom: space[3],
     },
     row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-    centre: {
-        position: 'absolute',
-        top: 0,
-        bottom: 0,
-        start: 0,
-        end: 0,
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
+    gap: { flex: 1, marginHorizontal: space[2] },
     pill: {
         flexDirection: 'row',
         alignItems: 'center',

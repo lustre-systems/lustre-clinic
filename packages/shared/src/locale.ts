@@ -1393,6 +1393,9 @@ export const COPY_AR = {
     'Added patient': 'إضافة مريض',
     'Edited patient': 'تعديل بيانات مريض',
     'Added old visit': 'إضافة زيارة سابقة',
+    Moved: 'نُقل',
+    Finished: 'انتهى',
+    Edited: 'عُدّل',
 } as const;
 
 export type CopyKey = keyof typeof COPY_AR;

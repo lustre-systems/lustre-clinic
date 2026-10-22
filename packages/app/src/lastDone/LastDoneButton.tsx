@@ -2,8 +2,7 @@
  * The history button at the centre of the day view's header: a small round
  * icon that opens the "Last done" sheet.
  *
- * When it plays it widens to say what was done last — "↺ Checked in · Nour
- * Hassan" — spinning the icon backwards as it goes, holds, and folds back,
+ * When it plays it widens to say what was done last — "↺ Checked in · Nour" — spinning the icon backwards as it goes, holds, and folds back,
  * spinning forward again. So the movement answers the question the button is
  * for without a tap. It plays when the day is opened and something has been
  * done since the sheet was last looked at, right after each save while the day
@@ -11,12 +10,13 @@
  * after fifty tab switches a day it would otherwise be noise. Reduced motion
  * skips it altogether.
  *
- * It is as wide as it is drawn and the header centres it, so it opens out
- * evenly both ways, over the pills beside it for as long as it holds.
+ * It fills the room the header gives it and sits at the middle of it, so it
+ * opens out evenly both ways and never past that room: a label longer than the
+ * space is cut, never drawn over what is beside it.
  */
 // biome-ignore lint/style/noRestrictedImports: starts the expand animation, which runs on the UI thread, when the day is opened or a save lands
 import { useEffect, useState, useSyncExternalStore } from 'react';
-import { type LayoutChangeEvent, Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
+import { type LayoutChangeEvent, Pressable, StyleSheet, View } from 'react-native';
 import Animated, {
     cancelAnimation,
     Easing,
@@ -29,9 +29,9 @@ import Animated, {
 } from 'react-native-reanimated';
 import { GLYPH, icon } from '../components/domain';
 import { useReducedMotion } from '../components/ui';
-import { useT } from '../i18n';
-import { border, color, radius, shadow, size, space, Text } from '../theme';
-import { TITLE } from './format';
+import { useLocale, useT } from '../i18n';
+import { border, color, radius, shadow, space, Text } from '../theme';
+import { buttonLabel, TITLE } from './format';
 import { hasUnseen, lastDone } from './store';
 
 const HistoryIcon = icon(GLYPH.lastDone, { width: 2.2 });
@@ -56,7 +56,7 @@ const SETTLE = Easing.out(Easing.quad);
  */
 const SETTLE_MS = 300;
 /** Room after the words, before the pill's open edge. */
-const LEAD = space[3.5];
+const LEAD = space[2.5];
 
 export type LastDoneButtonProps = {
     /**
@@ -71,20 +71,19 @@ export type LastDoneButtonProps = {
 
 export function LastDoneButton({ active, onPress }: LastDoneButtonProps) {
     const t = useT();
+    const locale = useLocale();
     const reduced = useReducedMotion();
-    const window = useWindowDimensions();
     const state = useSyncExternalStore(lastDone.subscribe, lastDone.getSnapshot);
     const [labelWidth, setLabelWidth] = useState(0);
+    const [room, setRoom] = useState(0);
 
     const open = useSharedValue(0);
     const turn = useSharedValue(0);
 
     const newest = state.entries[0];
-    const said = newest
-        ? [t(TITLE[newest.kind]), newest.patientName].filter(Boolean).join(' · ')
-        : t('Last done');
-    // Never wider than the header row: a long name is cut, not run off the screen.
-    const maxLabel = window.width - size.gutter * 2 - SLOT - LEAD;
+    const said = newest ? buttonLabel(newest, locale) : t('Last done');
+    const full = newest ? [t(TITLE[newest.kind]), newest.patientName].filter(Boolean).join(' · ') : null;
+    const maxLabel = Math.max(0, room - SLOT - LEAD);
 
     const ready = active && state.hydrated && labelWidth > 0;
     const unseen = hasUnseen(state);
@@ -136,34 +135,37 @@ export function LastDoneButton({ active, onPress }: LastDoneButtonProps) {
     }
 
     return (
-        <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={newest ? `${t('Last done')}: ${said}` : t('Last done')}
-            onPress={() => {
-                play();
-                onPress();
-            }}
-            hitSlop={8}
-            style={({ pressed }) => [styles.slot, pressed && styles.pressed]}
-            testID="last-done"
-        >
-            <Animated.View style={[styles.pill, pill]}>
-                <View style={[styles.track, { width: maxLabel + SLOT + LEAD }]}>
-                    <Animated.View style={[styles.glyph, glyph]}>
-                        <HistoryIcon size={16} stroke={color.ink} />
-                    </Animated.View>
-                    <Animated.View style={[label, { maxWidth: maxLabel }]} onLayout={measure}>
-                        <Text variant="subhead" weight="semibold" numberOfLines={1}>
-                            {said}
-                        </Text>
-                    </Animated.View>
-                </View>
-            </Animated.View>
-        </Pressable>
+        <View style={styles.room} onLayout={(event) => setRoom(Math.floor(event.nativeEvent.layout.width))}>
+            <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={full ? `${t('Last done')}: ${full}` : t('Last done')}
+                onPress={() => {
+                    play();
+                    onPress();
+                }}
+                hitSlop={8}
+                style={({ pressed }) => [styles.slot, pressed && styles.pressed]}
+                testID="last-done"
+            >
+                <Animated.View style={[styles.pill, pill]}>
+                    <View style={[styles.track, { width: maxLabel + SLOT + LEAD }]}>
+                        <Animated.View style={[styles.glyph, glyph]}>
+                            <HistoryIcon size={16} stroke={color.ink} />
+                        </Animated.View>
+                        <Animated.View style={[label, { maxWidth: maxLabel }]} onLayout={measure}>
+                            <Text variant="footnote" weight="semibold" numberOfLines={1}>
+                                {said}
+                            </Text>
+                        </Animated.View>
+                    </View>
+                </Animated.View>
+            </Pressable>
+        </View>
     );
 }
 
 const styles = StyleSheet.create({
+    room: { alignSelf: 'stretch', alignItems: 'center' },
     slot: { height: SLOT },
     pressed: { opacity: 0.72 },
     pill: {
