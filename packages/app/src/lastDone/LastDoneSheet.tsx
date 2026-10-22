@@ -1,17 +1,17 @@
 /**
- * The "Done" view: what this phone did, newest first, a card per day.
+ * "What you did — on this phone": the log, newest first, under a label per day.
  *
  * Each line is the kind of action, when, and the patient with one detail. A
- * line opens what it was about — the booking, the visit, the record; a
- * cancellation has nothing left to open and is drawn without a chevron and
- * without a press.
+ * line opens what it was about — the booking, the visit, the record — once the
+ * sheet is off the screen (`useAfterSheet`); a cancellation has nothing left to
+ * open and is drawn without a chevron and without a press.
  */
 import { seesPayments } from '@lustre/shared';
 import { useSyncExternalStore } from 'react';
-import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 import { serverToday } from '../api/serverClock';
 import { GLYPH, type Glyph } from '../components/domain';
-import { Chevron, EmptyState, SectionLabel } from '../components/ui';
+import { Chevron, EmptyState, SectionLabel, Sheet, useAfterSheet } from '../components/ui';
 import { useLocale, useT } from '../i18n';
 import { addDays, formatDate } from '../screens/day/time';
 import { useRole } from '../shell/useRole';
@@ -35,57 +35,62 @@ const KIND_GLYPH: Record<LastDoneKind, Glyph> = {
     oldVisit: GLYPH.oldVisit,
 };
 
-export type LastDoneListProps = {
+export type LastDoneSheetProps = {
+    visible: boolean;
+    onClose: () => void;
     onOpen: (target: LastDoneTarget) => void;
 };
 
-export function LastDoneList({ onOpen }: LastDoneListProps) {
+export function LastDoneSheet({ visible, onClose, onOpen }: LastDoneSheetProps) {
     const t = useT();
     const locale = useLocale();
     const { granted } = useRole();
     const state = useSyncExternalStore(lastDone.subscribe, lastDone.getSnapshot);
+    const after = useAfterSheet();
 
     const now = Date.now();
     const entries = state.entries.filter((entry) => now - entry.at < MAX_AGE_MS);
     const showMoney = seesPayments(granted);
 
-    if (entries.length === 0) {
-        return (
-            <View style={styles.empty}>
+    function choose(target: LastDoneTarget) {
+        after.after(() => onOpen(target));
+        onClose();
+    }
+
+    return (
+        <Sheet
+            visible={visible}
+            onClose={onClose}
+            onClosed={after.closed}
+            title="What you did"
+            subtitle="On this phone"
+            testID="last-done-sheet"
+        >
+            {entries.length === 0 ? (
                 <EmptyState
                     icon={<GLYPH.lastDone size={22} color={color.ink2} strokeWidth={2} />}
                     title="Nothing yet"
                     body="What you do on this phone shows up here."
                     weight="panel"
                 />
-            </View>
-        );
-    }
-
-    return (
-        <ScrollView contentContainerStyle={styles.content} testID="last-done-list">
-            <Text variant="footnote" tone="muted" style={styles.caption}>
-                {t('On this phone')}
-            </Text>
-            {byDay(entries).map((group) => (
-                <View key={group.key} style={styles.group}>
-                    <SectionLabel>{dayLabel(group.key)}</SectionLabel>
-                    <View style={styles.card}>
-                        {group.entries.map((entry, index) => (
+            ) : (
+                byDay(entries).map((group) => (
+                    <View key={group.key} style={styles.group}>
+                        <SectionLabel inset={false}>{dayLabel(group.key)}</SectionLabel>
+                        {group.entries.map((entry) => (
                             <Line
                                 key={entry.id}
                                 entry={entry}
-                                first={index === 0}
                                 title={t(TITLE[entry.kind])}
                                 when={whenText(entry.at, now, locale)}
                                 sub={subline(entry, locale, showMoney)}
-                                onOpen={onOpen}
+                                onOpen={choose}
                             />
                         ))}
                     </View>
-                </View>
-            ))}
-        </ScrollView>
+                ))
+            )}
+        </Sheet>
     );
 }
 
@@ -99,14 +104,12 @@ function dayLabel(key: string): string {
 
 function Line({
     entry,
-    first,
     title,
     when,
     sub,
     onOpen,
 }: {
     entry: LastDoneEntry;
-    first: boolean;
     title: string;
     when: string;
     sub: string;
@@ -139,11 +142,9 @@ function Line({
         </>
     );
 
-    const line = [styles.line, !first && styles.ruled];
-
     if (!target) {
         return (
-            <View style={line} accessible testID={`last-done-${entry.kind}`}>
+            <View style={styles.line} accessible testID={`last-done-${entry.kind}`}>
                 {body}
             </View>
         );
@@ -153,7 +154,7 @@ function Line({
         <Pressable
             accessibilityRole="button"
             onPress={() => onOpen(target)}
-            style={({ pressed }) => [line, pressed && styles.pressed]}
+            style={({ pressed }) => [styles.line, pressed && styles.pressed]}
             testID={`last-done-${entry.kind}`}
         >
             {body}
@@ -162,24 +163,16 @@ function Line({
 }
 
 const styles = StyleSheet.create({
-    empty: { paddingHorizontal: size.gutter, paddingTop: space[4] },
-    content: { paddingBottom: space[12], gap: space[3] },
-    caption: { paddingHorizontal: size.gutter },
-    group: { gap: space[1.5] },
-    card: {
-        marginHorizontal: size.bleed,
-        paddingHorizontal: space[4],
-        backgroundColor: color.surface,
-        borderRadius: radius.xl2,
-    },
+    group: { paddingTop: space[2] },
     line: {
         flexDirection: 'row',
         alignItems: 'center',
         gap: space[3],
         minHeight: size.control + space[2],
-        paddingVertical: space[2.5],
+        paddingVertical: space[2],
+        borderTopWidth: border.hair,
+        borderTopColor: color.hair,
     },
-    ruled: { borderTopWidth: border.hair, borderTopColor: color.hair },
     pressed: { opacity: 0.72 },
     tile: {
         width: 36,

@@ -44,7 +44,6 @@ import {
     Button,
     PushView,
     RefreshView,
-    SegmentedControl,
     Toast,
     useAfterSheet,
     usePullToRefresh,
@@ -66,7 +65,6 @@ import { DayEmpty, DayError, DaySkeleton } from './components/DayStates';
 import { AfterThis } from './components/DoctorAgenda';
 import { DoctorVisitSheet } from './components/DoctorVisitSheet';
 import { FinishSheet } from './components/FinishSheet';
-import { ClockIcon } from './components/icons';
 import { VisitScreen } from './components/VisitScreen';
 import { pickBranch, scheduledBranch, usePickedBranch } from './currentBranch';
 import type { OpenBookingRequest } from './DayScreen';
@@ -85,7 +83,7 @@ import { isClosed } from './hours';
 import { formatMoney } from './money';
 import { busiestBranch, holdsSlot } from './month';
 import { draftFor } from './patientDraft';
-import { relativeDayLabel, todayKey } from './time';
+import { todayKey } from './time';
 import { useNowMinutes } from './useNow';
 
 type DoctorDayScreenProps = {
@@ -106,7 +104,6 @@ type DoctorDayScreenProps = {
 function DoctorDayScreenView({ onOpenRecord, open, onReturn, goHome = 0 }: DoctorDayScreenProps) {
     const t = useT();
     const [dateKey, setDateKey] = useState(todayKey);
-    const [tab, setTab] = useState<'day' | 'done'>('day');
     const branchId = usePickedBranch();
     const [calendar, setCalendar] = useState<CalendarState>(CALENDAR_CLOSED);
     const [seenHome, setSeenHome] = useState(goHome);
@@ -179,6 +176,7 @@ function DoctorDayScreenView({ onOpenRecord, open, onReturn, goHome = 0 }: Docto
     // `DayScreen`. A branch the user picked that day wins, then the schedule's.
     const day = useLocalQuery(`day:${dateKey}`, () => api.byDate(dateKey));
     const history = useDayLastDone({
+        covered: routes.stack.open.length > 0,
         onOpenRecord,
         onChanged: () => day.refetch(),
     });
@@ -339,27 +337,6 @@ function DoctorDayScreenView({ onOpenRecord, open, onReturn, goHome = 0 }: Docto
                 onOpenCalendar={() => setCalendar(openCalendar)}
             />
 
-            <View style={styles.tabs}>
-                <SegmentedControl<'day' | 'done'>
-                    accessibilityLabel="Day or done"
-                    value={tab}
-                    onChange={(next) => {
-                        history.seen();
-                        setTab(next);
-                    }}
-                    segments={[
-                        {
-                            value: 'day',
-                            label: `${relativeDayLabel(dateKey)} · ${appointments.length}`,
-                            icon: (selected) => (
-                                <ClockIcon size={15} stroke={selected ? color.ink : color.ink2} />
-                            ),
-                        },
-                        history.segment,
-                    ]}
-                />
-            </View>
-
             {day.status === 'error' && day.error && appointments.length > 0 ? (
                 <Banner
                     tone="offline"
@@ -395,9 +372,7 @@ function DoctorDayScreenView({ onOpenRecord, open, onReturn, goHome = 0 }: Docto
             ) : null}
 
             <View style={styles.body}>
-                {tab === 'done' ? (
-                    history.list
-                ) : day.status === 'loading' ? (
+                {day.status === 'loading' ? (
                     <DaySkeleton />
                 ) : day.status === 'error' && day.error && appointments.length === 0 ? (
                     <RefreshView pull={pull}>
@@ -510,6 +485,8 @@ function DoctorDayScreenView({ onOpenRecord, open, onReturn, goHome = 0 }: Docto
                 onClosed={sheetDone.closed}
             />
 
+            {history.button}
+
             {rendered(routes.stack).map(({ id, route }, index) => (
                 <PushView
                     key={id}
@@ -598,6 +575,5 @@ export const DoctorDayScreen = memo(DoctorDayScreenView);
 const styles = StyleSheet.create({
     screen: { flex: 1, backgroundColor: color.canvas },
     body: { flex: 1 },
-    tabs: { paddingHorizontal: size.gutter, paddingBottom: space[3] },
     agenda: { paddingBottom: size.nav, gap: space[3] },
 });
