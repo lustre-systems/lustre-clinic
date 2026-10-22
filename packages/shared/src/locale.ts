@@ -1414,6 +1414,32 @@ export const COPY_AR = {
     'The reminder alarm is off for today.': 'منبّه التذكيرات متوقف لهذا اليوم.',
     'The reminder alarm repeats until the list is clear.': 'يتكرر منبّه التذكيرات حتى تفرغ القائمة.',
     'The reminder alarm could not be changed — try again.': 'تعذّر تغيير منبّه التذكيرات — حاول مرة أخرى.',
+
+    // --- "Last done": the history button on the Patients heading and its sheet
+    'Last done': 'آخر ما فعلت',
+    'What you did': 'ما فعلته',
+    'On this phone': 'على هذا الهاتف',
+    'What you do on this phone shows up here.': 'ما تفعله على هذا الهاتف يظهر هنا.',
+    'Just now': 'الآن',
+    '{minutes}m': '{minutes} د',
+    'Walk-in': 'حضور مباشر',
+    'Booked appointment': 'حجز موعد',
+    'Moved appointment': 'نقل موعد',
+    'Cancelled appointment': 'إلغاء موعد',
+    'Marked no-show': 'تسجيل عدم حضور',
+    'Finished visit': 'إنهاء زيارة',
+    'Saved procedures': 'حفظ الإجراءات',
+    'Recorded payment': 'تسجيل دفعة',
+    'Corrected payment': 'تصحيح دفعة',
+    'Added patient': 'إضافة مريض',
+    'Edited patient': 'تعديل بيانات مريض',
+    'Added old visit': 'إضافة زيارة سابقة',
+    Arrived: 'وصل',
+    Treated: 'علاج',
+    Added: 'أُضيف',
+    Moved: 'نُقل',
+    Finished: 'انتهى',
+    Edited: 'عُدّل',
 } as const;
 
 export type CopyKey = keyof typeof COPY_AR;

@@ -23,6 +23,7 @@ import { JoinSheet } from './JoinSheet';
 import { NotificationsBanner } from './NotificationsBanner';
 import { OfflineScreen } from './OfflineScreen';
 import { ProvisionScreen } from './ProvisionScreen';
+import { PaneVisibleContext } from './paneVisible';
 import {
     ALL_TABS,
     ask,
@@ -451,15 +452,17 @@ function Pane({
     return (
         <View style={[styles.pane, !visible && styles.hidden]} pointerEvents={visible ? 'auto' : 'none'}>
             <BackStackContext.Provider value={back}>
-                <ErrorBoundary
-                    title="This tab stopped"
-                    message="Something on this tab went wrong. The other tabs still work — reload this one to try again."
-                    icon={<GLYPH.problem size={22} color={color.ink2} strokeWidth={2} />}
-                    resetKey={visible}
-                    onError={renderErrorReporter(tab)}
-                >
-                    {children}
-                </ErrorBoundary>
+                <PaneVisibleContext.Provider value={visible}>
+                    <ErrorBoundary
+                        title="This tab stopped"
+                        message="Something on this tab went wrong. The other tabs still work — reload this one to try again."
+                        icon={<GLYPH.problem size={22} color={color.ink2} strokeWidth={2} />}
+                        resetKey={visible}
+                        onError={renderErrorReporter(tab)}
+                    >
+                        {children}
+                    </ErrorBoundary>
+                </PaneVisibleContext.Provider>
             </BackStackContext.Provider>
         </View>
     );

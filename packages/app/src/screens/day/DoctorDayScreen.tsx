@@ -60,6 +60,7 @@ import { CalendarSheet } from './components/CalendarSheet';
 import { ChairCard, type ChairCardKind, ChairStrip } from './components/Chair';
 import { ClosedDay } from './components/ClosedDay';
 import { DayHeader } from './components/DayHeader';
+import { useDayLastDone } from './components/DayLastDone';
 import { DayEmpty, DayError, DaySkeleton } from './components/DayStates';
 import { AfterThis } from './components/DoctorAgenda';
 import { DoctorVisitSheet } from './components/DoctorVisitSheet';
@@ -174,6 +175,12 @@ function DoctorDayScreenView({ onOpenRecord, open, onReturn, goHome = 0 }: Docto
     // branch holding most of the day rather than on `branches[0]` — see
     // `DayScreen`. A branch the user picked that day wins, then the schedule's.
     const day = useLocalQuery(`day:${dateKey}`, () => api.byDate(dateKey));
+    const history = useDayLastDone({
+        goHome,
+        covered: routes.stack.open.length > 0 || toast !== null,
+        onOpenRecord,
+        onChanged: () => day.refetch(),
+    });
     const clinicDay = day.data ?? [];
     const branch =
         branchId ??
@@ -330,6 +337,7 @@ function DoctorDayScreenView({ onOpenRecord, open, onReturn, goHome = 0 }: Docto
                 branchId={branch}
                 onPickBranch={pickBranch}
                 onOpenCalendar={() => setCalendar(openCalendar)}
+                history={history.button}
             />
 
             {day.status === 'error' && day.error && appointments.length > 0 ? (
@@ -554,6 +562,8 @@ function DoctorDayScreenView({ onOpenRecord, open, onReturn, goHome = 0 }: Docto
                     ) : null}
                 </PushView>
             ))}
+
+            {history.layer}
 
             <Toast visible={toast !== null} message={toast ?? ''} onDismiss={() => setToast(null)} />
         </View>

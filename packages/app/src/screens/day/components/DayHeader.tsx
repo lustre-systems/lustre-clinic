@@ -22,7 +22,7 @@
  * runs it at duration 0, so the name lands without travelling.
  */
 // biome-ignore lint/style/noRestrictedImports: runs the branch-change slide `Animated.timing` and clears the outgoing name on its completion callback
-import { useEffect, useRef, useState } from 'react';
+import { type ReactNode, useEffect, useRef, useState } from 'react';
 import { Animated, Dimensions, Pressable, StyleSheet, View } from 'react-native';
 import {
     Chevron,
@@ -47,9 +47,18 @@ export type DayHeaderProps = {
     branchId: string | null;
     onPickBranch: (branchId: string) => void;
     onOpenCalendar: () => void;
+    /** The "Last done" button, in the space between the two pills (`DayLastDone`). */
+    history?: ReactNode;
 };
 
-export function DayHeader({ dateKey, branches, branchId, onPickBranch, onOpenCalendar }: DayHeaderProps) {
+export function DayHeader({
+    dateKey,
+    branches,
+    branchId,
+    onPickBranch,
+    onOpenCalendar,
+    history,
+}: DayHeaderProps) {
     const t = useT();
     const isRTL = useIsRTL();
     const [menu, setMenu] = useState(false);
@@ -150,6 +159,10 @@ export function DayHeader({ dateKey, branches, branchId, onPickBranch, onOpenCal
                     </Pressable>
                 </View>
 
+                {/* The space between the two pills is the button's whole
+                    room: it opens out inside it and never over either pill. */}
+                {history ? <View style={styles.gap}>{history}</View> : null}
+
                 <Pressable
                     accessibilityRole="button"
                     accessibilityLabel={t('{relative}, {date}. Open the calendar', {
@@ -188,6 +201,7 @@ const styles = StyleSheet.create({
         paddingBottom: space[3],
     },
     row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+    gap: { flex: 1, marginHorizontal: space[2] },
     pill: {
         flexDirection: 'row',
         alignItems: 'center',

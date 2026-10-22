@@ -42,6 +42,7 @@ import { BookPatientSheet } from './components/BookPatientSheet';
 import { CalendarSheet } from './components/CalendarSheet';
 import { ClosedDay } from './components/ClosedDay';
 import { DayHeader } from './components/DayHeader';
+import { useDayLastDone } from './components/DayLastDone';
 import { DayEmpty, DayError, DaySkeleton } from './components/DayStates';
 import { ChatIcon, ClockIcon } from './components/icons';
 import { LateNotice } from './components/LateNotice';
@@ -354,6 +355,12 @@ function DayScreenView({
     // branch the user picked wins, for the rest of that day, and after it the
     // branch the schedule has working (`currentBranch.ts`).
     const day = useLocalQuery(`day:${dateKey}`, () => api.byDate(dateKey));
+    const history = useDayLastDone({
+        goHome,
+        covered: routes.stack.open.length > 0 || toast !== null || bookNextOpen,
+        onOpenRecord,
+        onChanged: () => day.refetch(),
+    });
     const clinicDay = day.data ?? [];
     const branch =
         branchId ??
@@ -617,6 +624,7 @@ function DayScreenView({
                 branchId={branch}
                 onPickBranch={pickBranch}
                 onOpenCalendar={() => setCalendar(openCalendar)}
+                history={history.button}
             />
 
             {reminderCount > 0 || tab === 'reminders' ? (
@@ -1026,6 +1034,8 @@ function DayScreenView({
                     ) : null}
                 </PushView>
             ))}
+
+            {history.layer}
 
             <Toast visible={toast !== null} message={toast ?? ''} onDismiss={() => setToast(null)} />
         </View>
