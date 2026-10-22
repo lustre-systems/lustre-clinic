@@ -208,24 +208,40 @@ export const appointmentProcedures = pgTable(
     ],
 );
 
-export const visits = pgTable('visits', {
-    id: uuid('id').primaryKey(),
-    appointmentId: uuid('appointment_id')
-        .notNull()
-        .unique()
-        .references(() => appointments.id),
-    checkedInAt: timestamptz('checked_in_at').notNull(),
-    // Arrived and seated are two different moments, and the chair's progress
-    // bar is measured from the second one. The desk checks people in as they
-    // come through the door and they queue, so `checked_in_at` is when the wait
-    // started; `in_chair_at` is when it ended. Null means still waiting.
-    inChairAt: timestamptz('in_chair_at'),
-    pricedAt: timestamptz('priced_at'),
-    completedAt: timestamptz('completed_at'),
-    computedTotal: integer('computed_total').notNull().default(0),
-    chargedTotal: integer('charged_total').notNull().default(0),
-    createdAt: timestamptz('created_at').notNull().defaultNow(),
-});
+export const visits = pgTable(
+    'visits',
+    {
+        id: uuid('id').primaryKey(),
+        appointmentId: uuid('appointment_id')
+            .notNull()
+            .unique()
+            .references(() => appointments.id),
+        checkedInAt: timestamptz('checked_in_at').notNull(),
+        // Arrived and seated are two different moments, and the chair's progress
+        // bar is measured from the second one. The desk checks people in as they
+        // come through the door and they queue, so `checked_in_at` is when the wait
+        // started; `in_chair_at` is when it ended. Null means still waiting.
+        inChairAt: timestamptz('in_chair_at'),
+        pricedAt: timestamptz('priced_at'),
+        completedAt: timestamptz('completed_at'),
+        computedTotal: integer('computed_total').notNull().default(0),
+        chargedTotal: integer('charged_total').notNull().default(0),
+        // What the doctor wants done next time, and the booking that took it: null
+        // while the patient's next booking is still to be made (0024).
+        nextProcedureId: uuid('next_procedure_id').references(() => procedureTypes.id),
+        nextProcedureTooth: text('next_procedure_tooth', { enum: TEETH }),
+        nextAppointmentId: uuid('next_appointment_id').references((): AnyPgColumn => appointments.id, {
+            onDelete: 'set null',
+        }),
+        createdAt: timestamptz('created_at').notNull().defaultNow(),
+    },
+    (t) => [
+        check(
+            'visits_next_procedure_set',
+            sql`${t.nextProcedureId} IS NOT NULL OR (${t.nextProcedureTooth} IS NULL AND ${t.nextAppointmentId} IS NULL)`,
+        ),
+    ],
+);
 
 export const payments = pgTable(
     'payments',

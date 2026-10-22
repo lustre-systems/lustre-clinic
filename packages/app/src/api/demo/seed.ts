@@ -377,6 +377,9 @@ function writeClosedVisit(
         completedAt: closedAt,
         computedTotal: chargedTotal,
         chargedTotal,
+        nextProcedureId: null,
+        nextProcedureTooth: null,
+        nextAppointmentId: null,
         createdAt: new Date(startsAt.getTime() - 6 * MINUTE),
     });
 
@@ -427,6 +430,9 @@ function writeOpeningBalance(db: DemoDb, patient: PatientRow, branch: BranchRow,
         completedAt: cutoff,
         computedTotal: amount,
         chargedTotal: amount,
+        nextProcedureId: null,
+        nextProcedureTooth: null,
+        nextAppointmentId: null,
         createdAt: cutoff,
     });
 }
