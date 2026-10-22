@@ -35,6 +35,7 @@ import {
     type PaymentMethod,
     pad2,
     type Tooth,
+    weekdayOf,
 } from '@lustre/shared';
 import {
     type AppointmentRow,
@@ -95,6 +96,11 @@ interface Catalogue {
     all: ProcedureTypeRow[];
 }
 
+/** About a third of the price, in whole pounds, so the stats screen has a margin to show. */
+function demoCost(defaultPrice: number): number {
+    return Math.round((defaultPrice * 35) / 100 / 100) * 100;
+}
+
 function procedure(
     name: string,
     defaultPrice: number,
@@ -106,6 +112,7 @@ function procedure(
         parentId: null,
         name,
         defaultPrice,
+        cost: demoCost(defaultPrice),
         hasQuantity: false,
         isToothSpecific: false,
         isCheckup: false,
@@ -222,13 +229,15 @@ function buildPatients(createdFrom: number): PatientRow[] {
         phone: normalizePhone(phone),
         email: null,
         // Newest first in the register is what the patients tab opens on, so
-        // they are registered in the order they are listed here.
+        // they are registered in the order they are listed here — three weeks
+        // apart, across the year of history, so Stats has new patients to count
+        // in more than the last month.
         birthDate,
         gender: null,
         custom: {},
         notes: null,
         legacyRef: index < 4 ? `OLD-${1200 + index}` : null,
-        createdAt: new Date(createdFrom - (NAMES.length - index) * 3 * DAY),
+        createdAt: new Date(createdFrom - (NAMES.length - index) * 21 * DAY),
     }));
 }
 
@@ -345,6 +354,7 @@ function writeClosedVisit(
             procedureId: line.procedure.id,
             quantity: line.quantity ?? 1,
             unitPrice: line.procedure.defaultPrice,
+            unitCost: line.procedure.cost,
             tooth: line.tooth ?? null,
             note: null,
         });
@@ -541,6 +551,36 @@ export function seedDemoDb(): DemoDb {
                 lines,
                 paid: owes ? money(200) : 'full',
                 method: slot === 1 ? 'visa' : 'cash',
+            });
+        }
+    }
+
+    // --- a year behind that, for the stats screen ---------------------------
+    //
+    // Thinner than the fortnight, at a different pace each month and split
+    // between the branches by weekday, so Stats has weeks, months and a
+    // previous year to compare and two branches to stack. All paid: the
+    // debtors the money screens show come from the fortnight above.
+
+    const PACE = [2, 1, 3, 2, 3, 1, 2, 3, 2, 1, 3, 2];
+    const METHODS: PaymentMethod[] = ['cash', 'cash', 'visa', 'instapay'];
+    for (let daysAgo = 365; daysAgo > 14; daysAgo -= 1) {
+        const key = addDays(dateKey(Date.now()), -daysAgo);
+        const weekday = weekdayOf(key);
+        if (weekday === 5) continue;
+        const branch = weekday % 2 === 0 ? main : second;
+        const visits = PACE[Math.floor(daysAgo / 30) % PACE.length] ?? 2;
+        const midday = new Date(instantAt(key, 11 * 60));
+
+        for (let slot = 0; slot < visits; slot += 1) {
+            writeClosedVisit(db, {
+                patient: patient((daysAgo + slot) % patients.length),
+                branch,
+                startsAt: new Date(midday.getTime() + slot * 90 * MINUTE),
+                durationMinutes: 30,
+                lines: history[(daysAgo * 7 + slot) % history.length] ?? [],
+                paid: 'full',
+                method: METHODS[(daysAgo + slot) % METHODS.length] ?? 'cash',
             });
         }
     }

@@ -112,6 +112,8 @@ const handlers = {
     'reminder.resumeToday': reminderHandlers.resumeToday,
 
     'stats.summary': statsHandlers.summary,
+    'stats.overview': statsHandlers.overview,
+    'stats.trend': statsHandlers.trend,
 
     'backup.status': backupHandlers.status,
     'backup.signInConfig': backupHandlers.signInConfig,

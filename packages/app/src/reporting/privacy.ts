@@ -50,7 +50,7 @@ export function captureProblemReport(scope: Scope): string {
     return eventId;
 }
 
-export const BOUNDARIES = ['root', 'day', 'patients', 'money', 'settings'] as const;
+export const BOUNDARIES = ['root', 'day', 'patients', 'stats', 'settings'] as const;
 export type Boundary = (typeof BOUNDARIES)[number];
 
 /**
@@ -62,7 +62,7 @@ export const SCREENS: ReadonlySet<string> = new Set([
     // tabs
     'day',
     'patients',
-    'money',
+    'stats',
     'settings',
     // day cluster
     'booking',

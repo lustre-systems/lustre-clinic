@@ -114,8 +114,8 @@ export const patientsApi = {
     },
 
     /** Newest first, plus the size of the whole register for the heading's count. */
-    recent(offset = 0, limit = PAGE_SIZE): Promise<RecentPatients> {
-        return wrap(() => trpcClient.patient.recent.query({ limit, offset }));
+    recent(offset = 0, order: 'newest' | 'name' = 'newest', limit = PAGE_SIZE): Promise<RecentPatients> {
+        return wrap(() => trpcClient.patient.recent.query({ order, limit, offset }));
     },
 
     byId(id: string): Promise<PatientDetail> {

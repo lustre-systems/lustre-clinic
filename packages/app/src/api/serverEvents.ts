@@ -114,7 +114,7 @@ const REFRESHES: Record<WsEvent, readonly Area[]> = {
     // lead time moves the ones already booked.
     [WS_EVENT.SETTINGS_UPDATED]: ['settings', 'reminder', 'backup'],
     // Rows carry the patient's name wherever the patient appears.
-    [WS_EVENT.PATIENT_UPDATED]: ['patient', 'appointment', 'reminder', 'balance'],
+    [WS_EVENT.PATIENT_UPDATED]: ['patient', 'appointment', 'reminder', 'balance', 'stats'],
     [WS_EVENT.REMINDER_UPDATED]: ['reminder'],
     [WS_EVENT.CATALOG_UPDATED]: ['branch', 'procedure', 'customQuestion'],
     [WS_EVENT.DEVICES_UPDATED]: ['device'],

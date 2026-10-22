@@ -33,7 +33,7 @@ export function isUnseen(request: Ask<unknown> | undefined, seen: number): boole
 }
 
 /** Every tab there is, in tab-bar order. */
-export const ALL_TABS: readonly TabKey[] = ['day', 'patients', 'money', 'settings'];
+export const ALL_TABS: readonly TabKey[] = ['day', 'patients', 'stats', 'settings'];
 
 /**
  * The shell's two routes. Disconnected is one of them and not a state each
@@ -62,7 +62,7 @@ export function nextRoute(current: ShellRoute, status: ConnectionStatus): ShellR
 /** One counter per tab. A cluster sees its own number change and resets. */
 export type HomeSignals = Record<TabKey, number>;
 
-export const NO_HOME: HomeSignals = { day: 0, patients: 0, money: 0, settings: 0 };
+export const NO_HOME: HomeSignals = { day: 0, patients: 0, stats: 0, settings: 0 };
 
 export function bumpHome(current: HomeSignals, tab: TabKey): HomeSignals {
     return { ...current, [tab]: current[tab] + 1 };

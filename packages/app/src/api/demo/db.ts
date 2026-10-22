@@ -62,6 +62,7 @@ export interface ProcedureTypeRow {
     parentId: string | null;
     name: string;
     defaultPrice: number;
+    cost: number;
     hasQuantity: boolean;
     isToothSpecific: boolean;
     isCheckup: boolean;
@@ -120,6 +121,7 @@ export interface VisitProcedureRow {
     procedureId: string;
     quantity: number;
     unitPrice: number;
+    unitCost: number;
     tooth: Tooth | null;
     note: string | null;
 }
@@ -256,8 +258,10 @@ const STORE_KEY = 'lustre.demo.db';
  * 12: `roleGrants` and `devices`, and settings carry `requireProvisioning`.
  * 13: settings carry `clinicType`.
  * 14: visits carry `nextProcedureId`, `nextProcedureTooth` and `nextAppointmentId`.
+ * 15: procedures carry `cost`, and visit lines `unitCost`.
+ * 16: a year of history at both branches, for the stats screen.
  */
-const STORE_VERSION = 14;
+const STORE_VERSION = 16;
 
 let db: DemoDb | null = null;
 

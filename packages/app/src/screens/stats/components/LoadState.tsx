@@ -9,12 +9,12 @@ import { useEffect, useRef } from 'react';
 import { Animated, StyleSheet, View } from 'react-native';
 import { Button, Card, PULSE, useReducedMotion } from '../../../components/ui';
 import { useT } from '../../../i18n';
-import { color, radius, size, space, Text } from '../../../theme';
+import { color, radius, space, Text } from '../../../theme';
 import { errorMessage } from '../format';
 
 export type SkeletonTone = 'light' | 'dark';
 
-export function SkeletonBlock({
+function SkeletonBlock({
     width,
     height = 12,
     tone = 'light',
@@ -48,23 +48,6 @@ export function SkeletonBlock({
         <Animated.View
             style={[styles.block, tone === 'dark' && styles.blockOnDark, { width, height, opacity }]}
         />
-    );
-}
-
-export function SkeletonRows({ rows = 3 }: { rows?: number }) {
-    return (
-        <Card>
-            {Array.from({ length: rows }, (_, index) => (
-                // biome-ignore lint/suspicious/noArrayIndexKey: placeholders have no identity
-                <View key={index} style={styles.row}>
-                    <View style={styles.rowText}>
-                        <SkeletonBlock width="58%" height={14} />
-                        <SkeletonBlock width="34%" height={11} />
-                    </View>
-                    <SkeletonBlock width={64} height={16} />
-                </View>
-            ))}
-        </Card>
     );
 }
 
@@ -127,15 +110,6 @@ export function LoadState({ isLoading, error, onRetry, skeleton, children }: Loa
 const styles = StyleSheet.create({
     block: { backgroundColor: color.surface2, borderRadius: radius.sm },
     blockOnDark: { backgroundColor: color.onDarkTrack },
-    row: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: space[3],
-        minHeight: size.row + space[3],
-        paddingHorizontal: space[4],
-        paddingVertical: space[3],
-    },
-    rowText: { flex: 1, gap: space[1.5] },
     cardLines: { gap: space[2.5] },
     // The hero's own geometry (`HeroCollectionCard`), minus the gradient and
     // the lift: a placeholder should hold the shape, not advertise itself.

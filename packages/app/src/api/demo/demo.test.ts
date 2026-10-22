@@ -1125,6 +1125,23 @@ describe('roles', () => {
         }
     });
 
+    it('keeps the clinic’s figures and what procedures cost to the admin', () => {
+        for (const role of ['secretary', 'doctor'] as const) {
+            const token = as(role);
+            for (const path of ['stats.overview', 'stats.trend', 'balance.summary', 'balance.takings']) {
+                expect(() => admit(path, token)).toThrow(DemoError);
+            }
+            const caller = admit('procedure.list', token);
+            const list = shownTo('procedure.list', procedureHandlers.list(), caller) as { cost: unknown }[];
+            expect(list.every((row) => row.cost === null)).toBe(true);
+        }
+        expect(admit('balance.outstanding', as('secretary')).role).toBe('secretary');
+
+        const admin = admit('procedure.list', as('admin'));
+        const list = shownTo('procedure.list', procedureHandlers.list(), admin) as { cost: unknown }[];
+        expect(list.some((row) => typeof row.cost === 'number' && row.cost > 0)).toBe(true);
+    });
+
     it('turns a phone with no role away once provisioning is required', () => {
         getDb().settings.requireProvisioning = true;
         expect(() => admit('settings.get', null)).toThrow(DemoError);
@@ -1238,5 +1255,38 @@ describe('the reminders due from the notify time', () => {
         });
         expect(plan.silent).toBe('pending');
         expect(plan.at[0]).toEqual(new Date(instantAt('2026-09-28', 17 * 60)));
+    });
+});
+
+describe('stats', () => {
+    function everything() {
+        const to = today();
+        return { from: '2000-01-01', to, offsetMinutes: offsetForDate(to), fromOffsetMinutes: 120 };
+    }
+
+    it('makes profit revenue less what the lines cost, branch by branch', () => {
+        const figures = statsHandlers.overview(everything());
+
+        expect(figures.revenue).toBeGreaterThan(0);
+        expect(figures.cost).toBeGreaterThan(0);
+        expect(figures.profit).toBe(figures.revenue - figures.cost);
+        expect(figures.branches.reduce((sum, row) => sum + row.profit, 0)).toBe(figures.profit);
+        expect(figures.branches.every((row) => row.workingDays > 0)).toBe(true);
+    });
+
+    it('keeps a visit’s cost as it was when it was priced', () => {
+        const before = statsHandlers.overview(everything()).cost;
+        for (const row of getDb().procedureTypes) {
+            procedureHandlers.update({ id: row.id, cost: row.cost + 10_000 });
+        }
+        expect(statsHandlers.overview(everything()).cost).toBe(before);
+    });
+
+    it('answers a trend in the order it was asked', () => {
+        const range = everything();
+        const empty = { from: '2001-01-01', to: '2001-12-31', offsetMinutes: 120 };
+        const points = statsHandlers.trend({ periods: [empty, range] });
+
+        expect(points.map((point) => point.revenue > 0)).toEqual([false, true]);
     });
 });

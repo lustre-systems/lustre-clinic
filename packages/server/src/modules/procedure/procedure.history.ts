@@ -88,6 +88,7 @@ export const procedureHistoryService = {
             // resolves it the same way, and the snapshot is taken here either
             // way so a later price change cannot rewrite this visit (§7).
             unitPrice: input.procedures[i]?.unitPrice ?? line.procedure.defaultPrice,
+            unitCost: line.procedure.cost,
             tooth: line.tooth,
             note: line.note,
         }));

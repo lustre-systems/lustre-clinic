@@ -393,6 +393,7 @@ async function requireRow(id: string): Promise<PatientRow> {
 
 /** The id breaks ties on `created_at`, so a page boundary never repeats or drops a row. */
 const newestFirst = [desc(patients.createdAt), desc(patients.id)];
+const byName = [asc(patients.name), asc(patients.id)];
 
 export const patientService = {
     /**
@@ -465,7 +466,7 @@ export const patientService = {
 
     /**
      * Who was registered last, newest first — what the Patients tab opens on
-     * before anything is typed. `search` deliberately answers `[]` for an empty
+     * before anything is typed — or the whole register A–Z. `search` deliberately answers `[]` for an empty
      * term, so browsing needed a procedure of its own rather than a term that
      * matches everybody.
      */
@@ -473,7 +474,7 @@ export const patientService = {
         const rows = await db
             .select()
             .from(patients)
-            .orderBy(...newestFirst)
+            .orderBy(...(input.order === 'name' ? byName : newestFirst))
             .limit(input.limit)
             .offset(input.offset ?? 0);
 

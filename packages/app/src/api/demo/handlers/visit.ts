@@ -238,6 +238,7 @@ export const visitHandlers = {
                 procedureId: line.procedureId,
                 quantity: line.quantity,
                 unitPrice: line.quotedPrice ?? procedure?.defaultPrice ?? 0,
+                unitCost: procedure?.cost ?? 0,
                 tooth: line.tooth,
                 note: line.note,
             });
@@ -286,6 +287,12 @@ export const visitHandlers = {
               )
             : [];
 
+        // `visitService.setProcedures`: a line keeps the cost it was first priced at.
+        const savedCost = new Map(
+            db.visitProcedures
+                .filter((line) => line.visitId === visit.id)
+                .map((line) => [line.procedureId, line.unitCost]),
+        );
         db.visitProcedures = db.visitProcedures.filter((line) => line.visitId !== visit.id);
 
         for (const [index, line] of resolved.entries()) {
@@ -295,6 +302,7 @@ export const visitHandlers = {
                 procedureId: line.procedure.id,
                 quantity: line.quantity,
                 unitPrice: input.procedures[index]?.unitPrice ?? line.procedure.defaultPrice,
+                unitCost: savedCost.get(line.procedure.id) ?? line.procedure.cost,
                 tooth: line.tooth,
                 note: line.note,
             });
