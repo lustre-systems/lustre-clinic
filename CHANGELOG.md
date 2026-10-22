@@ -8,8 +8,6 @@ listed.
 
 ## [Unreleased]
 
-## [1.9.1] - 2026-10-22
-
 - A new "Last done" button (the clock with a turning arrow) at the top centre of the day view lists what was done on this phone, newest first: bookings, moves, cancellations, no-shows, check-ins, finished visits, saved procedures, payments, patients added or edited and old visits. It is on every phone, the doctor's included. Right after each save, and when the day view opens with something new, the button briefly spells out the last thing done, for example "Arrived Nour". Tapping a line opens that booking, visit or patient. Only saves that went through are listed. The list stays on the phone, holding the last 30 actions from the past 7 days.
 - The Money tab is now Stats, and only the admin's phone has it. It charts profit, revenue, cost or new patients over the last days, weeks, months or years, shows profit split by branch, and how people paid. The secretary's "Who owe" list moved to the Patients tab: the list can be shown as Recent, Alphabetical or Who owes, and Who owes shows the total owed, largest balance first, and can be searched. Profit is revenue less what each procedure costs the clinic, which the admin sets per procedure in Settings → Procedures; visits recorded before a cost was set count as costing nothing.
 - Cancelled appointments no longer show on the day view, for the desk or the doctor, so the day only lists appointments that are actually happening. Their slot shows as free and can be booked. They are still listed on the patient's record.
