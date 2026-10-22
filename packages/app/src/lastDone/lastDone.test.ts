@@ -258,9 +258,13 @@ describe('the button’s label', async () => {
     const { buttonLabel } = await import('./format');
 
     it('is a short word and the first name', () => {
-        expect(buttonLabel({ ...entry('1', 0), kind: 'checkIn', patientName: 'Yara Fouad' }, 'en')).toBe(
-            'Checked in · Yara',
-        );
-        expect(buttonLabel({ ...entry('2', 0), kind: 'payment', patientName: null }, 'en')).toBe('Payment');
+        expect(buttonLabel({ ...entry('1', 0), kind: 'checkIn', patientName: 'Yara Fouad' }, 'en')).toEqual({
+            said: 'Arrived',
+            name: 'Yara',
+        });
+        expect(buttonLabel({ ...entry('2', 0), kind: 'payment', patientName: null }, 'en')).toEqual({
+            said: 'Payment',
+            name: null,
+        });
     });
 });

@@ -32,21 +32,25 @@ const SHORT: Record<LastDoneKind, string> = {
     move: 'Moved',
     cancel: 'Cancelled',
     noShow: 'No-show',
-    checkIn: 'Checked in',
+    checkIn: 'Arrived',
     finish: 'Finished',
-    procedures: 'Procedures',
+    procedures: 'Treated',
     payment: 'Payment',
     paymentFix: 'Payment',
-    addPatient: 'New patient',
+    addPatient: 'Added',
     editPatient: 'Edited',
     oldVisit: 'Old visit',
 };
 
-/** "Checked in · Yara" — what the button says it did last. */
-export function buttonLabel(entry: LastDoneEntry, locale: Locale): string {
+/**
+ * "Arrived" and "Yara" — what the button says it did last, as the word and the
+ * name it sets in two weights. Measured against the header on a 411dp phone,
+ * every word fits with every Arabic-script first name and with Latin ones up
+ * to "Mohamed"; longer ones are cut.
+ */
+export function buttonLabel(entry: LastDoneEntry, locale: Locale): { said: string; name: string | null } {
     const first = entry.patientName?.trim().split(/\s+/)[0];
-    const said = localizeCopy(locale, SHORT[entry.kind]);
-    return first ? `${said} · ${first}` : said;
+    return { said: localizeCopy(locale, SHORT[entry.kind]), name: first || null };
 }
 
 const MINUTE = 60_000;

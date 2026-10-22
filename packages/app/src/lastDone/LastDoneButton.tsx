@@ -2,7 +2,7 @@
  * The history button at the centre of the day view's header: a small round
  * icon that opens the "Last done" sheet.
  *
- * When it plays it widens to say what was done last — "↺ Checked in · Nour" — spinning the icon backwards as it goes, holds, and folds back,
+ * When it plays it widens to say what was done last — "↺ Arrived Nour" — spinning the icon backwards as it goes, holds, and folds back,
  * spinning forward again. So the movement answers the question the button is
  * for without a tap. It plays when the day is opened and something has been
  * done since the sheet was last looked at, right after each save while the day
@@ -55,6 +55,8 @@ const SETTLE = Easing.out(Easing.quad);
  * toast that has just been dismissed to slide out of the header it sat over.
  */
 const SETTLE_MS = 300;
+/** How far the words tuck in towards the icon, which has room to spare either side. */
+const TUCK = space[1];
 /** Room after the words, before the pill's open edge. */
 const LEAD = space[2.5];
 
@@ -81,9 +83,9 @@ export function LastDoneButton({ active, onPress }: LastDoneButtonProps) {
     const turn = useSharedValue(0);
 
     const newest = state.entries[0];
-    const said = newest ? buttonLabel(newest, locale) : t('Last done');
+    const said = newest ? buttonLabel(newest, locale) : { said: t('Last done'), name: null };
     const full = newest ? [t(TITLE[newest.kind]), newest.patientName].filter(Boolean).join(' · ') : null;
-    const maxLabel = Math.max(0, room - SLOT - LEAD);
+    const maxLabel = Math.max(0, room - SLOT - LEAD + TUCK);
 
     const ready = active && state.hydrated && labelWidth > 0;
     const unseen = hasUnseen(state);
@@ -152,9 +154,19 @@ export function LastDoneButton({ active, onPress }: LastDoneButtonProps) {
                         <Animated.View style={[styles.glyph, glyph]}>
                             <HistoryIcon size={16} stroke={color.ink} />
                         </Animated.View>
-                        <Animated.View style={[label, { maxWidth: maxLabel }]} onLayout={measure}>
+                        {/* One line, cut at its tail: the word always shows
+                            whole and a name too long for the room ends in "…". */}
+                        <Animated.View
+                            style={[styles.words, label, { maxWidth: maxLabel }]}
+                            onLayout={measure}
+                        >
                             <Text variant="footnote" weight="semibold" numberOfLines={1}>
-                                {said}
+                                {said.said}
+                                {said.name ? (
+                                    <Text variant="footnote" weight="regular">
+                                        {` ${said.name}`}
+                                    </Text>
+                                ) : null}
                             </Text>
                         </Animated.View>
                     </View>
@@ -190,4 +202,5 @@ const styles = StyleSheet.create({
         justifyContent: 'flex-start',
     },
     glyph: { width: SLOT - border.hair * 2, alignItems: 'center', justifyContent: 'center' },
+    words: { marginStart: -TUCK },
 });

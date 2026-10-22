@@ -8,7 +8,7 @@ listed.
 
 ## [Unreleased]
 
-- A new "Last done" button (the clock with a turning arrow) at the top centre of the day view lists what was done on this phone, newest first: bookings, moves, cancellations, no-shows, check-ins, finished visits, saved procedures, payments, patients added or edited and old visits. It is on every phone, the doctor's included. Right after each save, and when the day view opens with something new, the button briefly spells out the last thing done, for example "Checked in · Nour". Tapping a line opens that booking, visit or patient. Only saves that went through are listed. The list stays on the phone, holding the last 30 actions from the past 7 days.
+- A new "Last done" button (the clock with a turning arrow) at the top centre of the day view lists what was done on this phone, newest first: bookings, moves, cancellations, no-shows, check-ins, finished visits, saved procedures, payments, patients added or edited and old visits. It is on every phone, the doctor's included. Right after each save, and when the day view opens with something new, the button briefly spells out the last thing done, for example "Arrived Nour". Tapping a line opens that booking, visit or patient. Only saves that went through are listed. The list stays on the phone, holding the last 30 actions from the past 7 days.
 
 ## [1.9.0] - 2026-10-10
 
