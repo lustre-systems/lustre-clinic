@@ -356,6 +356,7 @@ function DayScreenView({
     // branch the schedule has working (`currentBranch.ts`).
     const day = useLocalQuery(`day:${dateKey}`, () => api.byDate(dateKey));
     const history = useDayLastDone({
+        goHome,
         covered: routes.stack.open.length > 0 || toast !== null || bookNextOpen,
         onOpenRecord,
         onChanged: () => day.refetch(),

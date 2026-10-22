@@ -92,11 +92,11 @@ export function createLastDoneStore(key: string = KEY, now: () => number = Date.
             .catch(() => null)
             .then((stored) => {
                 const kept = discarded ? parse(null) : parse(stored);
-                emit({
-                    hydrated: true,
-                    entries: prune([...state.entries, ...kept.entries], now()),
-                    seenAt: Math.max(state.seenAt, kept.seenAt),
-                });
+                const merged = [...state.entries, ...kept.entries];
+                const entries = prune(merged, now());
+                emit({ hydrated: true, entries, seenAt: Math.max(state.seenAt, kept.seenAt) });
+                // Past either bound on disk too: the lines it dropped name patients.
+                if (entries.length !== merged.length) persist();
             });
         return hydration;
     }
@@ -110,8 +110,10 @@ export function createLastDoneStore(key: string = KEY, now: () => number = Date.
             };
         },
         getSnapshot: (): LastDoneState => state,
-        async add(entry: LastDoneEntry): Promise<void> {
+        /** `current` is asked once storage has been read: a reset while it was out means the entry names another clinic. */
+        async add(entry: LastDoneEntry, current: () => boolean = () => true): Promise<void> {
             await hydrate();
+            if (!current()) return;
             emit({ ...state, entries: prune([entry, ...state.entries], now()) });
             persist();
         },
@@ -120,9 +122,12 @@ export function createLastDoneStore(key: string = KEY, now: () => number = Date.
             void hydrate().then(persist);
         },
         /** A demo's opening log (`demo.ts`): only into an empty one, and all of it new. */
-        async seedIfEmpty(entries: readonly LastDoneEntry[]): Promise<void> {
+        async seedIfEmpty(
+            entries: readonly LastDoneEntry[],
+            current: () => boolean = () => true,
+        ): Promise<void> {
             await hydrate();
-            if (state.entries.length > 0 || entries.length === 0) return;
+            if (!current() || state.entries.length > 0 || entries.length === 0) return;
             emit({ ...state, entries: prune(entries, now()), seenAt: 0 });
             persist();
         },

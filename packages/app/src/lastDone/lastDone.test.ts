@@ -200,6 +200,34 @@ describe('store', () => {
         expect(hasUnseen(store.getSnapshot())).toBe(false);
     });
 
+    it('takes back off the phone what reading it found past the bounds', async () => {
+        const now = 10 * DAY;
+        stored.set(
+            't',
+            JSON.stringify({
+                entries: [entry('new', now - DAY), entry('old', now - MAX_AGE_MS - 1)],
+                seenAt: 0,
+            }),
+        );
+        const store = createLastDoneStore('t', () => now);
+
+        await new Promise<void>((done) => {
+            const stop = store.subscribe(() => {
+                stop();
+                done();
+            });
+        });
+
+        expect(JSON.parse(stored.get('t') ?? '{}').entries.map((e: LastDoneEntry) => e.id)).toEqual(['new']);
+    });
+
+    it('drops a write the data was reset under while storage was being read', async () => {
+        const store = createLastDoneStore('t', () => 10 * DAY);
+        await store.add(entry('1', 10 * DAY), () => false);
+        expect(store.getSnapshot().entries).toHaveLength(0);
+        expect(stored.has('t')).toBe(false);
+    });
+
     it('forgets everything on clear', async () => {
         const store = createLastDoneStore('t', () => 10 * DAY);
         await store.add(entry('1', 10 * DAY));

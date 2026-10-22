@@ -54,10 +54,12 @@ let seededFor = -1;
  * entering the demo, reseeding it, or launching into it.
  */
 function seedDemo(): void {
-    if (deviceBackend() !== 'demo' || seededFor === dataGeneration()) return;
-    seededFor = dataGeneration();
+    const generation = dataGeneration();
+    if (deviceBackend() !== 'demo' || seededFor === generation) return;
+    seededFor = generation;
+    const current = () => dataGeneration() === generation;
     void openDeviceDb('demo')
-        .then(() => lastDone.seedIfEmpty(demoEntries(getDb(), Date.now())))
+        .then(() => (current() ? lastDone.seedIfEmpty(demoEntries(getDb(), Date.now()), current) : undefined))
         .catch(() => undefined);
 }
 
@@ -102,8 +104,11 @@ async function complete(draft: LastDoneDraft, lookup: Lookup): Promise<LastDoneD
 }
 
 async function record(draft: LastDoneDraft, at: number, lookup: Lookup): Promise<void> {
+    const generation = dataGeneration();
+    const current = () => dataGeneration() === generation;
     const done = await complete(draft, lookup);
-    await lastDone.add({ ...done, id: entryId(at), at });
+    if (!current()) return;
+    await lastDone.add({ ...done, id: entryId(at), at }, current);
 }
 
 export function lastDoneLink(lookup: Lookup): TRPCLink<AppRouter> {

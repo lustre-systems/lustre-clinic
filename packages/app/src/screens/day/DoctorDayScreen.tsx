@@ -176,6 +176,7 @@ function DoctorDayScreenView({ onOpenRecord, open, onReturn, goHome = 0 }: Docto
     // `DayScreen`. A branch the user picked that day wins, then the schedule's.
     const day = useLocalQuery(`day:${dateKey}`, () => api.byDate(dateKey));
     const history = useDayLastDone({
+        goHome,
         covered: routes.stack.open.length > 0 || toast !== null,
         onOpenRecord,
         onChanged: () => day.refetch(),

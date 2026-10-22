@@ -32,11 +32,14 @@ export type DayLastDone = {
 
 export function useDayLastDone({
     covered,
+    goHome,
     onOpenRecord,
     onChanged,
 }: {
     /** Something of the screen's own is over the day or its header: a page, a toast, a prompt. */
     covered: boolean;
+    /** The shell's tab-tap counter: a change closes the sheet and its pages with the screen's own. */
+    goHome: number;
     onOpenRecord?: (patientId: string) => void;
     /** A page opened from a line wrote something; the day is stale. */
     onChanged: () => void;
@@ -44,6 +47,13 @@ export function useDayLastDone({
     const paneVisible = usePaneVisible();
     const [sheet, setSheet] = useState(false);
     const routes = useRouteStack<Opened>();
+    const [seenHome, setSeenHome] = useState(goHome);
+
+    if (goHome !== seenHome) {
+        setSeenHome(goHome);
+        setSheet(false);
+        routes.popToRoot();
+    }
 
     function open(target: LastDoneTarget) {
         if (target.kind === 'patient') onOpenRecord?.(target.patientId);
