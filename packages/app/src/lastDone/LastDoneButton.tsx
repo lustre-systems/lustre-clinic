@@ -1,21 +1,22 @@
 /**
- * The history button in the day view's bottom corner, opposite the book button:
- * a round icon that opens the "Last done" sheet.
+ * The history button at the centre of the day view's header: a small round
+ * icon that opens the "Last done" sheet.
  *
- * When the tab it sits on is opened and something has been done since the
- * sheet was last looked at, it widens to show its label — "↺ Last done", the
- * icon held in the corner and the words opening towards the middle — spinning the icon backwards as it goes,
- * holds for two seconds and folds back, spinning forward again. Nothing new,
- * no movement: after fifty tab switches a day it would otherwise be noise. A
- * tap plays it too, whatever is new, as the sheet opens. Reduced motion skips
- * it altogether.
+ * When it plays it widens to say what was done last — "↺ Checked in · Nour
+ * Hassan" — spinning the icon backwards as it goes, holds, and folds back,
+ * spinning forward again. So the movement answers the question the button is
+ * for without a tap. It plays when the day is opened and something has been
+ * done since the sheet was last looked at, right after each save while the day
+ * is on screen, and on a tap as the sheet opens. Nothing new, no movement:
+ * after fifty tab switches a day it would otherwise be noise. Reduced motion
+ * skips it altogether.
  *
- * It is anchored at its start edge, so it grows towards the end: from the
- * left in English, from the right in Arabic, where the corner it sits in flips.
+ * It is as wide as it is drawn and the header centres it, so it opens out
+ * evenly both ways, over the pills beside it for as long as it holds.
  */
-// biome-ignore lint/style/noRestrictedImports: starts the expand animation, which runs on the UI thread, when the tab it sits on is opened
+// biome-ignore lint/style/noRestrictedImports: starts the expand animation, which runs on the UI thread, when the day is opened or a save lands
 import { useEffect, useState, useSyncExternalStore } from 'react';
-import { type LayoutChangeEvent, Pressable, StyleSheet, View } from 'react-native';
+import { type LayoutChangeEvent, Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
 import Animated, {
     cancelAnimation,
     Easing,
@@ -29,14 +30,16 @@ import Animated, {
 import { GLYPH, icon } from '../components/domain';
 import { useReducedMotion } from '../components/ui';
 import { useT } from '../i18n';
-import { border, color, radius, shadow, space, Text } from '../theme';
+import { border, color, radius, shadow, size, space, Text } from '../theme';
+import { TITLE } from './format';
 import { hasUnseen, lastDone } from './store';
 
 const HistoryIcon = icon(GLYPH.lastDone, { width: 2.2 });
 
-/** The book button's size: the two sit as a pair across the bottom of the day. */
-const SLOT = 52;
-const HOLD_MS = 2000;
+/** The height of the header's pills. */
+const SLOT = space[8];
+/** Long enough to read a name. */
+const HOLD_MS = 3000;
 // Two full turns each way: back as it opens, forward again as it closes, so it
 // winds back to where it started. Longer than `ui/motion`'s promote and
 // collapse, which spin a turn and a half too fast to read.
@@ -47,11 +50,21 @@ const CLOSE_MS = 600;
 // run React Native's own `Easing`.
 const PROMOTE = Easing.bezier(0.22, 0.9, 0.3, 1);
 const SETTLE = Easing.out(Easing.quad);
+/**
+ * Played unasked, it waits this long after the day is clear: long enough for a
+ * toast that has just been dismissed to slide out of the header it sat over.
+ */
+const SETTLE_MS = 300;
 /** Room after the words, before the pill's open edge. */
 const LEAD = space[3.5];
 
 export type LastDoneButtonProps = {
-    /** The tab this sits on is on screen. Turning true is what "opening the tab" means. */
+    /**
+     * The day is what is on screen, header and all: the tab is up, nothing is
+     * pushed over it, and no toast or prompt sits on the header. Turning true is
+     * what "opening the day" means — and it is also how a save made in a page
+     * over the day is played once that page, and the toast after it, are gone.
+     */
     active: boolean;
     onPress: () => void;
 };
@@ -59,11 +72,19 @@ export type LastDoneButtonProps = {
 export function LastDoneButton({ active, onPress }: LastDoneButtonProps) {
     const t = useT();
     const reduced = useReducedMotion();
+    const window = useWindowDimensions();
     const state = useSyncExternalStore(lastDone.subscribe, lastDone.getSnapshot);
     const [labelWidth, setLabelWidth] = useState(0);
 
     const open = useSharedValue(0);
     const turn = useSharedValue(0);
+
+    const newest = state.entries[0];
+    const said = newest
+        ? [t(TITLE[newest.kind]), newest.patientName].filter(Boolean).join(' · ')
+        : t('Last done');
+    // Never wider than the header row: a long name is cut, not run off the screen.
+    const maxLabel = window.width - size.gutter * 2 - SLOT - LEAD;
 
     const ready = active && state.hydrated && labelWidth > 0;
     const unseen = hasUnseen(state);
@@ -75,24 +96,33 @@ export function LastDoneButton({ active, onPress }: LastDoneButtonProps) {
         turn.value = 0;
     }
 
-    function play() {
+    function play(wait = 0) {
         rest();
         if (reduced || labelWidth === 0) return;
-        open.value = withSequence(
-            withTiming(1, { duration: OPEN_MS, easing: PROMOTE }),
-            withDelay(HOLD_MS, withTiming(0, { duration: CLOSE_MS, easing: SETTLE })),
+        open.value = withDelay(
+            wait,
+            withSequence(
+                withTiming(1, { duration: OPEN_MS, easing: PROMOTE }),
+                withDelay(HOLD_MS, withTiming(0, { duration: CLOSE_MS, easing: SETTLE })),
+            ),
         );
-        turn.value = withSequence(
-            withTiming(-360 * TURNS, { duration: OPEN_MS, easing: PROMOTE }),
-            withDelay(HOLD_MS, withTiming(0, { duration: CLOSE_MS, easing: SETTLE })),
+        turn.value = withDelay(
+            wait,
+            withSequence(
+                withTiming(-360 * TURNS, { duration: OPEN_MS, easing: PROMOTE }),
+                withDelay(HOLD_MS, withTiming(0, { duration: CLOSE_MS, easing: SETTLE })),
+            ),
         );
     }
 
-    // biome-ignore lint/correctness/useExhaustiveDependencies: only opening the tab plays it unasked — a write made while it is up waits for the next opening
+    // biome-ignore lint/correctness/useExhaustiveDependencies: plays on opening the day and on each new line — not on every render that reads the log
     useEffect(() => {
-        if (ready && unseen) play();
-        else rest();
-    }, [ready]);
+        if (!ready) {
+            rest();
+            return;
+        }
+        if (unseen) play(SETTLE_MS);
+    }, [ready, newest?.id]);
 
     const pill = useAnimatedStyle(() => ({
         width: interpolate(open.value, [0, 1], [SLOT, SLOT + LEAD + labelWidth]),
@@ -108,7 +138,7 @@ export function LastDoneButton({ active, onPress }: LastDoneButtonProps) {
     return (
         <Pressable
             accessibilityRole="button"
-            accessibilityLabel={t('Last done')}
+            accessibilityLabel={newest ? `${t('Last done')}: ${said}` : t('Last done')}
             onPress={() => {
                 play();
                 onPress();
@@ -118,13 +148,13 @@ export function LastDoneButton({ active, onPress }: LastDoneButtonProps) {
             testID="last-done"
         >
             <Animated.View style={[styles.pill, pill]}>
-                <View style={styles.track}>
+                <View style={[styles.track, { width: maxLabel + SLOT + LEAD }]}>
                     <Animated.View style={[styles.glyph, glyph]}>
-                        <HistoryIcon size={22} stroke={color.ink} />
+                        <HistoryIcon size={16} stroke={color.ink} />
                     </Animated.View>
-                    <Animated.View style={label} onLayout={measure}>
-                        <Text variant="callout" weight="semibold" numberOfLines={1}>
-                            {t('Last done')}
+                    <Animated.View style={[label, { maxWidth: maxLabel }]} onLayout={measure}>
+                        <Text variant="subhead" weight="semibold" numberOfLines={1}>
+                            {said}
                         </Text>
                     </Animated.View>
                 </View>
@@ -142,7 +172,7 @@ const styles = StyleSheet.create({
         backgroundColor: color.surface,
         borderWidth: border.hair,
         borderColor: color.line,
-        boxShadow: shadow.dock,
+        boxShadow: shadow.pill,
         overflow: 'hidden',
     },
     // Wider than the pill will ever be and pinned to its start, so the words
@@ -153,7 +183,6 @@ const styles = StyleSheet.create({
         top: 0,
         bottom: 0,
         start: 0,
-        width: 320,
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'flex-start',

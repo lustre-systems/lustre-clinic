@@ -176,7 +176,7 @@ function DoctorDayScreenView({ onOpenRecord, open, onReturn, goHome = 0 }: Docto
     // `DayScreen`. A branch the user picked that day wins, then the schedule's.
     const day = useLocalQuery(`day:${dateKey}`, () => api.byDate(dateKey));
     const history = useDayLastDone({
-        covered: routes.stack.open.length > 0,
+        covered: routes.stack.open.length > 0 || toast !== null,
         onOpenRecord,
         onChanged: () => day.refetch(),
     });
@@ -335,6 +335,7 @@ function DoctorDayScreenView({ onOpenRecord, open, onReturn, goHome = 0 }: Docto
                 branchId={branch}
                 onPickBranch={pickBranch}
                 onOpenCalendar={() => setCalendar(openCalendar)}
+                history={history.button}
             />
 
             {day.status === 'error' && day.error && appointments.length > 0 ? (
@@ -484,8 +485,6 @@ function DoctorDayScreenView({ onOpenRecord, open, onReturn, goHome = 0 }: Docto
                 onClose={closeFinishSheet}
                 onClosed={sheetDone.closed}
             />
-
-            {history.button}
 
             {rendered(routes.stack).map(({ id, route }, index) => (
                 <PushView

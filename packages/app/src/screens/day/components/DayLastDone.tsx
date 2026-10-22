@@ -1,7 +1,7 @@
 /**
- * "Last done" on the day view, for every role: the history button in the
- * bottom corner opposite the book button, and the layer it opens — the sheet,
- * and the booking or visit a line is about.
+ * "Last done" on the day view, for every role: the history button for the
+ * centre of `DayHeader`, and the layer it opens — the sheet, and the booking or
+ * visit a line is about.
  *
  * A line knows ids and nothing more, so it opens the two pages that are built
  * to start from ids (`VisitPage`, `ReschedulePage`) on a stack of its own over
@@ -14,19 +14,17 @@
  */
 
 import { type ReactNode, useState } from 'react';
-import { StyleSheet, View } from 'react-native';
 import { PushView } from '../../../components/ui';
 import { LastDoneButton, LastDoneSheet, type LastDoneTarget, lastDone } from '../../../lastDone';
 import { isOpen, rendered, useRouteStack } from '../../../navigation';
 import { usePaneVisible } from '../../../shell/paneVisible';
-import { size, space } from '../../../theme';
 import { ReschedulePage } from './ReschedulePage';
 import { VisitPage } from './VisitPage';
 
 type Opened = Exclude<LastDoneTarget, { kind: 'patient' }>;
 
 export type DayLastDone = {
-    /** The floating button, for the screen to place beside its book button, under its pages. */
+    /** For `DayHeader`'s `history`. */
     button: ReactNode;
     /** Rendered last on the screen, over everything else on it. */
     layer: ReactNode;
@@ -37,7 +35,7 @@ export function useDayLastDone({
     onOpenRecord,
     onChanged,
 }: {
-    /** Something of the screen's own is pushed over the day. */
+    /** Something of the screen's own is over the day or its header: a page, a toast, a prompt. */
     covered: boolean;
     onOpenRecord?: (patientId: string) => void;
     /** A page opened from a line wrote something; the day is stale. */
@@ -53,15 +51,13 @@ export function useDayLastDone({
     }
 
     const button = (
-        <View style={styles.corner} pointerEvents="box-none">
-            <LastDoneButton
-                active={paneVisible && !covered && routes.stack.open.length === 0}
-                onPress={() => {
-                    lastDone.markSeen();
-                    setSheet(true);
-                }}
-            />
-        </View>
+        <LastDoneButton
+            active={paneVisible && !covered && routes.stack.open.length === 0}
+            onPress={() => {
+                lastDone.markSeen();
+                setSheet(true);
+            }}
+        />
     );
 
     const layer = (
@@ -95,14 +91,3 @@ export function useDayLastDone({
 
     return { button, layer };
 }
-
-// The book button's corner, mirrored: the same inset and the same size, so the
-// two read as a pair across the bottom of the day.
-
-const styles = StyleSheet.create({
-    corner: {
-        position: 'absolute',
-        start: size.gutter,
-        bottom: space[6],
-    },
-});

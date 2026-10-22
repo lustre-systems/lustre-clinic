@@ -356,7 +356,7 @@ function DayScreenView({
     // branch the schedule has working (`currentBranch.ts`).
     const day = useLocalQuery(`day:${dateKey}`, () => api.byDate(dateKey));
     const history = useDayLastDone({
-        covered: routes.stack.open.length > 0,
+        covered: routes.stack.open.length > 0 || toast !== null || bookNextOpen,
         onOpenRecord,
         onChanged: () => day.refetch(),
     });
@@ -621,6 +621,7 @@ function DayScreenView({
                 branchId={branch}
                 onPickBranch={pickBranch}
                 onOpenCalendar={() => setCalendar(openCalendar)}
+                history={history.button}
             />
 
             {reminderCount > 0 || tab === 'reminders' ? (
@@ -838,8 +839,6 @@ function DayScreenView({
                 A popped page stays in this list until it reports the slide
                 finished (`onClosed`); dropping it any earlier is what used to
                 slide an empty pane off the screen. */}
-            {history.button}
-
             {rendered(routes.stack).map(({ id, route }, index) => (
                 <PushView
                     key={id}
