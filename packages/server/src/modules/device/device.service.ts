@@ -23,6 +23,7 @@ import {
     managesClinic,
     type Role,
     seesPayments,
+    seesStats,
     WS_EVENT,
 } from '@lustre/shared';
 import { and, desc, eq, gt, isNotNull, isNull, lte, notExists, or } from 'drizzle-orm';
@@ -224,6 +225,10 @@ export const deviceService = {
 
     assertSeesPayments(caller: Caller): void {
         if (!seesPayments(caller.role)) throw forbidden('see payments');
+    },
+
+    assertSeesStats(caller: Caller): void {
+        if (!seesStats(caller.role)) throw forbidden("see the clinic's figures");
     },
 
     /** What this phone's credential says about it, or null when it has none that is live. Never throws for it. */

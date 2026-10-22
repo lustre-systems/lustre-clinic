@@ -155,7 +155,7 @@ export function DayHeader({
                                 </Animated.View>
                             ) : null}
                         </View>
-                        {switchable ? <Chevron direction="down" size={7} /> : null}
+                        {switchable ? <Chevron direction={menu ? 'up' : 'down'} size={7} /> : null}
                     </Pressable>
                 </View>
 

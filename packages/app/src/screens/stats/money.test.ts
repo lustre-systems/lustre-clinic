@@ -1,7 +1,7 @@
 // Wrong numbers on the money screens are worse than missing ones, and `bun
 // test` has no renderer, so what is tested here is everything that decides a
 // figure: the piastre-to-pound conversion, the compact form, the currency
-// rule, the overpayment clamp, and the derivations the screens trust.
+// rule and the ranges the pills ask for.
 //
 // The derived balances themselves are no longer asserted here. They were, back
 // when `_LocalMoneyApi` derived them from fixtures on the client; the server
@@ -10,28 +10,15 @@
 // of that arithmetic would only prove the copy agreed with itself.
 import { describe, expect, it } from 'bun:test';
 import { offsetForDate } from '../day/time';
+import { methodLabel, paymentMethodOf } from './format';
 import {
-    dueLabel,
-    methodLabel,
-    outstandingAge,
-    paymentMethodOf,
-    statsPeriodLabel,
-    takingsLabel,
-} from './format';
-import {
-    amountStillDue,
-    collectedAhead,
-    collectionRate,
     currencyLeads,
-    DEBTOR_SORT_LABEL,
-    DEBTOR_SORTS,
     formatEgp,
     hasShareBase,
     methodShare,
     PERIOD_LABEL,
     PERIODS,
     periodRange,
-    sortDebtors,
     toEgp,
 } from './money';
 
@@ -95,18 +82,6 @@ describe('compact form — hero and stat cards only (§7.12)', () => {
 // Overpayment and the whole-pounds guard moved to `patients.test.ts` with the
 // payment sheet — this cluster no longer takes money, so it no longer has an
 // amount to clamp.
-
-describe('outstanding age', () => {
-    const now = new Date('2026-08-09T12:00:00.000Z');
-
-    it('counts whole days, then coarsens', () => {
-        expect(outstandingAge('2026-08-09T09:00:00.000Z', now)).toBe('today');
-        expect(outstandingAge('2026-08-08T09:00:00.000Z', now)).toBe('1 day');
-        expect(outstandingAge('2026-07-28T09:00:00.000Z', now)).toBe('12 days');
-        expect(outstandingAge('2026-05-02T09:00:00.000Z', now)).toBe('3 months');
-        expect(outstandingAge('2025-01-14T09:00:00.000Z', now)).toBe('1 year');
-    });
-});
 
 describe('the period pills, as a range the server can answer', () => {
     // A Wednesday, so the week start is four days back and not the same day.
@@ -238,36 +213,6 @@ describe('a payment method the enum does not know', () => {
     });
 });
 
-describe('a period can collect more than it charged', () => {
-    const quietDay = { charged: 40_000, collected: 160_000, difference: -120_000 };
-
-    it('never draws a negative amount due (§7.6)', () => {
-        expect(amountStillDue(quietDay.difference)).toBe(0);
-        expect(formatEgp(amountStillDue(quietDay.difference))).toBe('EGP 0');
-    });
-
-    it('caps the collection rate at 100%, so the split bar has somewhere to put it', () => {
-        expect(collectionRate(quietDay.charged, quietDay.collected)).toBe(1);
-        expect(collectionRate(240_000, 120_000)).toBe(0.5);
-    });
-
-    it('reports what was collected against earlier visits rather than hiding it', () => {
-        expect(collectedAhead(quietDay.difference)).toBe(120_000);
-        expect(collectedAhead(50_000)).toBe(0);
-    });
-
-    it('treats a period that charged nothing as fully collected', () => {
-        expect(collectionRate(0, 0)).toBe(1);
-        expect(collectionRate(0, 90_000)).toBe(1);
-    });
-
-    it('leaves an ordinary period untouched', () => {
-        expect(amountStillDue(2_382_000)).toBe(2_382_000);
-        expect(collectedAhead(2_382_000)).toBe(0);
-        expect(Math.round(collectionRate(14_262_000, 11_880_000) * 100)).toBe(83);
-    });
-});
-
 describe('currency position (§7.13)', () => {
     it('leads in English and trails in Arabic', () => {
         expect(currencyLeads('en')).toBe(true);
@@ -282,87 +227,5 @@ describe('currency position (§7.13)', () => {
 
             expect(whole).toBe(currencyLeads(locale) ? `${currency} ${figure}` : `${figure} ${currency}`);
         }
-    });
-});
-
-describe('ordering the debtor list', () => {
-    // Balances as the server derived them; the sort compares, never sums.
-    const rows = [
-        { name: 'Salma Adel', balance: 55_000, oldestUnpaidAt: '2026-08-08T15:10:00.000Z' },
-        { name: 'Ahmed Zaki', balance: 1_200_000, oldestUnpaidAt: '2026-07-28T09:15:00.000Z' },
-        { name: 'Nour El-Din Fathy', balance: 165_000, oldestUnpaidAt: '2026-01-14T16:45:00.000Z' },
-    ];
-
-    it('leads with the largest balance by default', () => {
-        expect(sortDebtors(rows, 'balance').map((row) => row.name)).toEqual([
-            'Ahmed Zaki',
-            'Nour El-Din Fathy',
-            'Salma Adel',
-        ]);
-    });
-
-    it('leads with the longest-owed on "oldest", which is not the same order', () => {
-        expect(sortDebtors(rows, 'oldest').map((row) => row.name)).toEqual([
-            'Nour El-Din Fathy',
-            'Ahmed Zaki',
-            'Salma Adel',
-        ]);
-    });
-
-    it('sorts by name without tripping over the hyphen', () => {
-        expect(sortDebtors(rows, 'name').map((row) => row.name)).toEqual([
-            'Ahmed Zaki',
-            'Nour El-Din Fathy',
-            'Salma Adel',
-        ]);
-    });
-
-    it('does not reorder the callers array — the query owns it', () => {
-        const original = [...rows];
-        sortDebtors(rows, 'oldest');
-        expect(rows).toEqual(original);
-    });
-
-    it('every mode is labelled, so the control can never render undefined', () => {
-        for (const sort of DEBTOR_SORTS) {
-            expect(DEBTOR_SORT_LABEL[sort]).toBeTruthy();
-        }
-    });
-});
-
-describe('the period labels read as the tail of both sentences', () => {
-    it('names the takings card and the hero caption from one label', () => {
-        expect(takingsLabel('This month')).toBe('Total collected this month');
-        expect(takingsLabel('Today')).toBe('Total collected today');
-        expect(takingsLabel('All time')).toBe('Total collected all time');
-
-        expect(dueLabel('This month')).toBe('Due this month');
-        expect(dueLabel('Today')).toBe('Due today');
-    });
-
-    it('heads the stats with the month being read, not the period selected', () => {
-        expect(statsPeriodLabel(Date.parse('2026-06-15T10:00:00.000Z'))).toBe('Stats · June 2026');
-    });
-});
-
-describe('a period that owes nothing', () => {
-    // The hero draws a caption, an amount and a patient count. When the period
-    // is square there is no amount to draw, and a zero under "Due this month"
-    // beside "0 patients" reads as a broken figure rather than a settled one.
-    const settled = (difference: number) =>
-        amountStillDue(difference) === 0 && collectedAhead(difference) === 0;
-
-    it('is settled when everything charged was collected', () => {
-        expect(settled(0)).toBe(true);
-    });
-
-    it('is settled when nothing was charged at all — every day before the first visit', () => {
-        expect(collectionRate(0, 0)).toBe(1);
-        expect(settled(0)).toBe(true);
-    });
-
-    it('is not settled while anything is owed, or anything came in early', () => {
-        expect(settled(2_382_000)).toBe(false);
-        expect(settled(-120_000)).toBe(false);
     });
 });

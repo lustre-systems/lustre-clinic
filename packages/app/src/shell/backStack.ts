@@ -65,7 +65,7 @@ export function createBackStacks(): BackStacks {
     return {
         day: createBackStack(),
         patients: createBackStack(),
-        money: createBackStack(),
+        stats: createBackStack(),
         settings: createBackStack(),
     };
 }

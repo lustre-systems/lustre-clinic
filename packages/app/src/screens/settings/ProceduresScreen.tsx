@@ -38,7 +38,7 @@
  * a subtype to write with it, and then both go in one transaction. A category that loses its last visible subtype
  * still draws here, as a heading with its "Add to" button and nothing under it.
  */
-import { MAX_PROCEDURE_NAME } from '@lustre/shared';
+import { MAX_PROCEDURE_NAME, seesStats } from '@lustre/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
@@ -72,6 +72,7 @@ import {
 import { useT } from '../../i18n';
 import { isOpen, rendered, useRouteStack } from '../../navigation';
 import { useBackHandler } from '../../shell/useBackHandler';
+import { useRole } from '../../shell/useRole';
 import { color, radius, size, space, Text } from '../../theme';
 
 import { CategoryIcon, EditIcon, HideIcon, PlusIcon } from './components/icons';
@@ -529,6 +530,11 @@ function ProcedureEditor({
 
     const [name, setName] = useState(procedure?.name ?? '');
     const [price, setPrice] = useState(procedure ? String(Math.round(procedure.defaultPrice / 100)) : '');
+    // What it costs the clinic, for the stats screen's profit. The admin's
+    // figure: the server sends it as null to anyone else, and this phone does
+    // not offer the field to them either.
+    const showsCost = seesStats(useRole().granted);
+    const [cost, setCost] = useState(procedure?.cost ? String(Math.round(procedure.cost / 100)) : '');
     const [parentId, setParentId] = useState<string>(procedure?.parentId ?? parent?.id ?? NO_CATEGORY);
     const [toothSpecific, setToothSpecific] = useState(procedure?.isToothSpecific ?? false);
     const [hasQuantity, setHasQuantity] = useState(procedure?.hasQuantity ?? false);
@@ -569,6 +575,7 @@ function ProcedureEditor({
             parentId: chosenParent,
             name: name.trim(),
             defaultPrice: poundsToPiastres(price),
+            ...(showsCost ? { cost: poundsToPiastres(cost) } : {}),
             hasQuantity,
             isToothSpecific: toothSpecific,
             isCheckup,
@@ -592,6 +599,7 @@ function ProcedureEditor({
                     first: {
                         name: details.name,
                         defaultPrice: details.defaultPrice,
+                        cost: details.cost,
                         hasQuantity: details.hasQuantity,
                         isToothSpecific: details.isToothSpecific,
                         isCheckup: details.isCheckup,
@@ -659,6 +667,18 @@ function ProcedureEditor({
                         onChangeText={(next) => setPrice(sanitisePounds(next))}
                         placeholder="0"
                         hint="Visits already recorded keep the price they were charged at."
+                    />
+                )}
+
+                {isCategory || !showsCost ? null : (
+                    <NumericField
+                        label="Cost to the clinic"
+                        prefix="EGP"
+                        value={cost}
+                        onChangeText={(next) => setCost(sanitisePounds(next))}
+                        placeholder="0"
+                        hint="Materials and lab fees for one. Only you see it, on Stats. Visits already recorded keep the cost they had."
+                        testID="procedure-cost"
                     />
                 )}
 

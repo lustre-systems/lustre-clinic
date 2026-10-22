@@ -24,6 +24,8 @@ export const color = {
     ink: '#111114',
     ink2: '#3a3a40',
     muted: '#8b8b92',
+    // A second series beside `ink`: the other branch on the stats screen's bars.
+    inkFaint: '#b4b4bc',
     inverse: '#ffffff',
 
     // The money hero's ground, and the ramp that sits on it. Text on a dark
@@ -38,6 +40,11 @@ export const color = {
     onDarkMuted: 'rgba(255,255,255,0.4)',
     successOnDark: '#8bf0b8',
     dueOnDark: '#ffb3b3',
+    accentOnDark: '#a9bbff',
+    // The stats chart's change chip, a good or a bad move, on the dark card.
+    successOnDarkSoft: 'rgba(139,240,184,0.12)',
+    dueOnDarkSoft: 'rgba(255,179,179,0.12)',
+    onDarkGuide: 'rgba(255,255,255,0.25)',
 
     accent: '#2f5bff',
     accentSoft: '#eaeeff',
@@ -161,6 +168,11 @@ export const shadow = {
     hero: '0 16px 40px -10px rgba(0,0,0,0.45)',
     dock: '0 1px 2px rgba(17,17,20,0.05), 0 10px 28px -8px rgba(17,17,20,0.22)',
     fab: '0 8px 20px rgba(47,91,255,0.35)',
+    // A selected stats tile lifts in its own colour.
+    tileProfit: '0 8px 20px -8px #12a150',
+    tileRevenue: '0 8px 20px -8px #111114',
+    tileCost: '0 8px 20px -8px #ef5f28',
+    tileNewPatients: '0 8px 20px -8px #2f5bff',
 } as const;
 
 // Gradients are CSS strings because React Native takes them as `background-
@@ -168,8 +180,40 @@ export const shadow = {
 // hero has one: a green cast at the top-left where the collected figure sits
 // and a warm one at the bottom-right by the due row, both far below the point
 // where they would read as a colour rather than as depth.
+//
+// The stats chart's glow takes the colour of the metric on the chart, in the
+// top-left and bottom-right corners, with the card's own ground between.
+/**
+ * A corner glow at 135°: the colour at 0.22 in the top-left and bottom-right,
+ * easing to nothing in the middle. The fall-off is a smoothstep written out as
+ * stops, not two straight ramps meeting a flat band: a ramp's corners show as
+ * lines across a dark card, and so does each step of an 8-bit low-alpha ramp
+ * unless the slope keeps changing. Fading to the same colour at zero alpha,
+ * rather than to transparent black, keeps the middle from going grey.
+ */
+function glow(rgb: string): string {
+    const PEAK = 0.22;
+    const half = [0, 0.1, 0.2, 0.3, 0.4, 0.5].map((at) => {
+        const x = at / 0.5;
+        const alpha = PEAK * (1 - (3 * x * x - 2 * x * x * x));
+        return { at, alpha: Math.round(alpha * 1000) / 1000 };
+    });
+    const stops = [
+        ...half,
+        ...half
+            .slice(0, -1)
+            .reverse()
+            .map(({ at, alpha }) => ({ at: 1 - at, alpha })),
+    ];
+    return `linear-gradient(135deg, ${stops.map(({ at, alpha }) => `rgba(${rgb},${alpha}) ${Math.round(at * 100)}%`).join(', ')})`;
+}
+
 export const gradient = {
     hero: 'linear-gradient(135deg, rgba(22,201,100,0.12) 0%, rgba(10,12,16,0) 45%, rgba(255,179,179,0.08) 100%)',
+    glowProfit: glow('139,240,184'),
+    glowRevenue: glow('255,255,255'),
+    glowCost: glow('255,179,179'),
+    glowNewPatients: glow('169,187,255'),
 } as const;
 
 export type Color = keyof typeof color;

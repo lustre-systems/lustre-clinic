@@ -13,14 +13,14 @@
  * Settings, and the role is the card at the top of that screen with a sheet that
  * says what switching changes before it changes anything.
  *
- * A phone whose role may not see payments (a doctor's) has no Money tab: the
- * server refuses everything on it, so a tab of refusals is all it could be.
+ * Only the admin's phone has the Stats tab (`seesStats`): the server refuses
+ * its reads to every other role, so a tab of refusals is all it could be.
  *
  * `settings.html` labels this tab "Settings" over a gear. Naming the role is a
  * deliberate departure: the gear is the same on both phones, and which phone
  * this is answers more questions than what the screen contains.
  */
-import { type Role, seesPayments } from '@lustre/shared';
+import { type Role, seesStats } from '@lustre/shared';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useT } from '../../i18n';
@@ -28,13 +28,13 @@ import { border, color, radius, size, space, Text } from '../../theme';
 import { useKeyboardHeight } from '../ui';
 import { GLYPH, type Glyph } from './icons';
 
-export type TabKey = 'day' | 'patients' | 'money' | 'settings';
+export type TabKey = 'day' | 'patients' | 'stats' | 'settings';
 
 export type BottomTabBarProps = {
     active: TabKey;
-    /** The fourth tab's glyph and its label both come from this, and whether Money is a tab at all. */
+    /** The fourth tab's glyph and its label both come from this. */
     role: Role;
-    /** Null for a phone with no role code yet, which keeps every tab. */
+    /** Null for a phone with no role code yet, which keeps every tab. Stats is a tab only for the admin. */
     granted: Role | null;
     /**
      * A clinic on one phone: there is no other phone to tell this one apart
@@ -43,6 +43,17 @@ export type BottomTabBarProps = {
     solo?: boolean;
     onChange: (tab: TabKey) => void;
 };
+
+/**
+ * Whether this phone has the Stats tab. A role code decides it (`seesStats`).
+ * A phone with no code yet counts as the owner's, but one whose day view is
+ * set to the desk is the desk's, and the desk does not see the clinic's
+ * figures.
+ */
+export function showsStats(granted: Role | null, view: Role): boolean {
+    if (granted === null) return seesStats(null) && view !== 'secretary';
+    return seesStats(granted);
+}
 
 const SIZE = 22;
 const STROKE = 2;
@@ -68,7 +79,7 @@ const ROLE_LABEL: Record<Role, string> = {
 const TAB_ICON: Record<Exclude<TabKey, 'settings'>, Glyph> = {
     day: GLYPH.day,
     patients: GLYPH.patients,
-    money: GLYPH.money,
+    stats: GLYPH.stats,
 };
 
 export function BottomTabBar({ active, role, granted, solo = false, onChange }: BottomTabBarProps) {
@@ -86,10 +97,10 @@ export function BottomTabBar({ active, role, granted, solo = false, onChange }: 
     const every: { key: TabKey; label: string }[] = [
         { key: 'day', label: 'Day' },
         { key: 'patients', label: 'Patients' },
-        { key: 'money', label: 'Money' },
+        { key: 'stats', label: 'Stats' },
         { key: 'settings', label: solo ? 'Settings' : ROLE_LABEL[role] },
     ];
-    const tabs = every.filter((tab) => tab.key !== 'money' || seesPayments(granted));
+    const tabs = every.filter((tab) => tab.key !== 'stats' || showsStats(granted, role));
 
     return (
         <View style={[styles.bar, { paddingBottom: space[3] + insets.bottom }]} testID="tab-bar">

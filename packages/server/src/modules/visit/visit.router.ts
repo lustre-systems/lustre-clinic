@@ -9,6 +9,7 @@ import {
     checkOutInput,
     deletePaymentInput,
     deleteVisitInput,
+    pendingNextInput,
     recordPaymentInput,
     reopenInput,
     setPaidInput,
@@ -29,6 +30,10 @@ export const visitRouter = router({
         const row = await visitService.byAppointment(input.appointmentId);
         return row ? visitService.byId(row.id, ctx.caller.role) : null;
     }),
+
+    pendingNext: clinicProcedure
+        .input(pendingNextInput)
+        .query(({ input }) => visitService.pendingNext(input.patientId)),
 
     checkIn: clinicProcedure.input(checkInInput).mutation(({ input }) => visitService.checkIn(input)),
 

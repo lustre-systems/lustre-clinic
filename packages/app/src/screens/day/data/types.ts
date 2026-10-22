@@ -107,10 +107,18 @@ export interface Visit {
     chargedTotal: number | null;
     createdAt: string;
     procedures: VisitLine[];
+    /** What the patient's next booking is for. `appointmentId` is the booking that took it. */
+    nextProcedure: (NextProcedure & { appointmentId: string | null }) | null;
     /** The three are null on a phone whose role may not see payments (a doctor). */
     payments: VisitPayment[] | null;
     paidTotal: number | null;
     balance: number | null;
+}
+
+export interface NextProcedure {
+    procedureId: string;
+    name: string;
+    tooth: Tooth | null;
 }
 
 export interface VisitRow {

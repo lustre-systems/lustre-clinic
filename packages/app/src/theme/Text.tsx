@@ -40,7 +40,9 @@ export type TextTone =
     | 'dueText'
     | 'successText'
     | 'successOnDark'
-    | 'dueOnDark';
+    | 'dueOnDark'
+    | 'accentText'
+    | 'accentOnDark';
 
 type Script = keyof typeof font;
 
@@ -89,6 +91,8 @@ const TONE: Record<TextTone, string> = {
     successText: color.successText,
     successOnDark: color.successOnDark,
     dueOnDark: color.dueOnDark,
+    accentText: color.accentText,
+    accentOnDark: color.accentOnDark,
 };
 
 const styles = StyleSheet.create({

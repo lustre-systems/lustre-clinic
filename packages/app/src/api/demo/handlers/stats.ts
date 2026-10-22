@@ -10,13 +10,84 @@
  */
 import type { RouterInput, RouterOutput } from '../../types';
 import { getDb } from '../db';
-import { dayRange } from '../rules';
+import { clinicDayOf, dayRange } from '../rules';
 import type { Dated } from '../wire';
-import { balanceHandlers } from './balance';
+import { balanceHandlers, rangeOf } from './balance';
 
 type StatsSummary = Dated<RouterOutput['stats']['summary']>;
+type StatsFigures = Dated<RouterOutput['stats']['overview']>;
+type StatsPeriod = RouterInput['stats']['overview'];
+type BranchFigures = StatsFigures['branches'][number];
+
+/** `statsService.overview`: profit is revenue less each line's snapshotted cost, split by branch. */
+function figuresFor(period: StatsPeriod): StatsFigures {
+    const db = getDb();
+    const days = rangeOf(period);
+    const offsetMinutes = period.offsetMinutes ?? 0;
+    // `statsService`'s minute bounds: the range opens and closes that far into its first and last day.
+    const from = new Date(days.from.getTime() + (period.fromMinute ?? 0) * 60_000);
+    const to =
+        period.toMinute === undefined
+            ? days.to
+            : new Date(dayRange(period.to, offsetMinutes).from.getTime() + period.toMinute * 60_000);
+
+    const inPeriod = new Map(
+        db.appointments
+            .filter(
+                (row) =>
+                    row.startsAt >= from && row.startsAt < to && !row.isOpeningBalance && !row.isImported,
+            )
+            .map((row) => [row.id, row]),
+    );
+
+    const tally = new Map<string, BranchFigures & { days: Set<string> }>();
+    for (const visit of db.visits) {
+        const appointment = inPeriod.get(visit.appointmentId);
+        if (!appointment) continue;
+
+        const name = db.branches.find((row) => row.id === appointment.branchId)?.name ?? '';
+        const entry = tally.get(appointment.branchId) ?? {
+            branchId: appointment.branchId,
+            name,
+            revenue: 0,
+            cost: 0,
+            profit: 0,
+            workingDays: 0,
+            days: new Set<string>(),
+        };
+        const cost = db.visitProcedures
+            .filter((line) => line.visitId === visit.id)
+            .reduce((sum, line) => sum + line.unitCost * line.quantity, 0);
+
+        entry.revenue += visit.chargedTotal;
+        entry.cost += cost;
+        entry.profit = entry.revenue - entry.cost;
+        entry.days.add(clinicDayOf(appointment.startsAt, offsetMinutes).from.toISOString());
+        tally.set(appointment.branchId, entry);
+    }
+
+    const branches = [...tally.values()]
+        .map(({ days, ...row }) => ({ ...row, workingDays: days.size }))
+        .sort((a, b) => a.name.localeCompare(b.name));
+    const revenue = branches.reduce((sum, row) => sum + row.revenue, 0);
+    const cost = branches.reduce((sum, row) => sum + row.cost, 0);
+
+    const newPatients = db.patients.filter(
+        (row) => row.createdAt >= from && row.createdAt < to && row.legacyRef === null,
+    ).length;
+
+    return { from, to, revenue, cost, profit: revenue - cost, newPatients, branches };
+}
 
 export const statsHandlers = {
+    overview(input: RouterInput['stats']['overview']): StatsFigures {
+        return figuresFor(input);
+    },
+
+    trend(input: RouterInput['stats']['trend']): StatsFigures[] {
+        return input.periods.map(figuresFor);
+    },
+
     summary(input: RouterInput['stats']['summary']): StatsSummary {
         const db = getDb();
         const offsetMinutes = input.offsetMinutes ?? 0;

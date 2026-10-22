@@ -57,6 +57,7 @@ import { noteChanged, noteDraft, noteValue } from '../notes';
 import { asksTooth, chargeableTotal, checkupIsWaived, toothGroupsOf, toothPosition } from '../procedures';
 import { dateKey, dayOfMonth, formatLongDate, formatTime12, monthShort, todayKey } from '../time';
 import { PlusIcon, XIcon } from './icons';
+import { type NextDraft, NextProcedureBox } from './NextProcedureBox';
 import { type PickedProcedure, ProcedureSheet } from './ProcedureSheet';
 import { ToothSheet } from './ToothSheet';
 import { VisitStatusChip, visitState } from './VisitStatusChip';
@@ -206,6 +207,11 @@ export function VisitScreen({
     const locale = useLocale();
     const keyboard = useKeyboardHeight();
     const [lines, setLines] = useState<DraftLine[]>(() => seed(appointment, visit));
+    const [next, setNext] = useState<NextDraft | null>(() =>
+        visit?.nextProcedure ? { ...visit.nextProcedure, variant: null } : null,
+    );
+    // Which list a pick from the sheets lands on: the visit's, or the box for next time.
+    const [target, setTarget] = useState<'line' | 'next'>('line');
     const [note, setNote] = useState(() => noteDraft(appointment.note));
     const [asking, setAsking] = useState<Asking>(null);
     const [collapsed, setCollapsed] = useState<readonly string[]>([]);
@@ -285,7 +291,8 @@ export function VisitScreen({
     const inChair = where === 'chair';
     const planning = where === 'arriving' || where === 'waiting';
 
-    function startAdding() {
+    function startAdding(to: 'line' | 'next' = 'line') {
+        setTarget(to);
         setAsking(
             asksTooth(catalogue.data, general) ? { step: 'tooth' } : { step: 'procedure', tooth: null },
         );
@@ -298,6 +305,8 @@ export function VisitScreen({
      */
     function askProcedure(tooth: Tooth | null, afterSheet: boolean) {
         if (!afterSheet) {
+            // Straight from a tooth's own "Add to" — always a line on this visit.
+            setTarget('line');
             setAsking({ step: 'procedure', tooth });
             return;
         }
@@ -320,6 +329,11 @@ export function VisitScreen({
     }
 
     function add(tooth: Tooth | null, picked: PickedProcedure) {
+        if (target === 'next') {
+            setNext({ procedureId: picked.procedureId, name: picked.name, variant: picked.variant, tooth });
+            setAsking(null);
+            return;
+        }
         setEdited(true);
         setLines((current) => [
             ...current,
@@ -367,6 +381,13 @@ export function VisitScreen({
             tooth: line.tooth,
         }));
 
+    /** Like the note: `undefined` when it is still what the visit holds. */
+    const nextPatch = () => {
+        const was = visit?.nextProcedure ?? null;
+        if (was?.procedureId === next?.procedureId && was?.tooth === next?.tooth) return undefined;
+        return next ? { procedureId: next.procedureId, tooth: next.tooth } : null;
+    };
+
     /** The note as the write takes it: `undefined` when nobody touched it. */
     const notePatch = (): string | null | undefined =>
         noteChanged(appointment.note, note) ? noteValue(note) : undefined;
@@ -398,6 +419,7 @@ export function VisitScreen({
                 closed: visit.completedAt !== null,
                 procedures: written(),
                 note: savedNote,
+                nextProcedure: nextPatch(),
             },
             {
                 onSuccess: (priced) => {
@@ -538,7 +560,7 @@ export function VisitScreen({
                         </Text>
                         <Button
                             label="Add a procedure"
-                            onPress={startAdding}
+                            onPress={() => startAdding()}
                             style={styles.emptyCta}
                             testID="visit-add-first"
                         />
@@ -710,7 +732,7 @@ export function VisitScreen({
                 {empty ? null : (
                     <Pressable
                         accessibilityRole="button"
-                        onPress={startAdding}
+                        onPress={() => startAdding()}
                         style={({ pressed }) => [styles.add, pressed && styles.pressed]}
                         testID="visit-add"
                     >
@@ -722,6 +744,18 @@ export function VisitScreen({
                         </Text>
                     </Pressable>
                 )}
+
+                {mode === 'checkout' ? (
+                    <NextProcedureBox
+                        next={next}
+                        booked={
+                            nextPatch() === undefined &&
+                            (visit?.nextProcedure?.appointmentId ?? null) !== null
+                        }
+                        onChoose={() => startAdding('next')}
+                        onClear={() => setNext(null)}
+                    />
+                ) : null}
 
                 <View style={styles.noteSection}>
                     <View style={styles.sectionHead}>

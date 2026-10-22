@@ -14,6 +14,7 @@ import { getDb, type PaymentRow, save, type VisitProcedureRow, type VisitRow } f
 import { broadcast } from '../events';
 import { clinicDayOf, computeTotal, DemoError, resolveProcedureLines, uuidv7 } from '../rules';
 import type { Dated } from '../wire';
+import { pendingNext, setNext } from './visitNext';
 
 type Visit = Dated<RouterOutput['visit']['byId']>;
 type VisitLine = Visit['procedures'][number];
@@ -123,7 +124,7 @@ function collectedOn(visitId: string): number {
 
 function readVisit(id: string): Visit {
     const db = getDb();
-    const visit = requireVisit(id);
+    const { nextProcedureId, nextProcedureTooth, nextAppointmentId, ...visit } = requireVisit(id);
 
     const procedures: VisitLine[] = linesOf(id).map((line) => ({
         id: line.id,
@@ -149,7 +150,24 @@ function readVisit(id: string): Visit {
 
     const paidTotal = payments.reduce((sum, payment) => sum + payment.amount, 0);
 
-    return { ...visit, procedures, payments, paidTotal, balance: visit.chargedTotal - paidTotal };
+    const next = db.procedureTypes.find((row) => row.id === nextProcedureId);
+    const nextProcedure = next
+        ? {
+              procedureId: next.id,
+              name: next.name,
+              tooth: nextProcedureTooth,
+              appointmentId: nextAppointmentId,
+          }
+        : null;
+
+    return {
+        ...visit,
+        nextProcedure,
+        procedures,
+        payments,
+        paidTotal,
+        balance: visit.chargedTotal - paidTotal,
+    };
 }
 
 export const visitHandlers = {
@@ -198,6 +216,9 @@ export const visitHandlers = {
             completedAt: null,
             computedTotal: 0,
             chargedTotal: 0,
+            nextProcedureId: null,
+            nextProcedureTooth: null,
+            nextAppointmentId: null,
             createdAt: now,
         };
         db.visits.push(visit);
@@ -217,6 +238,7 @@ export const visitHandlers = {
                 procedureId: line.procedureId,
                 quantity: line.quantity,
                 unitPrice: line.quotedPrice ?? procedure?.defaultPrice ?? 0,
+                unitCost: procedure?.cost ?? 0,
                 tooth: line.tooth,
                 note: line.note,
             });
@@ -257,7 +279,20 @@ export const visitHandlers = {
             db.procedureTypes,
             db.settings.clinicType === 'general',
         );
+        const [next] = input.nextProcedure
+            ? resolveProcedureLines(
+                  [{ ...input.nextProcedure, quantity: 1 }],
+                  db.procedureTypes,
+                  db.settings.clinicType === 'general',
+              )
+            : [];
 
+        // `visitService.setProcedures`: a line keeps the cost it was first priced at.
+        const savedCost = new Map(
+            db.visitProcedures
+                .filter((line) => line.visitId === visit.id)
+                .map((line) => [line.procedureId, line.unitCost]),
+        );
         db.visitProcedures = db.visitProcedures.filter((line) => line.visitId !== visit.id);
 
         for (const [index, line] of resolved.entries()) {
@@ -267,6 +302,7 @@ export const visitHandlers = {
                 procedureId: line.procedure.id,
                 quantity: line.quantity,
                 unitPrice: input.procedures[index]?.unitPrice ?? line.procedure.defaultPrice,
+                unitCost: savedCost.get(line.procedure.id) ?? line.procedure.cost,
                 tooth: line.tooth,
                 note: line.note,
             });
@@ -276,9 +312,26 @@ export const visitHandlers = {
         // The charged total tracks the computed one until someone has edited it.
         if (!visit.pricedAt) visit.chargedTotal = computedTotal;
 
+        const booked =
+            input.nextProcedure === undefined
+                ? null
+                : setNext(
+                      visit,
+                      next ? { procedureId: next.procedure.id, tooth: next.tooth } : null,
+                      new Date(),
+                  );
+
         save();
+        if (booked) broadcast(WS_EVENT.APPOINTMENT_UPDATED);
         broadcast(WS_EVENT.VISIT_UPDATED);
         return readVisit(visit.id);
+    },
+
+    pendingNext(input: RouterInput['visit']['pendingNext']): RouterOutput['visit']['pendingNext'] {
+        const pending = pendingNext(input.patientId);
+        return pending
+            ? { procedureId: pending.procedureId, name: pending.name, tooth: pending.tooth }
+            : null;
     },
 
     setPrice(input: RouterInput['visit']['setPrice']): Visit {

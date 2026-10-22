@@ -1,4 +1,5 @@
-// A collected total and one row per payment method, from `balance.takings`.
+// A collected total and one row per payment method, from `balance.takings`
+// less "other" (`shownTakings`), so the shares add up to 100%.
 // Amounts are full, never compact (§7.12). Each row's share is a ratio, not
 // money — nothing is summed here, and the percentage is never rendered as an
 // amount. A method the clinic has never taken is absent rather than a zero row,
@@ -46,7 +47,7 @@ export function TakingsCard({ takings, label }: TakingsCardProps) {
     const split = hasShareBase(total);
 
     return (
-        <View style={styles.card} testID="money-takings">
+        <View style={styles.card} testID="stats-takings">
             <View style={styles.total}>
                 <View style={styles.totalLabel}>
                     <Text variant="eyebrow" script="sans" weight="bold" tone="muted">
@@ -111,10 +112,8 @@ function MethodRow({ row, total, split }: { row: MethodTaking; total: number; sp
         return () => animation.stop();
     }, [share, width, reducedMotion]);
 
-    const other = row.method === 'other';
-
     return (
-        <View style={styles.methodRow} testID={`money-method-${row.method}`}>
+        <View style={styles.methodRow} testID={`stats-method-${row.method}`}>
             <View style={styles.tile}>
                 <MethodIcon method={row.method} />
             </View>
@@ -133,7 +132,6 @@ function MethodRow({ row, total, split }: { row: MethodTaking; total: number; sp
                             <Animated.View
                                 style={[
                                     styles.fill,
-                                    other && styles.fillOther,
                                     {
                                         width: width.interpolate({
                                             inputRange: [0, 1],
@@ -214,7 +212,6 @@ const styles = StyleSheet.create({
         backgroundColor: color.surface2,
     },
     fill: { height: '100%', borderRadius: radius.full, backgroundColor: color.success },
-    fillOther: { backgroundColor: color.muted },
 
     // `start` puts the box's leading edge on the bar's head; the negative
     // margin pulls it back by half its width so the label centres there. A

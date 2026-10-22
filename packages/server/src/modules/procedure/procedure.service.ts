@@ -8,7 +8,7 @@
  * `findCheckup` supplies the line seeded on check-in (§8), and exactly one row
  * carries the flag it looks for — see `clearOtherCheckups`.
  */
-import { ERROR_CODE, WS_EVENT } from '@lustre/shared';
+import { ERROR_CODE, type Role, seesStats, WS_EVENT } from '@lustre/shared';
 import { and, asc, eq, inArray, ne } from 'drizzle-orm';
 import { db, type Executor } from '../../db/index.ts';
 import { procedureTypes } from '../../db/schema.ts';
@@ -24,9 +24,16 @@ import type {
 
 export type Procedure = typeof procedureTypes.$inferSelect;
 
-interface ProcedureNode extends Procedure {
-    children: Procedure[];
+/** A catalogue row as a phone reads it: `cost` is null on one that may not see it. */
+type ShownProcedure = Omit<Procedure, 'cost'> & { cost: number | null };
+
+interface ProcedureNode extends ShownProcedure {
+    children: ShownProcedure[];
     selectable: boolean;
+}
+
+function shown(row: Procedure, viewer: Role | null): ShownProcedure {
+    return seesStats(viewer) ? row : { ...row, cost: null };
 }
 
 async function requireRow(id: string): Promise<Procedure> {
@@ -65,7 +72,10 @@ async function assertUsableAsParent(parentId: string): Promise<void> {
 }
 
 export const procedureService = {
-    async tree(input: ProcedureTreeInput = { includeInactive: false }): Promise<ProcedureNode[]> {
+    async tree(
+        input: ProcedureTreeInput = { includeInactive: false },
+        viewer: Role | null = null,
+    ): Promise<ProcedureNode[]> {
         const rows = await db
             .select()
             .from(procedureTypes)
@@ -86,8 +96,8 @@ export const procedureService = {
         return visible
             .filter((row) => row.parentId === null)
             .map((root) => ({
-                ...root,
-                children: childrenByParent.get(root.id) ?? [],
+                ...shown(root, viewer),
+                children: (childrenByParent.get(root.id) ?? []).map((child) => shown(child, viewer)),
                 selectable: !parents.has(root.id),
             }));
     },
@@ -125,6 +135,7 @@ export const procedureService = {
                     parentId: input.parentId ?? null,
                     name: input.name,
                     defaultPrice: input.defaultPrice,
+                    cost: input.cost ?? 0,
                     hasQuantity: input.hasQuantity,
                     isToothSpecific: input.isToothSpecific,
                     isCheckup: input.isCheckup,
@@ -169,6 +180,7 @@ export const procedureService = {
                     parentId: category.id,
                     name: input.first.name,
                     defaultPrice: input.first.defaultPrice,
+                    cost: input.first.cost ?? 0,
                     hasQuantity: input.first.hasQuantity,
                     isToothSpecific: input.first.isToothSpecific,
                     isCheckup: input.first.isCheckup,
@@ -261,13 +273,13 @@ export const procedureService = {
         broadcast(WS_EVENT.CATALOG_UPDATED);
     },
 
-    async selectableList(): Promise<Procedure[]> {
+    async selectableList(viewer: Role | null = null): Promise<ShownProcedure[]> {
         const rows = await db
             .select()
             .from(procedureTypes)
             .orderBy(asc(procedureTypes.sortOrder), asc(procedureTypes.name));
 
         const parents = new Set(rows.map((r) => r.parentId).filter((id): id is string => id !== null));
-        return rows.filter((row) => row.active && !parents.has(row.id));
+        return rows.filter((row) => row.active && !parents.has(row.id)).map((row) => shown(row, viewer));
     },
 };

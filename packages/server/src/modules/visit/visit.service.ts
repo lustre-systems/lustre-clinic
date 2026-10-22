@@ -35,6 +35,7 @@ import { computeTotal } from '../../util/money.ts';
 import { clinicDayOf } from '../../util/time.ts';
 import { broadcast } from '../../ws/index.ts';
 import { resolveProcedureLines } from '../procedure/procedure.rules.ts';
+import { type NextProcedure, pendingNext, setNext } from './visit.next.ts';
 import type {
     CheckInInput,
     CheckOutInput,
@@ -80,9 +81,15 @@ interface VisitPayment {
  * the patient's money too. A visit still open keeps its prices: the doctor
  * prices and checks it out.
  */
-interface Visit extends Omit<VisitRow, 'chargedTotal' | 'computedTotal'> {
+interface Visit
+    extends Omit<
+        VisitRow,
+        'chargedTotal' | 'computedTotal' | 'nextProcedureId' | 'nextProcedureTooth' | 'nextAppointmentId'
+    > {
     chargedTotal: number | null;
     computedTotal: number | null;
+    /** `appointmentId` is the booking that took it, null until one does. */
+    nextProcedure: (NextProcedure & { appointmentId: string | null }) | null;
     procedures: VisitLine[];
     payments: VisitPayment[] | null;
     paidTotal: number | null;
@@ -274,6 +281,7 @@ export const visitService = {
                     note: appointmentProcedures.note,
                     quotedPrice: appointmentProcedures.quotedPrice,
                     defaultPrice: procedureTypes.defaultPrice,
+                    cost: procedureTypes.cost,
                 })
                 .from(appointmentProcedures)
                 .innerJoin(procedureTypes, eq(appointmentProcedures.procedureId, procedureTypes.id))
@@ -288,6 +296,7 @@ export const visitService = {
                         procedureId: line.procedureId,
                         quantity: line.quantity,
                         unitPrice: line.quotedPrice ?? line.defaultPrice,
+                        unitCost: line.cost,
                         tooth: line.tooth,
                         note: line.note,
                     })),
@@ -315,8 +324,18 @@ export const visitService = {
         return visit;
     },
 
+    async pendingNext(patientId: string): Promise<NextProcedure | null> {
+        const pending = await pendingNext(db, patientId);
+        return pending
+            ? { procedureId: pending.procedureId, name: pending.name, tooth: pending.tooth }
+            : null;
+    },
+
     async byId(id: string, viewer?: Viewer): Promise<Visit> {
-        const visit = await requireVisit(db, id);
+        const { nextProcedureId, nextProcedureTooth, nextAppointmentId, ...visit } = await requireVisit(
+            db,
+            id,
+        );
 
         const lines = await db
             .select({
@@ -344,6 +363,14 @@ export const visitService = {
             .from(payments)
             .where(eq(payments.visitId, id));
 
+        const [nextType] = nextProcedureId
+            ? await db
+                  .select({ name: procedureTypes.name })
+                  .from(procedureTypes)
+                  .where(eq(procedureTypes.id, nextProcedureId))
+                  .limit(1)
+            : [];
+
         const paidTotal = paymentRows.reduce((sum, p) => sum + p.amount, 0);
         const shown = viewer === undefined || seesPayments(viewer);
         // Priced for the doctor until checkout: a patient sent to the desk can
@@ -359,6 +386,15 @@ export const visitService = {
                     ? { ...l, lineTotal: l.unitPrice * l.quantity }
                     : { ...l, unitPrice: null, lineTotal: null },
             ),
+            nextProcedure:
+                nextProcedureId && nextType
+                    ? {
+                          procedureId: nextProcedureId,
+                          name: nextType.name,
+                          tooth: nextProcedureTooth,
+                          appointmentId: nextAppointmentId,
+                      }
+                    : null,
             payments: shown ? paymentRows : null,
             paidTotal: shown ? paidTotal : null,
             balance: shown ? visit.chargedTotal - paidTotal : null,
@@ -367,16 +403,20 @@ export const visitService = {
 
     async setProcedures(input: SetProceduresInput, viewer?: Viewer): Promise<Visit> {
         const lines = await resolveProcedureLines(input.procedures);
+        const [next] = input.nextProcedure
+            ? await resolveProcedureLines([{ ...input.nextProcedure, quantity: 1 }])
+            : [];
 
         const resolved = lines.map((line, i) => ({
             procedureId: line.procedure.id,
             quantity: line.quantity,
             unitPrice: input.procedures[i]?.unitPrice ?? line.procedure.defaultPrice,
+            unitCost: line.procedure.cost,
             tooth: line.tooth,
             note: line.note,
         }));
 
-        await db.transaction(async (tx) => {
+        const booked = await db.transaction(async (tx) => {
             const visit = await requireVisit(tx, input.visitId);
             if (visit.completedAt) {
                 throw new AppError(
@@ -386,6 +426,16 @@ export const visitService = {
                 );
             }
 
+            // A line keeps the cost it was first priced at, like `unitPrice`'s
+            // snapshot: correcting a reopened visit must not re-read the
+            // catalogue and rewrite its profit. Only a procedure new to the
+            // visit takes today's cost.
+            const before = await tx
+                .select({ procedureId: visitProcedures.procedureId, unitCost: visitProcedures.unitCost })
+                .from(visitProcedures)
+                .where(eq(visitProcedures.visitId, visit.id));
+            const savedCost = new Map(before.map((line) => [line.procedureId, line.unitCost]));
+
             await tx.delete(visitProcedures).where(eq(visitProcedures.visitId, visit.id));
 
             if (resolved.length > 0) {
@@ -394,6 +444,7 @@ export const visitService = {
                         id: Bun.randomUUIDv7(),
                         visitId: visit.id,
                         ...line,
+                        unitCost: savedCost.get(line.procedureId) ?? line.unitCost,
                     })),
                 );
             }
@@ -403,8 +454,17 @@ export const visitService = {
             if (!visit.pricedAt) {
                 await tx.update(visits).set({ chargedTotal: computedTotal }).where(eq(visits.id, visit.id));
             }
+
+            if (input.nextProcedure === undefined) return null;
+            return setNext(
+                tx,
+                visit,
+                next ? { procedureId: next.procedure.id, tooth: next.tooth } : null,
+                new Date(),
+            );
         });
 
+        if (booked) broadcast(WS_EVENT.APPOINTMENT_UPDATED, { id: booked });
         broadcast(WS_EVENT.VISIT_UPDATED, { id: input.visitId });
         return this.byId(input.visitId, viewer);
     },

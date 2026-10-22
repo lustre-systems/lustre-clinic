@@ -4,9 +4,7 @@
 // than truncates so a figure carrying piastres reads as the nearer pound, never
 // less than is owed. Grouping is written out rather than taken from `Intl`,
 // which Hermes ships in varying completeness and which would group by device
-// locale where §7.11 wants one grouping in both languages. The collection rate
-// clamps to 0–1 because a day settling old debt can collect more than it
-// charged.
+// locale where §7.11 wants one grouping in both languages.
 //
 // The payment-entry rules that lived here — the whole-pounds guard and the
 // overpayment clamp — went to `screens/patients/components/money.ts` with the
@@ -65,11 +63,6 @@ export function currencyOf(locale: MoneyLocale): string {
     return locale === 'ar' ? 'ج.م' : 'EGP';
 }
 
-export function collectionRate(charged: number, collected: number): number {
-    if (charged <= 0) return 1;
-    return Math.min(1, Math.max(0, collected / charged));
-}
-
 /**
  * One payment method's share of the period's takings.
  *
@@ -79,7 +72,7 @@ export function collectionRate(charged: number, collected: number): number {
  * the period's total can net to zero or below. None of those are a length of
  * bar: a negative share draws a bar backwards out of its track and labels it
  * "-33%", and dividing by a zero or negative total is not a percentage of
- * anything. Clamped like `collectionRate`, for the same reason.
+ * anything, so the share is clamped to 0–1.
  *
  * `hasShareBase` is the question the card has to ask *before* this: a period
  * with rows but no positive total has amounts worth showing and no split worth
@@ -92,14 +85,6 @@ export function methodShare(amount: number, total: number): number {
 
 export function hasShareBase(total: number): boolean {
     return total > 0;
-}
-
-export function amountStillDue(difference: number): number {
-    return Math.max(0, difference);
-}
-
-export function collectedAhead(difference: number): number {
-    return Math.max(0, -difference);
 }
 
 export function currencyLeads(locale: MoneyLocale): boolean {
@@ -127,7 +112,7 @@ export type DateRange = {
 
 // `balance.summary` and `balance.takings` take a closed range, so "All time"
 // needs a floor rather than an open start. No clinic record predates this.
-const FIRST_RECORD = '2000-01-01';
+export const FIRST_RECORD = '2000-01-01';
 
 /**
  * The pills, as the two range queries want them: local `YYYY-MM-DD` days plus
@@ -171,27 +156,4 @@ function periodStart(period: Period, today: string): string {
     if (period === 'month') return `${today.slice(0, 7)}-01`;
     if (period === 'year') return `${today.slice(0, 4)}-01-01`;
     return FIRST_RECORD;
-}
-
-export const DEBTOR_SORTS = ['balance', 'oldest', 'name'] as const;
-
-export type DebtorSort = (typeof DEBTOR_SORTS)[number];
-
-export const DEBTOR_SORT_LABEL: Record<DebtorSort, string> = {
-    balance: 'By balance',
-    oldest: 'Oldest first',
-    name: 'Name A–Z',
-};
-
-type SortableDebtor = { name: string; balance: number; oldestUnpaidAt: string };
-
-// Reordering is not arithmetic on money — nothing here adds a balance up, it
-// only compares two the server already derived. `oldest` compares the ISO
-// stamps directly, which sort lexicographically, so the longest-owed row leads.
-export function sortDebtors<T extends SortableDebtor>(rows: readonly T[], sort: DebtorSort): T[] {
-    const ordered = [...rows];
-
-    if (sort === 'oldest') return ordered.sort((a, b) => a.oldestUnpaidAt.localeCompare(b.oldestUnpaidAt));
-    if (sort === 'name') return ordered.sort((a, b) => a.name.localeCompare(b.name));
-    return ordered.sort((a, b) => b.balance - a.balance);
 }

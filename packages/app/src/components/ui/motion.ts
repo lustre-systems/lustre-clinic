@@ -24,6 +24,8 @@ export const duration = {
     /** A field's menu unfolding; it folds away at `popover`. */
     drop: 260,
     step: 240,
+    /** A chart line drawing itself in, end to end. */
+    draw: 700,
 } as const;
 
 export const easing = {

@@ -62,6 +62,7 @@ export interface ProcedureTypeRow {
     parentId: string | null;
     name: string;
     defaultPrice: number;
+    cost: number;
     hasQuantity: boolean;
     isToothSpecific: boolean;
     isCheckup: boolean;
@@ -108,6 +109,9 @@ export interface VisitRow {
     completedAt: Date | null;
     computedTotal: number;
     chargedTotal: number;
+    nextProcedureId: string | null;
+    nextProcedureTooth: Tooth | null;
+    nextAppointmentId: string | null;
     createdAt: Date;
 }
 
@@ -117,6 +121,7 @@ export interface VisitProcedureRow {
     procedureId: string;
     quantity: number;
     unitPrice: number;
+    unitCost: number;
     tooth: Tooth | null;
     note: string | null;
 }
@@ -252,8 +257,11 @@ const STORE_KEY = 'lustre.demo.db';
  * 11: planned procedures carry `quotedPrice`.
  * 12: `roleGrants` and `devices`, and settings carry `requireProvisioning`.
  * 13: settings carry `clinicType`.
+ * 14: visits carry `nextProcedureId`, `nextProcedureTooth` and `nextAppointmentId`.
+ * 15: procedures carry `cost`, and visit lines `unitCost`.
+ * 16: a year of history at both branches, for the stats screen.
  */
-const STORE_VERSION = 13;
+const STORE_VERSION = 16;
 
 let db: DemoDb | null = null;
 
@@ -349,6 +357,13 @@ function reviveRows(rows: unknown, fields: readonly string[]): void {
 export function revive(parsed: DemoDb): DemoDb {
     for (const [table, fields] of Object.entries(DATE_FIELDS)) {
         reviveRows(parsed[table as keyof DemoDb], fields);
+    }
+    // A local clinic file from before the next procedure has no such fields, and
+    // is upgraded rather than refused (`localFormat.ts`).
+    for (const visit of parsed.visits ?? []) {
+        visit.nextProcedureId ??= null;
+        visit.nextProcedureTooth ??= null;
+        visit.nextAppointmentId ??= null;
     }
     if (typeof parsed.settings?.updatedAt === 'string') {
         parsed.settings.updatedAt = new Date(parsed.settings.updatedAt);

@@ -57,6 +57,8 @@ const EXPECTED = [
     'reminder.dismissToday',
     'reminder.resumeToday',
     'stats.summary',
+    'stats.overview',
+    'stats.trend',
     'migration.progress',
     'device.me',
     'device.redeem',
