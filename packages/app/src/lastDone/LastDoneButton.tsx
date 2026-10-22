@@ -4,8 +4,8 @@
  *
  * When the tab it sits on is opened and something has been done since the
  * sheet was last looked at, it widens to show its label — "Last done ↺", the
- * icon on the far side from the words — turning the icon once backwards as it
- * goes, holds for two seconds and folds back. Nothing new, no movement: after
+ * icon on the far side from the words — spinning the icon backwards as it goes,
+ * holds for two seconds and folds back, spinning forward again. Nothing new, no movement: after
  * fifty tab switches a day it would otherwise be noise. Reduced motion skips it
  * altogether.
  *
@@ -27,7 +27,7 @@ import Animated, {
     withTiming,
 } from 'react-native-reanimated';
 import { GLYPH, icon } from '../components/domain';
-import { duration, useReducedMotion } from '../components/ui';
+import { useReducedMotion } from '../components/ui';
 import { useT } from '../i18n';
 import { border, color, radius, shadow, space, Text } from '../theme';
 import { hasUnseen, lastDone } from './store';
@@ -36,6 +36,12 @@ const HistoryIcon = icon(GLYPH.lastDone, { width: 2.2 });
 
 const SLOT = 36;
 const HOLD_MS = 2000;
+// Two full turns each way: back as it opens, forward again as it closes, so it
+// winds back to where it started. Longer than `ui/motion`'s promote and
+// collapse, which spin a turn and a half too fast to read.
+const TURNS = 2;
+const OPEN_MS = 700;
+const CLOSE_MS = 600;
 // `ui/motion`'s promote and standard curves, as worklets: the UI thread cannot
 // run React Native's own `Easing`.
 const PROMOTE = Easing.bezier(0.22, 0.9, 0.3, 1);
@@ -70,10 +76,13 @@ export function LastDoneButton({ active, onPress }: LastDoneButtonProps) {
         if (!ready || !unseen || reduced) return;
 
         open.value = withSequence(
-            withTiming(1, { duration: duration.promote, easing: PROMOTE }),
-            withDelay(HOLD_MS, withTiming(0, { duration: duration.collapse, easing: SETTLE })),
+            withTiming(1, { duration: OPEN_MS, easing: PROMOTE }),
+            withDelay(HOLD_MS, withTiming(0, { duration: CLOSE_MS, easing: SETTLE })),
         );
-        turn.value = withTiming(-360, { duration: duration.promote, easing: PROMOTE });
+        turn.value = withSequence(
+            withTiming(-360 * TURNS, { duration: OPEN_MS, easing: PROMOTE }),
+            withDelay(HOLD_MS, withTiming(0, { duration: CLOSE_MS, easing: SETTLE })),
+        );
     }, [ready]);
 
     const pill = useAnimatedStyle(() => ({
