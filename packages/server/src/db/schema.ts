@@ -225,9 +225,7 @@ export const visits = pgTable('visits', {
     computedTotal: integer('computed_total').notNull().default(0),
     chargedTotal: integer('charged_total').notNull().default(0),
     // The booking that took `visit_next_procedures`: null while the patient's
-    // next booking is still to be made. The table still has 0024's
-    // `next_procedure_id` and `next_procedure_tooth`, unread since 0026: the
-    // server being replaced reads them until the deploy swaps it out.
+    // next booking is still to be made.
     nextAppointmentId: uuid('next_appointment_id').references((): AnyPgColumn => appointments.id, {
         onDelete: 'set null',
     }),
