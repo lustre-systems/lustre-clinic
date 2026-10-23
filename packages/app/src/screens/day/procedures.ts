@@ -167,22 +167,38 @@ export function planFrom(
     categories: readonly ProcedureCategory[],
 ): PlannedProcedure[] {
     return booked.map((line) => {
-        const base = { id: line.id, procedureId: line.procedureId, tooth: line.tooth };
-        const priced = (defaultPrice: number) => ({
+        const found = headingOf(line.procedureId, categories);
+        const defaultPrice = found?.defaultPrice ?? 0;
+        return {
+            id: line.id,
+            procedureId: line.procedureId,
+            tooth: line.tooth,
+            name: found?.name ?? line.name,
+            variant: found?.variant ?? null,
             price: line.quotedPrice ?? defaultPrice,
             defaultPrice,
             quoted: line.quotedPrice !== null,
-        });
-        for (const category of categories) {
-            if (category.id === line.procedureId) {
-                return { ...base, name: category.name, variant: null, ...priced(category.defaultPrice) };
-            }
-            const child = category.children.find((row) => row.id === line.procedureId);
-            if (child)
-                return { ...base, name: category.name, variant: child.name, ...priced(child.defaultPrice) };
-        }
-        return { ...base, name: line.name, variant: null, ...priced(0) };
+        };
     });
+}
+
+/**
+ * A procedure as the catalogue reads it out: its heading, and the variant under
+ * it when it is one. The server stores and returns the leaf alone, so "Class II"
+ * needs this to read as "Composite filling · Class II" again.
+ */
+export function headingOf(
+    procedureId: string,
+    categories: readonly ProcedureCategory[],
+): { name: string; variant: string | null; defaultPrice: number } | null {
+    for (const category of categories) {
+        if (category.id === procedureId) {
+            return { name: category.name, variant: null, defaultPrice: category.defaultPrice };
+        }
+        const child = category.children.find((row) => row.id === procedureId);
+        if (child) return { name: category.name, variant: child.name, defaultPrice: child.defaultPrice };
+    }
+    return null;
 }
 
 /** Whether the plan still says what the appointment is booked for, at the price it was booked at. */

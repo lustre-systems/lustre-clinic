@@ -31,6 +31,11 @@ export const visitRouter = router({
         return row ? visitService.byId(row.id, ctx.caller.role) : null;
     }),
 
+    pendingNextProcedures: clinicProcedure
+        .input(pendingNextInput)
+        .query(({ input }) => visitService.pendingNextProcedures(input.patientId)),
+
+    /** The first of them, for phones on 1.10. */
     pendingNext: clinicProcedure
         .input(pendingNextInput)
         .query(({ input }) => visitService.pendingNext(input.patientId)),

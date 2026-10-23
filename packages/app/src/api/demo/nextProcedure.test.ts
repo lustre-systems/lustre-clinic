@@ -1,5 +1,5 @@
 /**
- * The next procedure against the demo and local-mode backend. The server's twin
+ * The next procedures against the demo and local-mode backend. The server's twin
  * is `packages/server/tests/next-procedure.test.ts`; a phone with no server
  * must take it onto the next booking the same way.
  */
@@ -32,8 +32,9 @@ function fixtures() {
     const db = getDb();
     const branch = db.branches[0];
     const work = db.procedureTypes.find((row) => row.name === 'Scaling & polishing');
-    if (!branch || !work) throw new Error('the seed is missing its fixtures');
-    return { branch, patient: { id: patientId }, work };
+    const consult = db.procedureTypes.find((row) => row.name === 'Consultation');
+    if (!branch || !work || !consult) throw new Error('the seed is missing its fixtures');
+    return { branch, patient: { id: patientId }, work, consult };
 }
 
 function book(daysOut: number) {
@@ -66,53 +67,104 @@ function visitToday() {
     return visitHandlers.checkIn({ appointmentId: appointment.id });
 }
 
-describe('the next procedure in local mode', () => {
-    it('is owed until the next booking is made, which takes it', () => {
+describe('the next procedures in local mode', () => {
+    const owed = () => visitHandlers.pendingNextProcedures({ patientId }).map((line) => line.procedureId);
+
+    it('are owed until the next booking is made, which takes them', () => {
         const visit = visitToday();
-        const { patient, work } = fixtures();
+        const { work, consult } = fixtures();
 
         visitHandlers.setProcedures({
             visitId: visit.id,
             procedures: [],
-            nextProcedure: { procedureId: work.id },
+            nextProcedures: [{ procedureId: work.id }, { procedureId: consult.id }],
         });
-        expect(visitHandlers.pendingNext({ patientId: patient.id })?.procedureId).toBe(work.id);
+        expect(owed()).toEqual([work.id, consult.id]);
 
         const next = book(20);
 
-        expect(visitHandlers.pendingNext({ patientId: patient.id })).toBeNull();
-        expect(visitHandlers.byId({ id: visit.id }).nextProcedure?.appointmentId).toBe(next.id);
+        expect(owed()).toEqual([]);
+        expect(visitHandlers.byId({ id: visit.id }).nextAppointmentId).toBe(next.id);
     });
 
-    it('goes onto the earliest booking already waiting', () => {
+    it('go onto the earliest booking already waiting', () => {
         const visit = visitToday();
-        const { patient, work } = fixtures();
+        const { work, consult } = fixtures();
         const waiting = book(20);
         const later = book(30);
 
         visitHandlers.setProcedures({
             visitId: visit.id,
             procedures: [],
-            nextProcedure: { procedureId: work.id },
+            nextProcedures: [{ procedureId: work.id }, { procedureId: consult.id }],
         });
 
         const lines = (id: string) =>
             getDb().appointmentProcedures.filter((line) => line.appointmentId === id);
-        expect(lines(waiting.id).map((line) => line.procedureId)).toEqual([work.id]);
+        expect(lines(waiting.id).map((line) => line.procedureId)).toEqual([work.id, consult.id]);
         expect(lines(later.id)).toEqual([]);
-        expect(visitHandlers.pendingNext({ patientId: patient.id })).toBeNull();
+        expect(owed()).toEqual([]);
+    });
+
+    it('are owed again, and no longer shown as booked, once that booking is cancelled', () => {
+        const visit = visitToday();
+        const { work } = fixtures();
+        visitHandlers.setProcedures({
+            visitId: visit.id,
+            procedures: [],
+            nextProcedures: [{ procedureId: work.id }],
+        });
+        const next = book(20);
+
+        appointmentHandlers.cancel({ id: next.id });
+
+        expect(owed()).toEqual([work.id]);
+        expect(visitHandlers.byId({ id: visit.id }).nextAppointmentId).toBeNull();
+    });
+
+    it("take 1.10's single next procedure, and clear on null", () => {
+        const visit = visitToday();
+        const { work } = fixtures();
+
+        visitHandlers.setProcedures({
+            visitId: visit.id,
+            procedures: [],
+            nextProcedure: { procedureId: work.id },
+        });
+        expect(owed()).toEqual([work.id]);
+        expect(visitHandlers.pendingNext({ patientId })?.procedureId).toBe(work.id);
+
+        visitHandlers.setProcedures({ visitId: visit.id, procedures: [], nextProcedure: null });
+        expect(owed()).toEqual([]);
     });
 
     it('opens a clinic file written before it existed', () => {
         const stored = JSON.parse(JSON.stringify(getDb()));
         for (const visit of stored.visits) {
-            delete visit.nextProcedureId;
-            delete visit.nextProcedureTooth;
+            delete visit.nextProcedures;
             delete visit.nextAppointmentId;
         }
 
         const opened = revive(stored);
 
-        expect(opened.visits.every((visit) => visit.nextProcedureId === null)).toBe(true);
+        expect(opened.visits.every((visit) => visit.nextProcedures.length === 0)).toBe(true);
+    });
+
+    it('opens a 1.10 clinic file, carrying its single next procedure over', () => {
+        const { work } = fixtures();
+        const stored = JSON.parse(JSON.stringify(getDb()));
+        for (const visit of stored.visits) {
+            delete visit.nextProcedures;
+            visit.nextProcedureId = null;
+            visit.nextProcedureTooth = null;
+        }
+        stored.visits[0].nextProcedureId = work.id;
+        stored.visits[0].nextProcedureTooth = 'UR6';
+
+        const opened = revive(stored);
+
+        expect(opened.visits[0]?.nextProcedures).toEqual([{ procedureId: work.id, tooth: 'UR6' }]);
+        expect(opened.visits[0]).not.toHaveProperty('nextProcedureId');
+        expect(opened.visits[1]?.nextProcedures).toEqual([]);
     });
 });

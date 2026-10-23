@@ -461,6 +461,7 @@ export const COPY_AR = {
     'Add procedure': 'إضافة إجراء',
     'NEXT PROCEDURE': 'الإجراء التالي',
     'Choose next procedure': 'اختيار الإجراء التالي',
+    'Add next procedure': 'إضافة إجراء تالٍ',
     'Change next procedure': 'تغيير الإجراء التالي',
     'Clear next procedure': 'إزالة الإجراء التالي',
     'On their next booking': 'مضاف إلى حجزه القادم',

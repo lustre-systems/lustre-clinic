@@ -48,6 +48,7 @@ export async function truncateAll(): Promise<void> {
         TRUNCATE TABLE
             payments,
             visit_procedures,
+            visit_next_procedures,
             visits,
             reminders,
             ref_edits,

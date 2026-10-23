@@ -1,28 +1,34 @@
 /**
- * The next procedure: what the doctor wants done at the patient's next visit,
- * chosen while recording this one. It lives on the visit (`next_procedure_id`,
- * `next_procedure_tooth`), and `next_appointment_id` is the booking that took it.
+ * The next procedures: what the doctor wants done at the patient's next visit,
+ * chosen while recording this one. They live in `visit_next_procedures`, and
+ * the visit's `next_appointment_id` is the booking that took them — all of
+ * them, since they are one return visit's worth of work.
  *
- * A booking takes it one of two ways. The patient usually has none yet, so the
- * next one made for them takes it: the booking page offers the line, and
- * `takeNext` marks it taken whether the desk kept the line or not. But the desk
- * is asked to book the return at check-in, before the doctor has seen the
- * patient, so a booking often exists already. Then setting it puts the line on
- * the earliest one still to come instead, which is the booking the patient will
- * actually turn up for.
+ * A booking takes them one of two ways. The patient usually has none yet, so
+ * the next one made for them takes them: the booking page offers the lines, and
+ * `takeNext` marks them taken whether the desk kept the lines or not. But the
+ * desk is asked to book the return at check-in, before the doctor has seen the
+ * patient, so a booking often exists already. Then setting them puts the lines
+ * on the earliest one still to come instead, which is the booking the patient
+ * will actually turn up for.
  *
- * Only the latest visit that set one counts: an older wish the doctor did not
- * repeat is not owed. One whose booking was cancelled or missed is owed again,
- * because the work still has not been done.
+ * Only the latest visit that set any counts: an older wish the doctor did not
+ * repeat is not owed. Ones whose booking was cancelled or missed are owed
+ * again, because the work still has not been done.
  *
  * Kept out of `visit.service.ts` because `appointment.service.ts` needs it and
  * the visit service already imports that one.
  */
 import type { Tooth } from '@lustre/shared';
-import { and, asc, desc, eq, gt, isNotNull, ne } from 'drizzle-orm';
-import { alias } from 'drizzle-orm/pg-core';
+import { and, asc, desc, eq, exists, gt, ne } from 'drizzle-orm';
 import type { Executor } from '../../db/index.ts';
-import { appointmentProcedures, appointments, procedureTypes, visits } from '../../db/schema.ts';
+import {
+    appointmentProcedures,
+    appointments,
+    procedureTypes,
+    visitNextProcedures,
+    visits,
+} from '../../db/schema.ts';
 
 export interface NextProcedure {
     procedureId: string;
@@ -30,73 +36,120 @@ export interface NextProcedure {
     tooth: Tooth | null;
 }
 
-export interface PendingNext extends NextProcedure {
-    visitId: string;
+interface NextLine {
+    procedureId: string;
+    tooth: Tooth | null;
 }
 
-const taker = alias(appointments, 'taker');
+/** A booking cancelled or missed did not do the work, so what it took is owed again. */
+function stillStanding(status: string | null | undefined): boolean {
+    return status != null && status !== 'cancelled' && status !== 'no_show';
+}
 
-/** The next procedure this patient is still owed, or null. */
-export async function pendingNext(executor: Executor, patientId: string): Promise<PendingNext | null> {
-    const [latest] = await executor
+/** The visit's next procedures in the doctor's order, with their names. */
+export async function nextOf(executor: Executor, visitId: string): Promise<NextProcedure[]> {
+    return executor
         .select({
-            visitId: visits.id,
-            procedureId: procedureTypes.id,
+            procedureId: visitNextProcedures.procedureId,
             name: procedureTypes.name,
-            tooth: visits.nextProcedureTooth,
-            takenBy: taker.status,
+            tooth: visitNextProcedures.tooth,
         })
+        .from(visitNextProcedures)
+        .innerJoin(procedureTypes, eq(procedureTypes.id, visitNextProcedures.procedureId))
+        .where(eq(visitNextProcedures.visitId, visitId))
+        .orderBy(asc(visitNextProcedures.sortOrder));
+}
+
+/** The booking that took the visit's next procedures, while it still stands to do them. */
+export async function takenBy(executor: Executor, appointmentId: string | null): Promise<string | null> {
+    if (!appointmentId) return null;
+    const [taker] = await executor
+        .select({ status: appointments.status })
+        .from(appointments)
+        .where(eq(appointments.id, appointmentId))
+        .limit(1);
+    return stillStanding(taker?.status) ? appointmentId : null;
+}
+
+/** What this patient is still owed, and the visit that asked for it; none is an empty list. */
+async function owed(
+    executor: Executor,
+    patientId: string,
+): Promise<{ visitId: string; procedures: NextProcedure[] } | null> {
+    const [latest] = await executor
+        .select({ visitId: visits.id, takenBy: visits.nextAppointmentId })
         .from(visits)
         .innerJoin(appointments, eq(appointments.id, visits.appointmentId))
-        .innerJoin(procedureTypes, eq(procedureTypes.id, visits.nextProcedureId))
-        .leftJoin(taker, eq(taker.id, visits.nextAppointmentId))
-        .where(and(eq(appointments.patientId, patientId), isNotNull(visits.nextProcedureId)))
+        .where(
+            and(
+                eq(appointments.patientId, patientId),
+                exists(
+                    executor
+                        .select({ id: visitNextProcedures.id })
+                        .from(visitNextProcedures)
+                        .where(eq(visitNextProcedures.visitId, visits.id)),
+                ),
+            ),
+        )
         .orderBy(desc(visits.checkedInAt))
         .limit(1);
 
-    if (!latest) return null;
-    if (latest.takenBy !== null && latest.takenBy !== 'cancelled' && latest.takenBy !== 'no_show') {
-        return null;
-    }
-    return {
-        visitId: latest.visitId,
-        procedureId: latest.procedureId,
-        name: latest.name,
-        tooth: latest.tooth,
-    };
+    if (!latest || (await takenBy(executor, latest.takenBy))) return null;
+    return { visitId: latest.visitId, procedures: await nextOf(executor, latest.visitId) };
+}
+
+/** The next procedures this patient is still owed, in order; empty when none. */
+export async function pendingNext(executor: Executor, patientId: string): Promise<NextProcedure[]> {
+    return (await owed(executor, patientId))?.procedures ?? [];
 }
 
 /** A booking was just made for this patient: it takes what they are owed. */
 export async function takeNext(tx: Executor, patientId: string, appointmentId: string): Promise<void> {
-    const pending = await pendingNext(tx, patientId);
+    const pending = await owed(tx, patientId);
     if (!pending) return;
     await tx.update(visits).set({ nextAppointmentId: appointmentId }).where(eq(visits.id, pending.visitId));
 }
 
+function sameLines(a: readonly NextLine[], b: readonly NextLine[]): boolean {
+    return (
+        a.length === b.length &&
+        a.every((line, i) => line.procedureId === b[i]?.procedureId && line.tooth === b[i]?.tooth)
+    );
+}
+
 /**
- * Records the visit's next procedure, already checked against §5. Returns the
- * booking it was added to, so the caller can tell the screens showing it.
+ * Records the visit's next procedures, already checked against §5. Returns the
+ * booking they were added to, so the caller can tell the screens showing it.
  *
- * Unchanged is left alone, so pressing Confirm again does not add the line to a
- * booking a second time. A change is not taken back off a booking it already
+ * Unchanged is left alone, so pressing Confirm again does not add the lines to
+ * a booking a second time. A change is not taken back off a booking it already
  * went onto: the desk may have planned that line itself.
  */
 export async function setNext(
     tx: Executor,
     visit: typeof visits.$inferSelect,
-    next: { procedureId: string; tooth: Tooth | null } | null,
+    next: readonly NextLine[],
     now: Date,
 ): Promise<string | null> {
-    if (next === null) {
-        if (visit.nextProcedureId === null) return null;
-        await tx
-            .update(visits)
-            .set({ nextProcedureId: null, nextProcedureTooth: null, nextAppointmentId: null })
-            .where(eq(visits.id, visit.id));
+    const current = await nextOf(tx, visit.id);
+    if (sameLines(current, next)) return null;
+
+    await tx.delete(visitNextProcedures).where(eq(visitNextProcedures.visitId, visit.id));
+
+    if (next.length === 0) {
+        await tx.update(visits).set({ nextAppointmentId: null }).where(eq(visits.id, visit.id));
         return null;
     }
 
-    if (visit.nextProcedureId === next.procedureId && visit.nextProcedureTooth === next.tooth) return null;
+    await tx.insert(visitNextProcedures).values(
+        next.map((line, i) => ({
+            id: Bun.randomUUIDv7(),
+            visitId: visit.id,
+            procedureId: line.procedureId,
+            tooth: line.tooth,
+            sortOrder: i,
+        })),
+    );
 
     const [own] = await tx
         .select({ patientId: appointments.patientId })
@@ -122,26 +175,18 @@ export async function setNext(
               .limit(1)
         : [];
 
-    if (upcoming) await addLine(tx, upcoming.id, next);
+    if (upcoming) await addLines(tx, upcoming.id, next);
 
     await tx
         .update(visits)
-        .set({
-            nextProcedureId: next.procedureId,
-            nextProcedureTooth: next.tooth,
-            nextAppointmentId: upcoming?.id ?? null,
-        })
+        .set({ nextAppointmentId: upcoming?.id ?? null })
         .where(eq(visits.id, visit.id));
 
     return upcoming?.id ?? null;
 }
 
-/** Last on the booking's plan, unless the plan already has it. */
-async function addLine(
-    tx: Executor,
-    appointmentId: string,
-    next: { procedureId: string; tooth: Tooth | null },
-): Promise<void> {
+/** Last on the booking's plan, each unless the plan already has it. */
+async function addLines(tx: Executor, appointmentId: string, next: readonly NextLine[]): Promise<void> {
     const lines = await tx
         .select({
             procedureId: appointmentProcedures.procedureId,
@@ -151,14 +196,20 @@ async function addLine(
         .from(appointmentProcedures)
         .where(eq(appointmentProcedures.appointmentId, appointmentId));
 
-    if (lines.some((line) => line.procedureId === next.procedureId && line.tooth === next.tooth)) return;
+    const missing = next.filter(
+        (want) => !lines.some((line) => line.procedureId === want.procedureId && line.tooth === want.tooth),
+    );
+    if (missing.length === 0) return;
 
-    await tx.insert(appointmentProcedures).values({
-        id: Bun.randomUUIDv7(),
-        appointmentId,
-        procedureId: next.procedureId,
-        quantity: 1,
-        tooth: next.tooth,
-        sortOrder: Math.max(-1, ...lines.map((line) => line.sortOrder)) + 1,
-    });
+    const last = Math.max(-1, ...lines.map((line) => line.sortOrder));
+    await tx.insert(appointmentProcedures).values(
+        missing.map((line, i) => ({
+            id: Bun.randomUUIDv7(),
+            appointmentId,
+            procedureId: line.procedureId,
+            quantity: 1,
+            tooth: line.tooth,
+            sortOrder: last + 1 + i,
+        })),
+    );
 }

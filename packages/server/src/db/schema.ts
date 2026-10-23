@@ -208,39 +208,47 @@ export const appointmentProcedures = pgTable(
     ],
 );
 
-export const visits = pgTable(
-    'visits',
+export const visits = pgTable('visits', {
+    id: uuid('id').primaryKey(),
+    appointmentId: uuid('appointment_id')
+        .notNull()
+        .unique()
+        .references(() => appointments.id),
+    checkedInAt: timestamptz('checked_in_at').notNull(),
+    // Arrived and seated are two different moments, and the chair's progress
+    // bar is measured from the second one. The desk checks people in as they
+    // come through the door and they queue, so `checked_in_at` is when the wait
+    // started; `in_chair_at` is when it ended. Null means still waiting.
+    inChairAt: timestamptz('in_chair_at'),
+    pricedAt: timestamptz('priced_at'),
+    completedAt: timestamptz('completed_at'),
+    computedTotal: integer('computed_total').notNull().default(0),
+    chargedTotal: integer('charged_total').notNull().default(0),
+    // The booking that took `visit_next_procedures`: null while the patient's
+    // next booking is still to be made. The table still has 0024's
+    // `next_procedure_id` and `next_procedure_tooth`, unread since 0026: the
+    // server being replaced reads them until the deploy swaps it out.
+    nextAppointmentId: uuid('next_appointment_id').references((): AnyPgColumn => appointments.id, {
+        onDelete: 'set null',
+    }),
+    createdAt: timestamptz('created_at').notNull().defaultNow(),
+});
+
+/** What the doctor wants done at the patient's next visit (`visit.next.ts`, 0026). */
+export const visitNextProcedures = pgTable(
+    'visit_next_procedures',
     {
         id: uuid('id').primaryKey(),
-        appointmentId: uuid('appointment_id')
+        visitId: uuid('visit_id')
             .notNull()
-            .unique()
-            .references(() => appointments.id),
-        checkedInAt: timestamptz('checked_in_at').notNull(),
-        // Arrived and seated are two different moments, and the chair's progress
-        // bar is measured from the second one. The desk checks people in as they
-        // come through the door and they queue, so `checked_in_at` is when the wait
-        // started; `in_chair_at` is when it ended. Null means still waiting.
-        inChairAt: timestamptz('in_chair_at'),
-        pricedAt: timestamptz('priced_at'),
-        completedAt: timestamptz('completed_at'),
-        computedTotal: integer('computed_total').notNull().default(0),
-        chargedTotal: integer('charged_total').notNull().default(0),
-        // What the doctor wants done next time, and the booking that took it: null
-        // while the patient's next booking is still to be made (0024).
-        nextProcedureId: uuid('next_procedure_id').references(() => procedureTypes.id),
-        nextProcedureTooth: text('next_procedure_tooth', { enum: TEETH }),
-        nextAppointmentId: uuid('next_appointment_id').references((): AnyPgColumn => appointments.id, {
-            onDelete: 'set null',
-        }),
-        createdAt: timestamptz('created_at').notNull().defaultNow(),
+            .references(() => visits.id, { onDelete: 'cascade' }),
+        procedureId: uuid('procedure_id')
+            .notNull()
+            .references(() => procedureTypes.id),
+        tooth: text('tooth', { enum: TEETH }),
+        sortOrder: integer('sort_order').notNull().default(0),
     },
-    (t) => [
-        check(
-            'visits_next_procedure_set',
-            sql`${t.nextProcedureId} IS NOT NULL OR (${t.nextProcedureTooth} IS NULL AND ${t.nextAppointmentId} IS NULL)`,
-        ),
-    ],
+    (t) => [index('visit_next_procedures_visit_id_idx').on(t.visitId)],
 );
 
 export const payments = pgTable(

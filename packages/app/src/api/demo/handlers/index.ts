@@ -87,6 +87,7 @@ const handlers = {
 
     'visit.byId': visitHandlers.byId,
     'visit.byAppointment': visitHandlers.byAppointment,
+    'visit.pendingNextProcedures': visitHandlers.pendingNextProcedures,
     'visit.pendingNext': visitHandlers.pendingNext,
     'visit.checkIn': visitHandlers.checkIn,
     'visit.setProcedures': visitHandlers.setProcedures,

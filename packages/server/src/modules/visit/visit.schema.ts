@@ -23,6 +23,8 @@ export const visitByIdInput = z.object({ id: z.uuid() });
 
 export const visitByAppointmentInput = z.object({ appointmentId: z.uuid() });
 
+const nextLine = z.object({ procedureId: z.uuid(), tooth: toothSchema.nullish() });
+
 export const setProceduresInput = z.object({
     visitId: z.uuid(),
     procedures: z
@@ -37,13 +39,18 @@ export const setProceduresInput = z.object({
         )
         .max(100),
     /**
-     * What to do at the patient's next visit (`visit.next.ts`). Left off keeps
-     * what is there; null clears it.
+     * What to do at the patient's next visit (`visit.next.ts`), in order. Left
+     * off keeps what is there; empty clears it.
      */
-    nextProcedure: z.object({ procedureId: z.uuid(), tooth: toothSchema.nullish() }).nullable().optional(),
+    nextProcedures: z.array(nextLine).max(20).optional(),
+    /**
+     * The single next procedure phones on 1.10 send: one becomes a list of one,
+     * null clears. Ignored when `nextProcedures` is given.
+     */
+    nextProcedure: nextLine.nullable().optional(),
 });
 
-/** What this patient's next booking should be for, if a visit asked for something. */
+/** What this patient's next booking should be for, if a visit asked for anything. */
 export const pendingNextInput = z.object({ patientId: z.uuid() });
 
 export const setPriceInput = z.object({

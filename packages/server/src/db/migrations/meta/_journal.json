@@ -176,6 +176,13 @@
       "when": 1792700000000,
       "tag": "0025_procedure_cost",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1792800000000,
+      "tag": "0026_visit_next_procedures",
+      "breakpoints": true
     }
   ]
 }

@@ -91,8 +91,7 @@ export function writeOldPatientHistory(
         completedAt: cutoffAt,
         computedTotal: plan.openingBalance,
         chargedTotal: plan.openingBalance,
-        nextProcedureId: null,
-        nextProcedureTooth: null,
+        nextProcedures: [],
         nextAppointmentId: null,
         createdAt: cutoffAt,
     };

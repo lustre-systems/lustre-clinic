@@ -244,8 +244,7 @@ export const procedureHandlers = {
             completedAt: at,
             computedTotal: chargedTotal,
             chargedTotal,
-            nextProcedureId: null,
-            nextProcedureTooth: null,
+            nextProcedures: [],
             nextAppointmentId: null,
             createdAt: at,
         };

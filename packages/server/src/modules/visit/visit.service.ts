@@ -35,7 +35,7 @@ import { computeTotal } from '../../util/money.ts';
 import { clinicDayOf } from '../../util/time.ts';
 import { broadcast } from '../../ws/index.ts';
 import { resolveProcedureLines } from '../procedure/procedure.rules.ts';
-import { type NextProcedure, pendingNext, setNext } from './visit.next.ts';
+import { type NextProcedure, nextOf, pendingNext, setNext, takenBy } from './visit.next.ts';
 import type {
     CheckInInput,
     CheckOutInput,
@@ -81,14 +81,12 @@ interface VisitPayment {
  * the patient's money too. A visit still open keeps its prices: the doctor
  * prices and checks it out.
  */
-interface Visit
-    extends Omit<
-        VisitRow,
-        'chargedTotal' | 'computedTotal' | 'nextProcedureId' | 'nextProcedureTooth' | 'nextAppointmentId'
-    > {
+interface Visit extends Omit<VisitRow, 'chargedTotal' | 'computedTotal'> {
     chargedTotal: number | null;
     computedTotal: number | null;
-    /** `appointmentId` is the booking that took it, null until one does. */
+    /** What the patient's next visit is for (`visit.next.ts`), in order. */
+    nextProcedures: NextProcedure[];
+    /** The first of them, as phones on 1.10 read it. */
     nextProcedure: (NextProcedure & { appointmentId: string | null }) | null;
     procedures: VisitLine[];
     payments: VisitPayment[] | null;
@@ -324,18 +322,17 @@ export const visitService = {
         return visit;
     },
 
+    async pendingNextProcedures(patientId: string): Promise<NextProcedure[]> {
+        return pendingNext(db, patientId);
+    },
+
+    /** The first of them, as phones on 1.10 ask for it. */
     async pendingNext(patientId: string): Promise<NextProcedure | null> {
-        const pending = await pendingNext(db, patientId);
-        return pending
-            ? { procedureId: pending.procedureId, name: pending.name, tooth: pending.tooth }
-            : null;
+        return (await pendingNext(db, patientId))[0] ?? null;
     },
 
     async byId(id: string, viewer?: Viewer): Promise<Visit> {
-        const { nextProcedureId, nextProcedureTooth, nextAppointmentId, ...visit } = await requireVisit(
-            db,
-            id,
-        );
+        const visit = await requireVisit(db, id);
 
         const lines = await db
             .select({
@@ -363,13 +360,9 @@ export const visitService = {
             .from(payments)
             .where(eq(payments.visitId, id));
 
-        const [nextType] = nextProcedureId
-            ? await db
-                  .select({ name: procedureTypes.name })
-                  .from(procedureTypes)
-                  .where(eq(procedureTypes.id, nextProcedureId))
-                  .limit(1)
-            : [];
+        const nextProcedures = await nextOf(db, id);
+        // Only while it still stands: a cancelled or missed booking leaves them owed.
+        const nextAppointmentId = await takenBy(db, visit.nextAppointmentId);
 
         const paidTotal = paymentRows.reduce((sum, p) => sum + p.amount, 0);
         const shown = viewer === undefined || seesPayments(viewer);
@@ -386,15 +379,11 @@ export const visitService = {
                     ? { ...l, lineTotal: l.unitPrice * l.quantity }
                     : { ...l, unitPrice: null, lineTotal: null },
             ),
-            nextProcedure:
-                nextProcedureId && nextType
-                    ? {
-                          procedureId: nextProcedureId,
-                          name: nextType.name,
-                          tooth: nextProcedureTooth,
-                          appointmentId: nextAppointmentId,
-                      }
-                    : null,
+            nextAppointmentId,
+            nextProcedures,
+            nextProcedure: nextProcedures[0]
+                ? { ...nextProcedures[0], appointmentId: nextAppointmentId }
+                : null,
             payments: shown ? paymentRows : null,
             paidTotal: shown ? paidTotal : null,
             balance: shown ? visit.chargedTotal - paidTotal : null,
@@ -403,9 +392,22 @@ export const visitService = {
 
     async setProcedures(input: SetProceduresInput, viewer?: Viewer): Promise<Visit> {
         const lines = await resolveProcedureLines(input.procedures);
-        const [next] = input.nextProcedure
-            ? await resolveProcedureLines([{ ...input.nextProcedure, quantity: 1 }])
-            : [];
+        const asked =
+            input.nextProcedures ??
+            (input.nextProcedure === undefined
+                ? undefined
+                : input.nextProcedure
+                  ? [input.nextProcedure]
+                  : []);
+        const next =
+            asked === undefined
+                ? undefined
+                : (await resolveProcedureLines(asked.map((line) => ({ ...line, quantity: 1 })))).map(
+                      (line) => ({
+                          procedureId: line.procedure.id,
+                          tooth: line.tooth,
+                      }),
+                  );
 
         const resolved = lines.map((line, i) => ({
             procedureId: line.procedure.id,
@@ -455,13 +457,7 @@ export const visitService = {
                 await tx.update(visits).set({ chargedTotal: computedTotal }).where(eq(visits.id, visit.id));
             }
 
-            if (input.nextProcedure === undefined) return null;
-            return setNext(
-                tx,
-                visit,
-                next ? { procedureId: next.procedure.id, tooth: next.tooth } : null,
-                new Date(),
-            );
+            return next === undefined ? null : setNext(tx, visit, next, new Date());
         });
 
         if (booked) broadcast(WS_EVENT.APPOINTMENT_UPDATED, { id: booked });

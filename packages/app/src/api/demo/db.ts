@@ -109,8 +109,8 @@ export interface VisitRow {
     completedAt: Date | null;
     computedTotal: number;
     chargedTotal: number;
-    nextProcedureId: string | null;
-    nextProcedureTooth: Tooth | null;
+    /** What the patient's next visit is for, in order (`visitNext.ts`). */
+    nextProcedures: Array<{ procedureId: string; tooth: Tooth | null }>;
     nextAppointmentId: string | null;
     createdAt: Date;
 }
@@ -257,7 +257,8 @@ const STORE_KEY = 'lustre.demo.db';
  * 11: planned procedures carry `quotedPrice`.
  * 12: `roleGrants` and `devices`, and settings carry `requireProvisioning`.
  * 13: settings carry `clinicType`.
- * 14: visits carry `nextProcedureId`, `nextProcedureTooth` and `nextAppointmentId`.
+ * 14: visits carry `nextProcedureId`, `nextProcedureTooth` and `nextAppointmentId`
+ *     (`nextProcedures` since, upgraded in `revive` rather than versioned).
  * 15: procedures carry `cost`, and visit lines `unitCost`.
  * 16: a year of history at both branches, for the stats screen.
  */
@@ -358,11 +359,18 @@ export function revive(parsed: DemoDb): DemoDb {
     for (const [table, fields] of Object.entries(DATE_FIELDS)) {
         reviveRows(parsed[table as keyof DemoDb], fields);
     }
-    // A local clinic file from before the next procedure has no such fields, and
-    // is upgraded rather than refused (`localFormat.ts`).
+    // A local clinic file from before the next procedures has no such fields, or
+    // 1.10's single one, and is upgraded rather than refused (`localFormat.ts`).
     for (const visit of parsed.visits ?? []) {
-        visit.nextProcedureId ??= null;
-        visit.nextProcedureTooth ??= null;
+        const single = visit as VisitRow & {
+            nextProcedureId?: string | null;
+            nextProcedureTooth?: Tooth | null;
+        };
+        visit.nextProcedures ??= single.nextProcedureId
+            ? [{ procedureId: single.nextProcedureId, tooth: single.nextProcedureTooth ?? null }]
+            : [];
+        delete single.nextProcedureId;
+        delete single.nextProcedureTooth;
         visit.nextAppointmentId ??= null;
     }
     if (typeof parsed.settings?.updatedAt === 'string') {

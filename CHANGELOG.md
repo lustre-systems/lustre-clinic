@@ -8,6 +8,10 @@ listed.
 
 ## [Unreleased]
 
+- The doctor can now choose several next procedures on a visit, not just one: "Add next procedure" adds another, tapping one changes it and × removes it. All of them go onto the patient's next booking together.
+- A saved next procedure that is a variant now reads in full ("Extraction · Surgical") when the visit is opened again, not just "Surgical".
+- If the booking that took the next procedures is cancelled or marked a no-show, the visit no longer says they are on the patient's next booking. They are offered again the next time the patient is booked.
+
 ## [1.10.0] - 2026-10-22
 
 - A new "Last done" button (the clock with a turning arrow) at the top centre of the day view lists what was done on this phone, newest first: bookings, moves, cancellations, no-shows, check-ins, finished visits, saved procedures, payments, patients added or edited and old visits. It is on every phone, the doctor's included. Right after each save, and when the day view opens with something new, the button briefly spells out the last thing done, for example "Arrived Nour". Tapping a line opens that booking, visit or patient. Only saves that went through are listed. The list stays on the phone, holding the last 30 actions from the past 7 days.

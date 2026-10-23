@@ -1,8 +1,9 @@
 /**
- * What the doctor wants done at the patient's next visit — one procedure, and
- * its tooth when it has one. The patient's next booking takes it: the earliest
- * one already waiting gets the line added when the visit is saved, and if there
- * is none the booking page offers it the next time the desk books them.
+ * What the doctor wants done at the patient's next visit — any number of
+ * procedures, each with its tooth when it has one. The patient's next booking
+ * takes them all: the earliest one already waiting gets the lines added when
+ * the visit is saved, and if there is none the booking page offers them the
+ * next time the desk books them.
  *
  * Its own file so the visit screen, already the longest in the app, gains a
  * slot rather than another section of markup.
@@ -21,14 +22,15 @@ export type NextDraft = {
 };
 
 export type NextProcedureBoxProps = {
-    next: NextDraft | null;
-    /** Already on a booking, as the server last said — not true of a pick nobody has saved. */
+    next: readonly NextDraft[];
+    /** On a booking, as the server last said — not true of picks nobody has saved. */
     booked: boolean;
-    onChoose: () => void;
-    onClear: () => void;
+    onAdd: () => void;
+    onChange: (index: number) => void;
+    onRemove: (index: number) => void;
 };
 
-export function NextProcedureBox({ next, booked, onChoose, onClear }: NextProcedureBoxProps) {
+export function NextProcedureBox({ next, booked, onAdd, onChange, onRemove }: NextProcedureBoxProps) {
     const t = useT();
 
     return (
@@ -39,23 +41,23 @@ export function NextProcedureBox({ next, booked, onChoose, onClear }: NextProced
                 </Text>
             </View>
 
-            {next ? (
-                <View style={styles.card} testID="visit-next">
-                    {next.tooth ? (
+            {next.map((item, i) => (
+                <View key={`${item.procedureId}:${item.tooth ?? ''}`} style={styles.card} testID="visit-next">
+                    {item.tooth ? (
                         <View style={styles.tooth}>
                             <Text variant="footnote" script="mono" weight="bold">
-                                {next.tooth}
+                                {item.tooth}
                             </Text>
                         </View>
                     ) : null}
                     <Pressable
                         accessibilityRole="button"
                         accessibilityLabel={t('Change next procedure')}
-                        onPress={onChoose}
+                        onPress={() => onChange(i)}
                         style={({ pressed }) => [styles.grow, pressed && styles.pressed]}
                     >
                         <Text variant="subhead" weight="semibold" numberOfLines={1}>
-                            {next.variant ? `${next.name} · ${next.variant}` : next.name}
+                            {item.variant ? `${item.name} · ${item.variant}` : item.name}
                         </Text>
                         <Text variant="footnote" tone="muted">
                             {t(booked ? 'On their next booking' : 'Their next booking will include it')}
@@ -65,28 +67,28 @@ export function NextProcedureBox({ next, booked, onChoose, onClear }: NextProced
                         accessibilityRole="button"
                         accessibilityLabel={t('Clear next procedure')}
                         hitSlop={8}
-                        onPress={onClear}
+                        onPress={() => onRemove(i)}
                         style={({ pressed }) => [styles.clear, pressed && styles.pressed]}
                         testID="visit-next-clear"
                     >
                         <XIcon size={14} stroke={color.muted} />
                     </Pressable>
                 </View>
-            ) : (
-                <Pressable
-                    accessibilityRole="button"
-                    onPress={onChoose}
-                    style={({ pressed }) => [styles.choose, pressed && styles.pressed]}
-                    testID="visit-next-choose"
-                >
-                    <View style={styles.glyph}>
-                        <PlusIcon size={13} stroke={color.inverse} />
-                    </View>
-                    <Text variant="subhead" weight="semibold" tone="ink2">
-                        {t('Choose next procedure')}
-                    </Text>
-                </Pressable>
-            )}
+            ))}
+
+            <Pressable
+                accessibilityRole="button"
+                onPress={onAdd}
+                style={({ pressed }) => [styles.choose, pressed && styles.pressed]}
+                testID="visit-next-choose"
+            >
+                <View style={styles.glyph}>
+                    <PlusIcon size={13} stroke={color.inverse} />
+                </View>
+                <Text variant="subhead" weight="semibold" tone="ink2">
+                    {t(next.length === 0 ? 'Choose next procedure' : 'Add next procedure')}
+                </Text>
+            </Pressable>
         </View>
     );
 }

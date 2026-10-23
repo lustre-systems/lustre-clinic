@@ -6,7 +6,7 @@ import { setupDatabase, truncateAll } from './helpers/db.ts';
 import { checkedInVisit, expectAppError, slot } from './helpers/factories.ts';
 
 /**
- * The next procedure (`visit.next.ts`): set on a visit, taken by the patient's
+ * The next procedures (`visit.next.ts`): set on a visit, taken by the patient's
  * next booking — the one made after it, or the earliest one already waiting.
  */
 
@@ -30,62 +30,89 @@ describe('setting it on a visit', () => {
         const saved = await visitService.setProcedures({
             visitId: visit.id,
             procedures: [],
-            nextProcedure: { procedureId: rootCanal.id },
+            nextProcedures: [{ procedureId: rootCanal.id }],
         });
 
-        expect(saved.nextProcedure).toEqual({
-            procedureId: rootCanal.id,
-            name: 'Root canal',
-            tooth: null,
-            appointmentId: null,
-        });
-        expect(await visitService.pendingNext(patient.id)).toEqual({
-            procedureId: rootCanal.id,
-            name: 'Root canal',
-            tooth: null,
-        });
+        const rootCanalNext = { procedureId: rootCanal.id, name: 'Root canal', tooth: null };
+        expect(saved.nextProcedures).toEqual([rootCanalNext]);
+        expect(saved.nextAppointmentId).toBeNull();
+        expect(await visitService.pendingNextProcedures(patient.id)).toEqual([rootCanalNext]);
     });
 
-    test('is checked against the same rules as a line', async () => {
+    test('holds several, in the order given', async () => {
+        const { visit, rootCanal, extraction, patient } = await checkedInVisit();
+
+        const saved = await visitService.setProcedures({
+            visitId: visit.id,
+            procedures: [],
+            nextProcedures: [
+                { procedureId: extraction.id, tooth: 'UR6' },
+                { procedureId: rootCanal.id },
+                { procedureId: extraction.id, tooth: 'UL6' },
+            ],
+        });
+
+        const expected = [
+            { procedureId: extraction.id, tooth: 'UR6' },
+            { procedureId: rootCanal.id, tooth: null },
+            { procedureId: extraction.id, tooth: 'UL6' },
+        ];
+        const shape = (rows: Array<{ procedureId: string; tooth: string | null }>) =>
+            rows.map(({ procedureId, tooth }) => ({ procedureId, tooth }));
+        expect(shape(saved.nextProcedures)).toEqual(expected);
+        expect(shape(await visitService.pendingNextProcedures(patient.id))).toEqual(expected);
+    });
+
+    test('are checked against the same rules as lines', async () => {
         const { visit, extraction } = await checkedInVisit();
 
         await expectAppError(ERROR_CODE.TOOTH_REQUIRED, () =>
             visitService.setProcedures({
                 visitId: visit.id,
                 procedures: [],
-                nextProcedure: { procedureId: extraction.id },
+                nextProcedures: [{ procedureId: extraction.id }],
+            }),
+        );
+        await expectAppError(ERROR_CODE.PROCEDURE_DUPLICATE, () =>
+            visitService.setProcedures({
+                visitId: visit.id,
+                procedures: [],
+                nextProcedures: [
+                    { procedureId: extraction.id, tooth: 'UR6' },
+                    { procedureId: extraction.id, tooth: 'UR6' },
+                ],
             }),
         );
     });
 
-    test('left off keeps it, null clears it', async () => {
+    test('left off keeps them, empty clears them', async () => {
         const { visit, extraction, patient } = await checkedInVisit();
         await visitService.setProcedures({
             visitId: visit.id,
             procedures: [],
-            nextProcedure: { procedureId: extraction.id, tooth: 'UR6' },
+            nextProcedures: [{ procedureId: extraction.id, tooth: 'UR6' }],
         });
 
         const kept = await visitService.setProcedures({ visitId: visit.id, procedures: [] });
-        expect(kept.nextProcedure?.tooth).toBe('UR6');
+        expect(kept.nextProcedures.map((line) => line.tooth)).toEqual(['UR6']);
 
         const cleared = await visitService.setProcedures({
             visitId: visit.id,
             procedures: [],
-            nextProcedure: null,
+            nextProcedures: [],
         });
-        expect(cleared.nextProcedure).toBeNull();
-        expect(await visitService.pendingNext(patient.id)).toBeNull();
+        expect(cleared.nextProcedures).toEqual([]);
+        expect(await visitService.pendingNextProcedures(patient.id)).toEqual([]);
     });
 });
 
 describe('the next booking', () => {
-    test('a booking made afterwards takes it', async () => {
-        const { visit, rootCanal, patient, branch } = await checkedInVisit();
+    test('a booking made afterwards takes them', async () => {
+        const { visit, rootCanal, xray, patient, branch } = await checkedInVisit();
         await visitService.setProcedures({
             visitId: visit.id,
             procedures: [],
-            nextProcedure: { procedureId: rootCanal.id },
+            nextProcedures: [{ procedureId: rootCanal.id }, { procedureId: xray.id }],
         });
 
         const next = await appointmentService.create({
@@ -96,11 +123,11 @@ describe('the next booking', () => {
             offsetMinutes: 0,
         });
 
-        expect(await visitService.pendingNext(patient.id)).toBeNull();
-        expect((await visitService.byId(visit.id)).nextProcedure?.appointmentId).toBe(next.id);
+        expect(await visitService.pendingNextProcedures(patient.id)).toEqual([]);
+        expect((await visitService.byId(visit.id)).nextAppointmentId).toBe(next.id);
     });
 
-    test('a booking already waiting gets the line added, once', async () => {
+    test('a booking already waiting gets the lines added, once', async () => {
         const { visit, extraction, xray, patient, branch } = await checkedInVisit();
         const waiting = await appointmentService.create({
             patient: { kind: 'existing', patientId: patient.id },
@@ -119,26 +146,31 @@ describe('the next booking', () => {
         const input = {
             visitId: visit.id,
             procedures: [],
-            nextProcedure: { procedureId: extraction.id, tooth: 'UR6' as const },
+            nextProcedures: [
+                { procedureId: xray.id },
+                { procedureId: extraction.id, tooth: 'UR6' as const },
+                { procedureId: extraction.id, tooth: 'UL6' as const },
+            ],
         };
         const saved = await visitService.setProcedures(input);
         await visitService.setProcedures(input);
 
-        expect(saved.nextProcedure?.appointmentId).toBe(waiting.id);
+        expect(saved.nextAppointmentId).toBe(waiting.id);
         expect(await linesOf(waiting.id)).toEqual([
             { procedureId: xray.id, tooth: null },
             { procedureId: extraction.id, tooth: 'UR6' },
+            { procedureId: extraction.id, tooth: 'UL6' },
         ]);
         expect(await linesOf(later.id)).toEqual([]);
-        expect(await visitService.pendingNext(patient.id)).toBeNull();
+        expect(await visitService.pendingNextProcedures(patient.id)).toEqual([]);
     });
 
-    test('is owed again when the booking that took it is cancelled', async () => {
+    test('are owed again when the booking that took them is cancelled', async () => {
         const { visit, rootCanal, patient, branch } = await checkedInVisit();
         await visitService.setProcedures({
             visitId: visit.id,
             procedures: [],
-            nextProcedure: { procedureId: rootCanal.id },
+            nextProcedures: [{ procedureId: rootCanal.id }],
         });
         const next = await appointmentService.create({
             patient: { kind: 'existing', patientId: patient.id },
@@ -147,8 +179,48 @@ describe('the next booking', () => {
             offsetMinutes: 0,
         });
 
+        expect((await visitService.byId(visit.id)).nextAppointmentId).toBe(next.id);
+
         await appointmentService.cancel(next.id);
 
-        expect((await visitService.pendingNext(patient.id))?.procedureId).toBe(rootCanal.id);
+        expect(
+            (await visitService.pendingNextProcedures(patient.id)).map((line) => line.procedureId),
+        ).toEqual([rootCanal.id]);
+        // The visit no longer says a booking has them.
+        expect((await visitService.byId(visit.id)).nextAppointmentId).toBeNull();
+    });
+});
+
+describe('phones on 1.10', () => {
+    test('send one, read the first back, and clear with null', async () => {
+        const { visit, rootCanal, xray, patient } = await checkedInVisit();
+
+        const one = await visitService.setProcedures({
+            visitId: visit.id,
+            procedures: [],
+            nextProcedure: { procedureId: rootCanal.id },
+        });
+        expect(one.nextProcedures.map((line) => line.procedureId)).toEqual([rootCanal.id]);
+
+        const several = await visitService.setProcedures({
+            visitId: visit.id,
+            procedures: [],
+            nextProcedures: [{ procedureId: xray.id }, { procedureId: rootCanal.id }],
+        });
+        expect(several.nextProcedure).toEqual({
+            procedureId: xray.id,
+            name: 'X-ray',
+            tooth: null,
+            appointmentId: null,
+        });
+        expect((await visitService.pendingNext(patient.id))?.procedureId).toBe(xray.id);
+
+        const cleared = await visitService.setProcedures({
+            visitId: visit.id,
+            procedures: [],
+            nextProcedure: null,
+        });
+        expect(cleared.nextProcedures).toEqual([]);
+        expect(await visitService.pendingNext(patient.id)).toBeNull();
     });
 });
