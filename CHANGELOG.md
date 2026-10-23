@@ -8,6 +8,8 @@ listed.
 
 ## [Unreleased]
 
+## [1.10.1] - 2026-10-23
+
 - The doctor can now choose several next procedures on a visit, not just one: "Add next procedure" adds another, tapping one changes it and × removes it. All of them go onto the patient's next booking together.
 - A saved next procedure that is a variant now reads in full ("Extraction · Surgical") when the visit is opened again, not just "Surgical".
 - If the booking that took the next procedures is cancelled or marked a no-show, the visit no longer says they are on the patient's next booking. They are offered again the next time the patient is booked.
@@ -267,7 +269,8 @@ The first release at the clinic.
 - Settings for working hours, branches, procedures and reminders.
 - Runs on the clinic's own server over Tailscale, with over-the-air updates.
 
-[Unreleased]: https://github.com/Youssef-codin/lustre-clinic/compare/v1.10.0...HEAD
+[Unreleased]: https://github.com/Youssef-codin/lustre-clinic/compare/v1.10.1...HEAD
+[1.10.1]: https://github.com/Youssef-codin/lustre-clinic/compare/v1.10.0...v1.10.1
 [1.10.0]: https://github.com/Youssef-codin/lustre-clinic/compare/v1.9.1...v1.10.0
 [1.9.1]: https://github.com/Youssef-codin/lustre-clinic/compare/v1.9.0...v1.9.1
 [1.9.0]: https://github.com/Youssef-codin/lustre-clinic/compare/v1.8.1...v1.9.0
