@@ -8,6 +8,8 @@ listed.
 
 ## [Unreleased]
 
+- The WhatsApp button on a patient's record now asks whether to open WhatsApp or WhatsApp Business, instead of choosing from the branch. If the one you pick can't open, the app says so.
+
 ## [1.10.1] - 2026-10-23
 
 - The doctor can now choose several next procedures on a visit, not just one: "Add next procedure" adds another, tapping one changes it and × removes it. All of them go onto the patient's next booking together.

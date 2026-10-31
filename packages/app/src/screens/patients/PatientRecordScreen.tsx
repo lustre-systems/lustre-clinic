@@ -146,8 +146,6 @@ export function PatientRecordScreen({
 
     const record = useQuery(['byId', patientId], () => patientsApi.byId(patientId));
     const questions = useQuery(['questions'], () => patientsApi.listQuestions());
-    const branches = useQuery(['branches'], () => patientsApi.listBranches());
-    const schedule = useQuery(['schedule'], () => patientsApi.schedule());
     const settle = useMutation(patientsApi.settle);
     const remove = useMutation(patientsApi.delete);
 
@@ -245,12 +243,7 @@ export function PatientRecordScreen({
                     showsVerticalScrollIndicator={false}
                 >
                     <View style={styles.top}>
-                        <PatientHeader
-                            patient={patient}
-                            branches={branches.data}
-                            schedule={schedule.data}
-                            onFailed={setToast}
-                        />
+                        <PatientHeader patient={patient} onFailed={setToast} />
 
                         <Openers
                             patient={patient}

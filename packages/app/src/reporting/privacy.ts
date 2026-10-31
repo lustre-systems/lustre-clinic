@@ -22,7 +22,7 @@
  * event's breadcrumbs in `allowEvent`. Its output passes its own check, which
  * is what lets it run on its own output.
  */
-import { isErrorCode, WS_EVENT } from '@lustre/shared';
+import { isErrorCode, WHATSAPP_APPS, WS_EVENT } from '@lustre/shared';
 import type { Breadcrumb, ErrorEvent, Exception, Scope, StackFrame } from '@sentry/react-native';
 
 /** The one message a report may carry: "Report a problem" in Settings. */
@@ -109,6 +109,8 @@ const APP_STATES: ReadonlySet<string> = new Set(['active', 'background', 'inacti
 const CONNECTION: ReadonlySet<string> = new Set(['unknown', 'probing', 'online', 'offline']);
 const LIVE_EVENTS: ReadonlySet<string> = new Set([...Object.values(WS_EVENT), 'hello']);
 const LIVE_OUTCOMES: ReadonlySet<string> = new Set(['applied', 'duplicate', 'resync']);
+const WHATSAPP_ASKED: ReadonlySet<string> = new Set(WHATSAPP_APPS);
+const WHATSAPP_OPENED: ReadonlySet<string> = new Set(['com.whatsapp', 'com.whatsapp.w4b', 'link', 'none']);
 
 function text(value: unknown, pattern: RegExp, max = 200): string | undefined {
     return typeof value === 'string' && value.length <= max && pattern.test(value) ? value : undefined;
@@ -221,6 +223,18 @@ export function allowBreadcrumb(crumb: Breadcrumb): Breadcrumb | null {
             return event === undefined || outcome === undefined
                 ? null
                 : { ...base(crumb, 'live', 'info'), data: { event, outcome } };
+        }
+        case 'whatsapp': {
+            const asked = oneOf(data.asked, WHATSAPP_ASKED);
+            const opened = oneOf(data.opened, WHATSAPP_OPENED);
+            const regular = flag(data.regular);
+            const business = flag(data.business);
+            return asked === undefined ||
+                opened === undefined ||
+                regular === undefined ||
+                business === undefined
+                ? null
+                : { ...base(crumb, 'whatsapp', 'info'), data: { asked, regular, business, opened } };
         }
         default:
             return null;

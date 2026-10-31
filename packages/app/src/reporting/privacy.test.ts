@@ -36,7 +36,15 @@ import {
 } from '@sentry/core';
 import { createTRPCClient, httpBatchLink } from '@trpc/client';
 import { allowBreadcrumb, allowEvent, captureProblemReport, PROBLEM_REPORT } from './privacy';
-import { apiCrumb, connectionCrumb, lifecycleCrumb, liveCrumb, screenCrumb, screenName } from './trail';
+import {
+    apiCrumb,
+    connectionCrumb,
+    lifecycleCrumb,
+    liveCrumb,
+    screenCrumb,
+    screenName,
+    whatsAppCrumb,
+} from './trail';
 
 const PATIENT = {
     id: '0199a3c2-7d4e-7b21-9f00-3c5a1e2b4d6f',
@@ -375,6 +383,24 @@ describe('a fingerprint', () => {
             expectNoPatientData(json);
             expect((JSON.parse(json) as Event).fingerprint).toBeUndefined();
         }
+    });
+});
+
+describe('the WhatsApp crumb', () => {
+    const open = { asked: 'business', regular: true, business: true, opened: 'com.whatsapp.w4b' };
+
+    it('keeps which app was asked for, what is installed and where the link went', () => {
+        expect(allowBreadcrumb(whatsAppCrumb(open))?.data).toEqual(open);
+    });
+
+    it('drops the crumb when a field holds anything else, and any field it does not know', () => {
+        expect(
+            allowBreadcrumb(whatsAppCrumb({ ...open, opened: `https://wa.me/${PATIENT.phone}` })),
+        ).toBeNull();
+        const crumb = whatsAppCrumb(open);
+        expect(allowBreadcrumb({ ...crumb, data: { ...crumb.data, url: PATIENT.phone } })?.data).toEqual(
+            open,
+        );
     });
 });
 

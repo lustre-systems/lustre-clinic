@@ -101,3 +101,21 @@ export function liveCrumb(event: string, outcome: string): Breadcrumb {
 export function noteLive(event: string, outcome: string): void {
     sink?.(liveCrumb(event, outcome));
 }
+
+export interface WhatsAppOpen {
+    /** The app the branch asked for. */
+    asked: string;
+    regular: boolean;
+    business: boolean;
+    /** The package that took the link, `link` when Android was left to pick, `none` when the chosen app refused. */
+    opened: string;
+}
+
+/** A WhatsApp button and where its link went: never the link, which holds a phone number. */
+export function whatsAppCrumb(open: WhatsAppOpen): Breadcrumb {
+    return { category: 'whatsapp', type: 'info', level: 'info', data: { ...open } };
+}
+
+export function noteWhatsApp(open: WhatsAppOpen): void {
+    sink?.(whatsAppCrumb(open));
+}
