@@ -1,6 +1,6 @@
 /**
- * Local mode's clinic, as it sits in its file: what a new one starts as, and
- * how a stored one is read back. No file system in here, so `bun test` reaches
+ * Local mode's clinic as a file, the format an export is and an old phone's
+ * clinic was: what a new one starts as, and how a stored one is read back. No file system in here, so `bun test` reaches
  * it; `./local` does the reading and writing.
  *
  * Unlike the demo's store (`./db`), a stored clinic is never dropped and
@@ -88,7 +88,7 @@ export function parseLocalFile(raw: string, checkRows = false): { db: DemoDb; ex
     }
     const exportedAt = typeof parsed.exportedAt === 'string' ? new Date(parsed.exportedAt) : null;
     return {
-        db: upgrade(revive(parsed.db)),
+        db: reviveLocal(parsed.db),
         exportedAt: exportedAt && !Number.isNaN(exportedAt.getTime()) ? exportedAt : null,
     };
 }
@@ -96,6 +96,11 @@ export function parseLocalFile(raw: string, checkRows = false): { db: DemoDb; ex
 /** Whether opening another clinic over this one would lose anybody's records. */
 export function hasRecords(db: DemoDb): boolean {
     return db.patients.length > 0 || db.appointments.length > 0;
+}
+
+/** Rows as JSON left them, however they were stored, back to what the handlers read. */
+export function reviveLocal(db: DemoDb): DemoDb {
+    return upgrade(revive(db));
 }
 
 /**

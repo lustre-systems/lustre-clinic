@@ -8,16 +8,13 @@
  * plus a file picker and a share sheet that hand over and take whatever the
  * test says.
  */
+
+import { Database } from 'bun:sqlite';
 import { afterEach, beforeEach, describe, expect, it, mock } from 'bun:test';
 
 const stored = new Map<string, string>();
 const files = new Map<string, string>();
 let writesFail = false;
-/**
- * The two ways Android's overwrite move can stop part way: with the target
- * removed, or with the source copied over it and not yet deleted.
- */
-let movesFail: 'target removed' | 'source left behind' | null = null;
 /** What the next system file picker hands back; null is the picker closed. */
 let pickable: string | null = null;
 const shared: string[] = [];
@@ -65,9 +62,6 @@ class MemoryFile {
     }
 
     moveSync(target: MemoryFile): void {
-        if (movesFail === 'target removed') files.delete(target.name);
-        if (movesFail === 'source left behind') files.set(target.name, this.textSync());
-        if (movesFail) throw new Error('move failed');
         files.set(target.name, this.textSync());
         files.delete(this.name);
     }
@@ -92,6 +86,39 @@ mock.module('expo-file-system', () => ({
     Paths: { document: 'documents', cache: 'cache' },
 }));
 
+/** Real SQLite, in memory: the transaction is what these tests are about. */
+const sqlite = new Database(':memory:');
+
+mock.module('expo-sqlite', () => ({
+    openDatabaseSync: () => ({
+        execSync: (source: string) => sqlite.exec(source),
+        runSync: (source: string, params: string[] = []) => {
+            if (writesFail && !source.startsWith('DELETE')) throw new Error('disk full');
+            return sqlite.query(source).run(...params);
+        },
+        getAllSync: (source: string) => sqlite.query(source).all(),
+        getFirstSync: (source: string, params: string[]) => sqlite.query(source).get(...params),
+        withTransactionSync: (task: () => void) => sqlite.transaction(task)(),
+    }),
+}));
+
+function resetStore(): void {
+    sqlite.exec(`
+        DROP TABLE IF EXISTS clinic_rows;
+        DROP TABLE IF EXISTS clinic_meta;
+        CREATE TABLE clinic_rows (seq INTEGER PRIMARY KEY, tbl TEXT NOT NULL, id TEXT NOT NULL, json TEXT NOT NULL, UNIQUE (tbl, id));
+        CREATE TABLE clinic_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+    `);
+}
+
+/** What a table holds in the store, not in memory. */
+function storedRows<T>(table: string): T[] {
+    return sqlite
+        .query('SELECT json FROM clinic_rows WHERE tbl = ? ORDER BY seq')
+        .all(table)
+        .map((row) => JSON.parse((row as { json: string }).json) as T);
+}
+
 mock.module('expo-sharing', () => ({
     shareAsync: (uri: string) => Promise.resolve(void shared.push(uri)),
 }));
@@ -112,7 +139,8 @@ import type { AppRouter } from '@lustre/server/src/trpc/router.ts';
 
 const client = createTRPCClient<AppRouter>({ links: [demoLink] });
 
-const MAIN = 'lustre-local.json';
+const LEGACY = 'lustre-local.json';
+const STORED = 'SELECT count(*) AS n FROM clinic_rows';
 
 /** A launch: nothing in memory, whatever is in storage and on file. */
 function relaunch(): void {
@@ -124,7 +152,7 @@ beforeEach(async () => {
     stored.clear();
     files.clear();
     writesFail = false;
-    movesFail = null;
+    resetStore();
     pickable = null;
     shared.length = 0;
     relaunch();
@@ -184,7 +212,7 @@ describe('local mode', () => {
         expect(isLocalMode()).toBe(true);
         expect(credentialToken()).not.toBeNull();
         expect(await client.device.me.query()).toMatchObject({ role: 'admin', label: 'This phone' });
-        expect(files.has(MAIN)).toBe(true);
+        expect(storedRows('settings')).toHaveLength(1);
     });
 
     it('has a write on file before it answers', async () => {
@@ -192,8 +220,19 @@ describe('local mode', () => {
 
         await client.branch.create.mutate({ name: 'Second' });
 
-        const onFile = parseLocal(files.get(MAIN) ?? '');
-        expect(onFile.branches.map((branch) => branch.name).sort()).toEqual(['Main', 'Second']);
+        const onFile = storedRows<{ name: string }>('branches');
+        expect(onFile.map((branch) => branch.name).sort()).toEqual(['Main', 'Second']);
+    });
+
+    it('writes only the rows a request changed', async () => {
+        await startLocalMode();
+        const before = sqlite.query('SELECT seq, tbl, id FROM clinic_rows ORDER BY seq').all();
+
+        await client.branch.create.mutate({ name: 'Second' });
+
+        const after = sqlite.query('SELECT seq, tbl, id FROM clinic_rows ORDER BY seq').all();
+        expect(after.slice(0, before.length)).toEqual(before);
+        expect(after).toHaveLength(before.length + 1);
     });
 
     it('refuses a write the phone would not take, and keeps the clinic as it was', async () => {
@@ -218,13 +257,57 @@ describe('local mode', () => {
         expect(branches.map((branch) => branch.name).sort()).toEqual(['Main', 'Second']);
     });
 
-    it('leaves a clinic file it cannot read alone, and does not switch over', async () => {
-        files.set(MAIN, '{not json');
+    it('leaves an old clinic file it cannot read alone, and does not switch over', async () => {
+        files.set(LEGACY, '{not json');
 
         await expect(startLocalMode()).rejects.toThrow(LocalStoreError);
 
         expect(isLocalMode()).toBe(false);
-        expect(files.get(MAIN)).toBe('{not json');
+        expect(files.get(LEGACY)).toBe('{not json');
+        expect(sqlite.query(STORED).get()).toEqual({ n: 0 });
+    });
+
+    it('refuses a store missing its settings rather than opening on the defaults', async () => {
+        await startLocalMode();
+        sqlite.exec("DELETE FROM clinic_rows WHERE tbl = 'settings'");
+        relaunch();
+        await disableLocalMode();
+
+        await expect(startLocalMode()).rejects.toThrow(LocalStoreError);
+    });
+});
+
+describe('a phone from before the store', () => {
+    it('moves its clinic in, export time and all, and never reads the old file again', async () => {
+        const db = freshLocalDb();
+        db.settings.clinicName = 'Old Phone';
+        const old = serializeLocal(db);
+        files.set(LEGACY, old);
+        files.set('lustre-local.exported', '2026-09-28T08:00:00.000Z');
+
+        await startLocalMode();
+
+        expect((await client.settings.get.query()).clinicName).toBe('Old Phone');
+        expect((await client.backup.status.query()).lastSuccessAt).toBe('2026-09-28T08:00:00.000Z');
+        expect(files.has(LEGACY)).toBe(false);
+        expect(files.has('lustre-local.exported')).toBe(false);
+        expect(files.get('lustre-local.moved-to-sqlite.json')).toBe(old);
+
+        await client.settings.update.mutate({ clinicName: 'Renamed' });
+        relaunch();
+        await startLocalMode();
+        expect((await client.settings.get.query()).clinicName).toBe('Renamed');
+    });
+
+    it('falls back to the next copy when the main file was cut off', async () => {
+        const db = freshLocalDb();
+        db.settings.clinicName = 'Next Copy';
+        files.set(LEGACY, '{cut off');
+        files.set('lustre-local.next.json', serializeLocal(db));
+
+        await startLocalMode();
+
+        expect((await client.settings.get.query()).clinicName).toBe('Next Copy');
     });
 });
 
@@ -314,24 +397,24 @@ describe('a clinic file brought back', () => {
         expect(await client.device.me.query()).toMatchObject({ role: 'admin' });
         const branches = await client.branch.list.query({ includeInactive: true });
         expect(branches.map((branch) => branch.name)).toEqual(['Dokki']);
-        expect(parseLocal(files.get(MAIN) ?? '').patients).toHaveLength(1);
+        expect(storedRows('patients')).toHaveLength(1);
         // That copy is still wherever it was saved, so it is this phone's last one too.
         expect((await client.backup.status.query()).lastSuccessAt).toBe('2026-09-28T08:00:00.000Z');
     });
 
     it('does nothing when the picker is closed', async () => {
         expect(await pickClinicFile()).toBeNull();
-        expect(files.has(MAIN)).toBe(false);
+        expect(sqlite.query(STORED).get()).toEqual({ n: 0 });
     });
 
     it('refuses a file that is not a clinic, and changes nothing', async () => {
         await startLocalMode();
-        const before = files.get(MAIN);
+        const before = sqlite.query('SELECT * FROM clinic_rows').all();
         pickable = JSON.stringify({ hello: 'world' });
 
         await expect(pickClinicFile()).rejects.toThrow(LocalStoreError);
 
-        expect(files.get(MAIN)).toBe(before);
+        expect(sqlite.query('SELECT * FROM clinic_rows').all()).toEqual(before);
     });
 
     it('refuses a file whose rows would not survive the trip, rather than storing them broken', async () => {
@@ -342,37 +425,35 @@ describe('a clinic file brought back', () => {
         await expect(pickClinicFile()).rejects.toThrow(LocalStoreError);
     });
 
-    for (const failure of ['target removed', 'source left behind'] as const) {
-        it(`puts the old clinic back when the move stops with the ${failure}`, async () => {
-            pickable = anotherPhonesExport();
-            const first = await pickClinicFile();
-            if (first) await startLocalModeFrom(first);
-            await disableLocalMode();
-            const before = files.get(MAIN);
+    it('leaves the old clinic whole when the phone would not take the new one', async () => {
+        pickable = anotherPhonesExport();
+        const first = await pickClinicFile();
+        if (first) await startLocalModeFrom(first);
+        await disableLocalMode();
 
-            pickable = serializeLocal(freshLocalDb(), new Date());
-            const second = await pickClinicFile();
-            movesFail = failure;
-            await expect(second ? startLocalModeFrom(second) : Promise.resolve()).rejects.toThrow();
-            movesFail = null;
+        pickable = serializeLocal(freshLocalDb(), new Date());
+        const second = await pickClinicFile();
+        writesFail = true;
+        await expect(second ? startLocalModeFrom(second) : Promise.resolve()).rejects.toThrow();
+        writesFail = false;
 
-            expect(files.get(MAIN)).toBe(before);
-            relaunch();
-            await startLocalMode();
-            const branches = await client.branch.list.query({ includeInactive: true });
-            expect(branches.map((branch) => branch.name)).toEqual(['Dokki']);
-        });
-    }
+        expect(storedRows('patients')).toHaveLength(1);
+        relaunch();
+        await startLocalMode();
+        const branches = await client.branch.list.query({ includeInactive: true });
+        expect(branches.map((branch) => branch.name)).toEqual(['Dokki']);
+    });
 
-    it('keeps aside a clinic that was only ever on file as its next copy', async () => {
-        const half = serializeLocal(freshLocalDb());
-        files.set('lustre-local.next.json', half);
+    it('keeps aside an old clinic file it could not read, before opening over it', async () => {
+        files.set(LEGACY, '{cut off');
         pickable = anotherPhonesExport();
 
         const picked = await pickClinicFile();
+        expect(picked?.replaces).toBe(true);
         if (picked) await startLocalModeFrom(picked);
 
-        expect(files.get('lustre-local.replaced.json')).toBe(half);
+        expect(files.get('lustre-local.replaced.json')).toBe('{cut off');
+        expect(storedRows('patients')).toHaveLength(1);
     });
 
     it('says when it would replace a clinic with patients, and keeps that one aside', async () => {
@@ -380,14 +461,13 @@ describe('a clinic file brought back', () => {
         const first = await pickClinicFile();
         if (first) await startLocalModeFrom(first);
         await disableLocalMode();
-        const replaced = files.get(MAIN);
 
         pickable = serializeLocal(freshLocalDb(), new Date());
         const second = await pickClinicFile();
         expect(second?.replaces).toBe(true);
         if (second) await startLocalModeFrom(second);
 
-        expect(parseLocal(files.get(MAIN) ?? '').patients).toEqual([]);
-        expect(files.get('lustre-local.replaced.json')).toBe(replaced);
+        expect(storedRows('patients')).toEqual([]);
+        expect(parseLocal(files.get('lustre-local.replaced.json') ?? '').patients).toHaveLength(1);
     });
 });
