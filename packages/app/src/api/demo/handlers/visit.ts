@@ -14,6 +14,7 @@ import { getDb, type PaymentRow, save, type VisitProcedureRow, type VisitRow } f
 import { broadcast } from '../events';
 import { clinicDayOf, computeTotal, DemoError, resolveProcedureLines, uuidv7 } from '../rules';
 import type { Dated } from '../wire';
+import { nextOf, pendingNext, setNext, takenBy } from './visitNext';
 
 type Visit = Dated<RouterOutput['visit']['byId']>;
 type VisitLine = Visit['procedures'][number];
@@ -115,9 +116,16 @@ export function insertPayment(
     getDb().payments.push({ id: uuidv7(), visitId, amount, method, methodNote, paidAt: new Date() });
 }
 
+function collectedOn(visitId: string): number {
+    return getDb()
+        .payments.filter((payment) => payment.visitId === visitId)
+        .reduce((sum, payment) => sum + payment.amount, 0);
+}
+
 function readVisit(id: string): Visit {
     const db = getDb();
-    const visit = requireVisit(id);
+    const row = requireVisit(id);
+    const { nextProcedures: _stored, ...visit } = row;
 
     const procedures: VisitLine[] = linesOf(id).map((line) => ({
         id: line.id,
@@ -143,7 +151,20 @@ function readVisit(id: string): Visit {
 
     const paidTotal = payments.reduce((sum, payment) => sum + payment.amount, 0);
 
-    return { ...visit, procedures, payments, paidTotal, balance: visit.chargedTotal - paidTotal };
+    const nextProcedures = nextOf(row);
+    // Only while it still stands: a cancelled or missed booking leaves them owed.
+    const nextAppointmentId = takenBy(visit.nextAppointmentId);
+
+    return {
+        ...visit,
+        nextAppointmentId,
+        nextProcedures,
+        nextProcedure: nextProcedures[0] ? { ...nextProcedures[0], appointmentId: nextAppointmentId } : null,
+        procedures,
+        payments,
+        paidTotal,
+        balance: visit.chargedTotal - paidTotal,
+    };
 }
 
 export const visitHandlers = {
@@ -192,6 +213,8 @@ export const visitHandlers = {
             completedAt: null,
             computedTotal: 0,
             chargedTotal: 0,
+            nextProcedures: [],
+            nextAppointmentId: null,
             createdAt: now,
         };
         db.visits.push(visit);
@@ -211,6 +234,7 @@ export const visitHandlers = {
                 procedureId: line.procedureId,
                 quantity: line.quantity,
                 unitPrice: line.quotedPrice ?? procedure?.defaultPrice ?? 0,
+                unitCost: procedure?.cost ?? 0,
                 tooth: line.tooth,
                 note: line.note,
             });
@@ -251,7 +275,29 @@ export const visitHandlers = {
             db.procedureTypes,
             db.settings.clinicType === 'general',
         );
+        // `visitService.setProcedures`: 1.10's single `nextProcedure` is a list of one.
+        const asked =
+            input.nextProcedures ??
+            (input.nextProcedure === undefined
+                ? undefined
+                : input.nextProcedure
+                  ? [input.nextProcedure]
+                  : []);
+        const next =
+            asked === undefined
+                ? undefined
+                : resolveProcedureLines(
+                      asked.map((line) => ({ ...line, quantity: 1 })),
+                      db.procedureTypes,
+                      db.settings.clinicType === 'general',
+                  ).map((line) => ({ procedureId: line.procedure.id, tooth: line.tooth }));
 
+        // `visitService.setProcedures`: a line keeps the cost it was first priced at.
+        const savedCost = new Map(
+            db.visitProcedures
+                .filter((line) => line.visitId === visit.id)
+                .map((line) => [line.procedureId, line.unitCost]),
+        );
         db.visitProcedures = db.visitProcedures.filter((line) => line.visitId !== visit.id);
 
         for (const [index, line] of resolved.entries()) {
@@ -261,6 +307,7 @@ export const visitHandlers = {
                 procedureId: line.procedure.id,
                 quantity: line.quantity,
                 unitPrice: input.procedures[index]?.unitPrice ?? line.procedure.defaultPrice,
+                unitCost: savedCost.get(line.procedure.id) ?? line.procedure.cost,
                 tooth: line.tooth,
                 note: line.note,
             });
@@ -270,9 +317,22 @@ export const visitHandlers = {
         // The charged total tracks the computed one until someone has edited it.
         if (!visit.pricedAt) visit.chargedTotal = computedTotal;
 
+        const booked = next === undefined ? null : setNext(visit, next, new Date());
+
         save();
+        if (booked) broadcast(WS_EVENT.APPOINTMENT_UPDATED);
         broadcast(WS_EVENT.VISIT_UPDATED);
         return readVisit(visit.id);
+    },
+
+    pendingNextProcedures(
+        input: RouterInput['visit']['pendingNextProcedures'],
+    ): RouterOutput['visit']['pendingNextProcedures'] {
+        return pendingNext(input.patientId);
+    },
+
+    pendingNext(input: RouterInput['visit']['pendingNext']): RouterOutput['visit']['pendingNext'] {
+        return pendingNext(input.patientId)[0] ?? null;
     },
 
     setPrice(input: RouterInput['visit']['setPrice']): Visit {
@@ -326,6 +386,16 @@ export const visitHandlers = {
         const now = new Date();
         const paidTotal = input.paidTotal ?? 0;
 
+        // As the server: the desk's phone clamps to what is owed, a doctor's is
+        // not shown what was already paid, so the rule is here too.
+        if (paidTotal > 0 && paidTotal > input.chargedTotal - collectedOn(visit.id)) {
+            throw new DemoError(
+                ERROR_CODE.PAYMENT_EXCEEDS_BALANCE,
+                'the payment is more than is owed on this visit',
+                422,
+            );
+        }
+
         visit.chargedTotal = input.chargedTotal;
         visit.pricedAt = visit.pricedAt ?? now;
         visit.completedAt = now;
@@ -363,17 +433,63 @@ export const visitHandlers = {
      * dated the day the correction was made. Nothing is edited and nothing is
      * deleted, because the original row is still a true record of what was
      * entered at the time.
+     *
+     * Raising the total past the charge is refused, as on the server; lowering
+     * it never is, because that is the refund of a charge that came down.
      */
     setPaid(input: RouterInput['visit']['setPaid']): Visit {
-        const db = getDb();
         const visit = requireVisit(input.visitId);
 
-        const collected = db.payments
-            .filter((payment) => payment.visitId === visit.id)
-            .reduce((sum, payment) => sum + payment.amount, 0);
-
-        const delta = input.paidTotal - collected;
+        const delta = input.paidTotal - collectedOn(visit.id);
+        if (delta > 0 && input.paidTotal > visit.chargedTotal) {
+            throw new DemoError(
+                ERROR_CODE.PAYMENT_EXCEEDS_BALANCE,
+                'the paid total is more than this visit charges',
+                422,
+            );
+        }
         if (delta !== 0) insertPayment(visit.id, delta, input.method, input.methodNote ?? null);
+
+        save();
+        broadcast(WS_EVENT.VISIT_UPDATED);
+        return readVisit(visit.id);
+    },
+
+    /**
+     * Say again how the money on a visit was paid without changing how much,
+     * as on the server: each other method's net is given back in that method
+     * and taken again in `method`. `other` is told apart by its note. Already
+     * all in `method`, it writes nothing.
+     */
+    setPaidMethod(input: RouterInput['visit']['setPaidMethod']): Visit {
+        const visit = requireVisit(input.visitId);
+        const methodNote = input.method === 'other' ? (input.methodNote?.trim() ?? null) : null;
+        if (input.method === 'other' && !methodNote) {
+            throw new DemoError(ERROR_CODE.PAYMENT_NOTE_REQUIRED, "method 'other' requires a note", 422);
+        }
+
+        const keyOf = (method: PaymentRow['method'], note: string | null) =>
+            method === 'other' ? `other:${note?.trim() ?? ''}` : method;
+        const target = keyOf(input.method, methodNote);
+
+        const nets = new Map<
+            string,
+            { amount: number; method: PaymentRow['method']; methodNote: string | null }
+        >();
+        for (const row of getDb().payments.filter((payment) => payment.visitId === visit.id)) {
+            const key = keyOf(row.method, row.methodNote);
+            const net = nets.get(key);
+            if (net) net.amount += row.amount;
+            else nets.set(key, { amount: row.amount, method: row.method, methodNote: row.methodNote });
+        }
+
+        let moved = 0;
+        for (const [key, net] of nets) {
+            if (key === target || net.amount === 0) continue;
+            insertPayment(visit.id, -net.amount, net.method, net.methodNote);
+            moved += net.amount;
+        }
+        if (moved !== 0) insertPayment(visit.id, moved, input.method, methodNote);
 
         save();
         broadcast(WS_EVENT.VISIT_UPDATED);

@@ -2,12 +2,11 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useSyncExternalStore } from 'react';
 import { hydratingSubscribe } from './hydratingSubscribe';
 
-// The day's warning strips (`ClockBanner`, `NotificationsBanner`) can be put
-// away, but only for a while. Both name something that is still broken — a
-// booking landing an hour out, a check-in nobody hears — so a dismissal that
-// held for good would be the phone agreeing to stay broken. Stored as the
-// instant it ends rather than a flag, so it survives a restart and needs no
-// clearing.
+// The day's warning strips (`NotificationsBanner`) can be put away, but only
+// for a while. They name something that is still broken — a check-in nobody
+// hears — so a dismissal that held for good would be the phone agreeing to
+// stay broken. Stored as the instant it ends rather than a flag, so it survives
+// a restart and needs no clearing.
 //
 // Same shape as `updateDismissStore`, one store per banner.
 export const SNOOZE_MS = 4 * 60 * 60_000;
@@ -66,7 +65,6 @@ export function createSnoozeStore(key: string, now: () => number = Date.now) {
 
 export type SnoozeStore = ReturnType<typeof createSnoozeStore>;
 
-export const clockBannerSnooze = createSnoozeStore('lustre.clockBannerSnoozedUntil');
 export const notificationsBannerSnooze = createSnoozeStore('lustre.notificationsBannerSnoozedUntil');
 
 export function useSnooze(store: SnoozeStore): SnoozeState {

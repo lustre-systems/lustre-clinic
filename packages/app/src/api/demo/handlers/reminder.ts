@@ -7,7 +7,7 @@
  * the row is the record that no message was owed, and one reminder belongs to
  * one appointment, so a later reinstatement reuses it.
  */
-import { reminderDueCutoff, renderReminderTemplate } from '@lustre/shared';
+import { callerWallClock, pad2, reminderDueCutoff, renderReminderTemplate } from '@lustre/shared';
 import type { RouterInput, RouterOutput } from '../../types';
 import { type AppointmentRow, getDb, type ReminderRow, save } from '../db';
 import { DemoError, toWhatsAppNumber, uuidv7 } from '../rules';
@@ -105,16 +105,16 @@ export const reminderHandlers = {
                 const phone = patient?.phone ?? '';
                 const branch = db.branches.find((row) => row.id === appointment.branchId);
 
-                // `startsAt` is UTC, so the quoted date and time are shifted
-                // into the clinic's local day before they are formatted.
-                const local = new Date(appointment.startsAt.getTime() + offsetMinutes * 60_000);
+                // `startsAt` is UTC, so the quoted date and time are read on
+                // the clinic's clock before they are formatted.
+                const wall = callerWallClock(appointment.startsAt, offsetMinutes);
 
                 const message = renderReminderTemplate(settings.reminderTemplate, {
                     name,
                     clinic: settings.clinicName,
                     branch: branch?.name ?? '',
-                    date: local.toISOString().slice(0, 10),
-                    time: local.toISOString().slice(11, 16),
+                    date: wall.key,
+                    time: `${pad2(Math.floor(wall.minutes / 60))}:${pad2(wall.minutes % 60)}`,
                     ref: appointment.ref,
                 });
 
@@ -158,5 +158,11 @@ export const reminderHandlers = {
         // `dismissRemindersFor` broadcasts `SETTINGS_UPDATED` itself; saying it
         // again here makes every subscriber refetch twice for one dismissal.
         return settingsHandlers.dismissRemindersFor(input.date);
+    },
+
+    resumeToday(
+        input: RouterInput['reminder']['resumeToday'],
+    ): Dated<RouterOutput['reminder']['resumeToday']> {
+        return settingsHandlers.resumeRemindersFor(input.date);
     },
 };

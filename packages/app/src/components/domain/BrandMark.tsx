@@ -45,9 +45,8 @@ const WORDMARK_RATIO = 168 / 52;
 const WORDMARK_PER_CAP = 52 / (118 * 0.36);
 
 /**
- * The file keeps the 250 × 78 canvas of the wider lettering it replaced, and
- * the cut USTRE ends at x ≈ 163, so drawn whole the logo sits left of centre.
- * This crops to the ink plus the file's own 4-unit margin.
+ * The file's canvas: the ink (the cut USTRE ends at x ≈ 163) plus a 4-unit
+ * margin, so the logo centres wherever it is placed.
  */
 const CLINIC_VIEWBOX = { width: 167, height: 78 };
 

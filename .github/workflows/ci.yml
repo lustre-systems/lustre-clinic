@@ -101,6 +101,14 @@ jobs:
       - name: Test
         run: bun test
 
+      # The app shows and books clinic time whatever zone the phone is set to
+      # (`clinicTime`). The runner is on UTC, so the app and shared suites run
+      # again on the clinic's zone and on one far from it.
+      - name: Test in other time zones
+        run: |
+          TZ=Africa/Cairo bun test ./packages/app ./packages/shared
+          TZ=Asia/Tokyo bun test ./packages/app ./packages/shared
+
       # Advisory only. Reports dead code, duplication and complexity introduced by
       # this change as annotations and a job summary; the backlog in untouched
       # files never fails a run, and neither does a failing verdict.

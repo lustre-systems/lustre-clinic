@@ -25,7 +25,7 @@ import { and, asc, desc, eq, gte, inArray, lt, sql } from 'drizzle-orm';
 import { db, type Executor } from '../../db/index.ts';
 import { appointments, patients, payments, visits } from '../../db/schema.ts';
 import { AppError } from '../../errors/AppError.ts';
-import { dayRange } from '../../util/time.ts';
+import { ageFromBirthDate, dayRange } from '../../util/time.ts';
 import { broadcast } from '../../ws/index.ts';
 import { insertPayment } from '../visit/visit.service.ts';
 import type { BalanceSummaryInput, BalanceTakingsInput, SettleInput } from './balance.schema.ts';
@@ -34,6 +34,9 @@ interface PatientBalance {
     patientId: string;
     name: string;
     phone: string;
+    /** What the Patients list's rows show under the name, so a debtor reads the same as anyone else. */
+    age: number | null;
+    gender: string | null;
     balance: number;
     oldestUnpaidAt: Date;
 }
@@ -209,6 +212,8 @@ export const balanceService = {
                 patientId: patients.id,
                 name: patients.name,
                 phone: patients.phone,
+                birthDate: patients.birthDate,
+                gender: patients.gender,
                 balance,
                 oldestUnpaidAt: sql<Date>`MIN(${appointments.startsAt})`,
             })
@@ -217,7 +222,7 @@ export const balanceService = {
             .innerJoin(patients, eq(appointments.patientId, patients.id))
             .leftJoin(paid, eq(paid.visitId, visits.id))
             .where(patientIds ? inArray(patients.id, patientIds) : undefined)
-            .groupBy(patients.id, patients.name, patients.phone)
+            .groupBy(patients.id, patients.name, patients.phone, patients.birthDate, patients.gender)
             .having(sql`SUM(${visits.chargedTotal} - COALESCE(${paid.paidTotal}, 0)) > 0`)
             .orderBy(desc(balance));
 
@@ -225,6 +230,8 @@ export const balanceService = {
             patientId: row.patientId,
             name: row.name,
             phone: row.phone,
+            age: ageFromBirthDate(row.birthDate),
+            gender: row.gender,
             balance: piastres(row.balance),
             oldestUnpaidAt: new Date(row.oldestUnpaidAt),
         }));

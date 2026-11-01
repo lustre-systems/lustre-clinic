@@ -184,6 +184,21 @@ describe(UPDATES_MANIFEST_PATH, () => {
         expect((await askForUpdate({ 'expo-runtime-version': '..' })).status).toBe(204);
     });
 
+    test('serves the latest update on an APK staged releases ago', async () => {
+        // An OTA ship leaves the APK alone, so a fresh install of 1.0.0 asks for, and gets, the 1.0.3 update.
+        await publishApk();
+        await publishUpdate();
+        await put(
+            `${UPDATE_DIR}/manifest.json`,
+            JSON.stringify({ ...JSON.parse(MANIFEST), metadata: { version: '1.0.3' } }),
+        );
+
+        expect((await server.client.release.latestApk.query())?.version).toBe('1.0.0');
+        const res = await askForUpdate({ 'expo-current-update-id': 'the-bundle-inside-the-apk' });
+        expect(res.status).toBe(200);
+        expect(JSON.parse(await res.text()).metadata.version).toBe('1.0.3');
+    });
+
     test('offers nothing until every file the manifest names has arrived', async () => {
         await publishUpdate();
         await rm(join(dir, UPDATE_DIR, FONT));

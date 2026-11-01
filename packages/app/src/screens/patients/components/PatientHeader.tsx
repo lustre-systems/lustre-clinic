@@ -12,10 +12,9 @@
  * chat with the user's own WhatsApp, and they type. Both are `Linking`, so both
  * are a round trip out of the app and back.
  *
- * On a phone with both WhatsApp apps, each branch's number lives in one of them.
- * The button messages from the branch the day view is on; with none — a closed
- * day nobody has picked a branch on — it asks, unless every active branch lands
- * in the same place anyway.
+ * The button always asks which WhatsApp to open, because a phone can have an app
+ * that `installedWhatsApp` does not report. It tries the chosen app whatever that
+ * says, and never hands the link to Android, which could open the other number.
  */
 
 import type { WhatsAppApp } from '@lustre/shared';
@@ -25,59 +24,36 @@ import { phoneText } from '../../../components/domain';
 import { Sheet } from '../../../components/ui';
 import { useT } from '../../../i18n';
 import { border, color, containsArabic, radius, size, space, Text } from '../../../theme';
-import { installedWhatsApp, openWhatsApp } from '../../../whatsapp';
-import { currentBranchId } from '../../day/currentBranch';
-import type { Branch, ClinicDay } from '../../day/data/types';
+import { openChosenWhatsApp } from '../../../whatsapp';
 import type { Patient } from '../data/types';
 import { sentenceCase } from './format';
 import { CallIcon, WhatsAppIcon } from './icons';
 
 export type PatientHeaderProps = {
     patient: Patient;
-    /** Active branches; undefined until they load. */
-    branches: readonly Branch[] | undefined;
-    schedule: readonly ClinicDay[] | undefined;
     onFailed: (message: string) => void;
 };
 
-export function PatientHeader({ patient, branches, schedule, onFailed }: PatientHeaderProps) {
+const WHATSAPP_CHOICES: readonly { app: WhatsAppApp; label: string }[] = [
+    { app: 'regular', label: 'WhatsApp' },
+    { app: 'business', label: 'WhatsApp Business' },
+];
+
+export function PatientHeader({ patient, onFailed }: PatientHeaderProps) {
     const t = useT();
     const [choosing, setChoosing] = useState(false);
     // A ref, not state: the sheet's dismiss callback can be a render behind.
-    const chosen = useRef<Branch | null>(null);
+    const chosen = useRef<WhatsAppApp | null>(null);
 
     const open = (url: string, failure: string) => {
         void Linking.openURL(url).catch(() => onFailed(failure));
     };
 
     const message = (app: WhatsAppApp) => {
-        void openWhatsApp(whatsAppUrl(patient.phone), app).catch(() =>
-            onFailed('WhatsApp could not be opened.'),
-        );
+        if (!openChosenWhatsApp(whatsAppUrl(patient.phone), app)) {
+            onFailed("That WhatsApp didn't open. Try the other one.");
+        }
     };
-
-    function onWhatsApp() {
-        const installed = installedWhatsApp();
-        // With one app installed it is the only one that can open, whatever
-        // the branch says, so there is nothing to wait for.
-        if (!(installed.regular && installed.business)) {
-            message('regular');
-            return;
-        }
-        // Guessing here is how a message goes out from the other branch's number.
-        if (!branches) {
-            onFailed("The branches haven't loaded yet. Try again in a moment.");
-            return;
-        }
-        const current = branches.find((b) => b.id === currentBranchId(schedule));
-        if (current) {
-            message(current.whatsappApp);
-        } else if (new Set(branches.map((b) => b.whatsappApp)).size > 1) {
-            setChoosing(true);
-        } else {
-            message(branches[0]?.whatsappApp ?? 'regular');
-        }
-    }
 
     return (
         <View style={styles.header}>
@@ -111,7 +87,7 @@ export function PatientHeader({ patient, branches, schedule, onFailed }: Patient
                 <Pressable
                     accessibilityRole="button"
                     accessibilityLabel={t('WhatsApp {name}', { name: patient.name })}
-                    onPress={onWhatsApp}
+                    onPress={() => setChoosing(true)}
                     style={({ pressed }) => [styles.action, styles.whatsApp, pressed && styles.pressed]}
                 >
                     <WhatsAppIcon size={18} stroke={color.inverse} />
@@ -133,28 +109,23 @@ export function PatientHeader({ patient, branches, schedule, onFailed }: Patient
                 // Leaving the app waits for the sheet to finish leaving, as any
                 // answer that changes the screen underneath does.
                 onClosed={() => {
-                    if (chosen.current) message(chosen.current.whatsappApp);
+                    if (chosen.current) message(chosen.current);
                     chosen.current = null;
                 }}
-                title="Message from which branch?"
+                title="Open WhatsApp in"
             >
-                <View style={styles.branches}>
-                    {(branches ?? []).map((branch) => (
+                <View style={styles.choices}>
+                    {WHATSAPP_CHOICES.map(({ app, label }) => (
                         <Pressable
-                            key={branch.id}
+                            key={app}
                             accessibilityRole="menuitem"
                             onPress={() => {
-                                chosen.current = branch;
+                                chosen.current = app;
                                 setChoosing(false);
                             }}
-                            style={({ pressed }) => [styles.branch, pressed && styles.pressed]}
+                            style={({ pressed }) => [styles.choice, pressed && styles.pressed]}
                         >
-                            <Text variant="body" style={styles.branchName}>
-                                {branch.name}
-                            </Text>
-                            <Text variant="subhead" tone="muted">
-                                {branch.whatsappApp === 'business' ? t('WhatsApp Business') : t('WhatsApp')}
-                            </Text>
+                            <Text variant="body">{t(label)}</Text>
                         </Pressable>
                     ))}
                 </View>
@@ -222,13 +193,11 @@ const styles = StyleSheet.create({
     whatsApp: { backgroundColor: color.wa },
     call: { borderWidth: border.thick, borderColor: color.outline },
     pressed: { opacity: 0.6 },
-    branches: { alignSelf: 'stretch' },
-    branch: {
+    choices: { alignSelf: 'stretch' },
+    choice: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: space[2],
         minHeight: size.row,
         paddingVertical: space[2],
     },
-    branchName: { flex: 1 },
 });

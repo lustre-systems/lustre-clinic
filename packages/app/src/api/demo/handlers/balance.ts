@@ -18,7 +18,7 @@ import { ERROR_CODE, WS_EVENT } from '@lustre/shared';
 import type { RouterInput, RouterOutput } from '../../types';
 import { getDb, save } from '../db';
 import { broadcast } from '../events';
-import { assertAmount, DemoError, dayRange } from '../rules';
+import { ageFromBirthDate, assertAmount, DemoError, dayRange } from '../rules';
 import type { Dated } from '../wire';
 import { insertPayment } from './visit';
 
@@ -39,7 +39,12 @@ function paidFor(visitId: string): number {
  * range crossing a DST changeover has two, and using one for both opens the
  * window an hour off at the far end.
  */
-function rangeOf(input: { from: string; to: string; offsetMinutes?: number; fromOffsetMinutes?: number }): {
+export function rangeOf(input: {
+    from: string;
+    to: string;
+    offsetMinutes?: number;
+    fromOffsetMinutes?: number;
+}): {
     from: Date;
     to: Date;
 } {
@@ -118,6 +123,8 @@ export const balanceHandlers = {
                     patientId,
                     name: patient?.name ?? '',
                     phone: patient?.phone ?? '',
+                    age: ageFromBirthDate(patient?.birthDate ?? null),
+                    gender: patient?.gender ?? null,
                     balance: entry.balance,
                     // A positive total cannot be reached without at least one
                     // unpaid visit, so the filter above has already settled this.

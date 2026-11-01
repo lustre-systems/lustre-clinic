@@ -20,6 +20,7 @@ import { setupDatabase, sql } from './helpers/db.ts';
 const TRUNCATED_TABLES = [
     'payments',
     'visit_procedures',
+    'visit_next_procedures',
     'visits',
     'reminders',
     'ref_edits',

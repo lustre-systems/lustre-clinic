@@ -105,7 +105,7 @@ function noteExport(at: Date | null): void {
 export async function exportLocal(dialogTitle: string): Promise<Date> {
     if (!isOpen('local')) openLocalDb();
     const at = new Date();
-    const copy = new File(Paths.cache, `lustre-clinic-${todayKey(at)}.json`);
+    const copy = new File(Paths.cache, `lustre-clinic-${todayKey(at.getTime())}.json`);
     copy.write(serializeLocal(getDb(), at));
     // Loaded here rather than imported: it brings react-native with it, and
     // every request path (`./link`) imports this file.

@@ -42,7 +42,7 @@ describe('going home (tapping the tab you are already on)', () => {
     it('moves the tab that was tapped and leaves the rest where they are', () => {
         const next = bumpHome(NO_HOME, 'patients');
 
-        expect(next).toEqual({ day: 0, patients: 1, money: 0, settings: 0 });
+        expect(next).toEqual({ day: 0, patients: 1, stats: 0, settings: 0 });
     });
 
     it('counts up, so a second tap is a second signal and not a no-op', () => {
@@ -52,9 +52,9 @@ describe('going home (tapping the tab you are already on)', () => {
     });
 
     it('keeps the four tabs independent', () => {
-        const next = bumpHome(bumpHome(NO_HOME, 'money'), 'settings');
+        const next = bumpHome(bumpHome(NO_HOME, 'stats'), 'settings');
 
-        expect(next).toEqual({ day: 0, patients: 0, money: 1, settings: 1 });
+        expect(next).toEqual({ day: 0, patients: 0, stats: 1, settings: 1 });
     });
 
     it('does not mutate what it was given — the clusters read the old one until they re-render', () => {
@@ -95,6 +95,6 @@ describe('the disconnected route', () => {
 
 describe('warming the tabs', () => {
     it('names every tab, so the warm-up mounts all of them and not the three it remembers', () => {
-        expect([...ALL_TABS].sort()).toEqual(['day', 'money', 'patients', 'settings']);
+        expect([...ALL_TABS].sort()).toEqual(['day', 'patients', 'settings', 'stats']);
     });
 });

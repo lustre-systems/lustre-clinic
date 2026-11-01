@@ -1,20 +1,14 @@
 # Release artefacts for one stack (`stack`): the APK Settings offers and the OTA
-# updates release builds fetch, staged in dist/releases by
-# `bun ship` (infra/README.md, "Releases"). The server reads them on
-# each request, so nothing restarts.
+# updates release builds fetch, staged in dist/releases (prod) or
+# dist/releases-dev (dev) by `bun ship` (infra/README.md, "Releases"). The
+# server reads them on each request, so nothing restarts.
 #
-# Additive on purpose: an update a phone may still be downloading is never
-# deleted from under it. The copy lands file by file in no particular order,
-# which is safe because the server offers nothing until it is complete: an APK
-# whose size matches its metadata, an update whose signature and every file
-# its manifest names are present (`modules/release/release.service.ts`).
-
-- name: "{{ stack.name }}: staged releases"
-  become: false
-  delegate_to: localhost
-  ansible.builtin.stat:
-    path: "{{ repo_root }}/dist/{{ 'releases' if stack.name == 'prod' else 'releases-dev' }}"
-  register: staged_releases
+# `bun ship` sends them itself after the server is up; this is the same
+# script, for `bun play releases` and a fresh machine. It sends one compressed
+# stream of what the server lacks, lands it beside the releases, and renames
+# it into place pointers last, so a phone never sees a pointer to files still
+# landing (scripts/pushReleases.ts). Additive on purpose: an update a phone may
+# still be downloading is never deleted from under it.
 
 - name: "{{ stack.name }}: releases directory"
   ansible.builtin.file:
@@ -26,9 +20,13 @@
 
 - name: "{{ stack.name }}: copy releases"
   become: false
-  ansible.builtin.copy:
-    src: "{{ repo_root }}/dist/{{ 'releases' if stack.name == 'prod' else 'releases-dev' }}/"
-    dest: /opt/lustre-{{ stack.name }}/releases/
-    mode: "0644"
-    directory_mode: "0755"
-  when: staged_releases.stat.isdir | default(false)
+  delegate_to: localhost
+  ansible.builtin.command:
+    argv:
+      - bun
+      - scripts/pushReleases.ts
+      - "--stack={{ stack.name }}"
+      - "--host={{ hostvars[inventory_hostname].ansible_user }}@{{ hostvars[inventory_hostname].ansible_host }}"
+    chdir: "{{ repo_root }}"
+  register: stack_releases
+  changed_when: "'Sent ' in stack_releases.stdout"

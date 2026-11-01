@@ -27,6 +27,7 @@ import {
     refEdits,
     reminders,
     settings,
+    visitNextProcedures,
     visitProcedures,
     visits,
 } from '../../db/schema.ts';
@@ -103,7 +104,23 @@ export async function importLocalClinic(file: LocalClinicFile): Promise<LocalImp
         await insertAll(tx, patients, clinic.patients);
         await insertAll(tx, appointments, clinic.appointments);
         await insertAll(tx, appointmentProcedures, clinic.appointmentProcedures);
-        await insertAll(tx, visits, clinic.visits);
+        await insertAll(
+            tx,
+            visits,
+            clinic.visits.map(({ nextProcedures: _, ...visit }) => visit),
+        );
+        await insertAll(
+            tx,
+            visitNextProcedures,
+            clinic.visits.flatMap((visit) =>
+                visit.nextProcedures.map((next, sortOrder) => ({
+                    id: Bun.randomUUIDv7(),
+                    visitId: visit.id,
+                    ...next,
+                    sortOrder,
+                })),
+            ),
+        );
         await insertAll(tx, visitProcedures, clinic.visitProcedures);
         await insertAll(tx, payments, clinic.payments);
         await insertAll(tx, reminders, clinic.reminders);

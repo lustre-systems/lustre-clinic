@@ -16,7 +16,8 @@
  * role (health, the APK, redeeming a code); `clinicProcedure` for everything
  * else, which resolves the caller and refuses a revoked phone or, once the
  * clinic requires it, an unprovisioned one; and on top of that
- * `paymentProcedure`, which a doctor may not call, `setupProcedure` for
+ * `paymentProcedure`, which a doctor may not call, `statsProcedure` for the
+ * clinic's own figures, which only an admin may see, `setupProcedure` for
  * setting the clinic up, which only an admin may, and `adminProcedure`.
  */
 import { ERROR_CODE, type ErrorCode } from '@lustre/shared';
@@ -120,6 +121,11 @@ export const clinicProcedure = publicProcedure.use(async ({ ctx, next }) =>
 
 export const paymentProcedure = clinicProcedure.use(({ ctx, next }) => {
     deviceService.assertSeesPayments(ctx.caller);
+    return next();
+});
+
+export const statsProcedure = clinicProcedure.use(({ ctx, next }) => {
+    deviceService.assertSeesStats(ctx.caller);
     return next();
 });
 

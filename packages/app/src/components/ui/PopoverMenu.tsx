@@ -119,6 +119,13 @@ export function MenuSurface({
     const [mounted, setMounted] = useState(visible);
     const reducedMotion = useReducedMotion();
 
+    // Callers clear the anchor in the same update that closes the menu, and the
+    // surface is still on screen for its exit. Without the last anchor held, it
+    // fell back to the default corner and jumped to the top right as it faded.
+    const lastAnchor = useRef(anchor);
+    if (anchor) lastAnchor.current = anchor;
+    const at = anchor ?? (visible ? undefined : lastAnchor.current);
+
     useEffect(() => {
         if (visible) setMounted(true);
         const drop = motion === 'drop';
@@ -136,10 +143,9 @@ export function MenuSurface({
 
     if (!mounted) return null;
 
-    const top = anchor?.top ?? space[12];
-    const inline =
-        anchor?.start !== undefined ? { start: anchor.start } : { end: anchor?.end ?? size.gutter };
-    const width = anchor?.width !== undefined ? { width: anchor.width } : null;
+    const top = at?.top ?? space[12];
+    const inline = at?.start !== undefined ? { start: at.start } : { end: at?.end ?? size.gutter };
+    const width = at?.width !== undefined ? { width: at.width } : null;
     const drop = motion === 'drop';
     const shape = drop
         ? {

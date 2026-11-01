@@ -60,18 +60,18 @@ describe('the age, converted', () => {
     // The app's one lossy rule: the year is what the desk was told, the day is
     // not. 1 January reads back as the same age for the rest of the year.
     test('an age becomes 1 January of the year that reads back as it', () => {
-        const today = new Date(2026, 7, 16);
+        const today = '2026-08-16';
         expect(birthDateOf('34', today)).toBe('1992-01-01');
         expect(birthDateOf('0', today)).toBe('2026-01-01');
     });
 
     test('a blank age is no date rather than a bad one', () => {
-        expect(birthDateOf('', new Date(2026, 7, 16))).toBeNull();
+        expect(birthDateOf('', '2026-08-16')).toBeNull();
         expect(ageError('')).toBeNull();
     });
 
     test('nobody is 340', () => {
-        expect(birthDateOf('340', new Date(2026, 7, 16))).toBeNull();
+        expect(birthDateOf('340', '2026-08-16')).toBeNull();
         expect(ageError('340')).not.toBeNull();
     });
 });

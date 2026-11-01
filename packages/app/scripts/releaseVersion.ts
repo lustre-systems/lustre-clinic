@@ -9,7 +9,7 @@
  *          screen and restarts itself, `shell/UpdateScreen.tsx`). PATCH goes back to 0.
  *   PATCH  a quiet OTA update: 1.4.1, 1.4.2, … It applies on the next launch.
  *
- * The APK's own version, `X.Y.0` (or the patch an update restaged it with), is
+ * The APK's own version, `X.Y.0` (or the patch an update rebuilt it with), is
  * what Android reports and what an update cannot change; the running version is
  * the update's. Both come from the same
  * two records: the `vX.Y.Z` git tags the release script leaves, and what is

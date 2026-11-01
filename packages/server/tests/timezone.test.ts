@@ -1,4 +1,5 @@
 import { beforeAll, beforeEach, describe, expect, test } from 'bun:test';
+import { clinicOffsetNow, offsetForDate } from '@lustre/shared';
 import { appointmentService } from '../src/modules/appointment/appointment.service.ts';
 import { balanceService } from '../src/modules/balance/balance.service.ts';
 import { reminderService } from '../src/modules/reminder/reminder.service.ts';
@@ -333,5 +334,59 @@ describe('appointment.missed', () => {
 
         const missed = await appointmentService.missed({ limit: 100 });
         expect(missed.map((a) => a.id)).not.toContain(appointment.id);
+    });
+});
+
+/**
+ * 29 October 2026: Cairo's summer time ends at midnight, 24:00 at +3 becoming
+ * 23:00 at +2, so the clinic's Thursday runs 25 hours. The app sends the offset
+ * that starts the day (`offsetForDate`), and the server gives a caller on
+ * clinic time the whole of it.
+ */
+describe('the night the clocks go back', () => {
+    // 23:30 the second time round, at +2.
+    const lateThursday = '2026-10-29T21:30:00.000Z';
+
+    test('a late appointment stays on its own day', async () => {
+        const fixtures = await clinic();
+        await appointmentService.create({
+            patient: { kind: 'existing', patientId: fixtures.patient.id },
+            branchId: fixtures.branch.id,
+            startsAt: lateThursday,
+            offsetMinutes: offsetForDate('2026-10-29'),
+        });
+
+        const thursday = await appointmentService.byDate({
+            date: '2026-10-29',
+            offsetMinutes: offsetForDate('2026-10-29'),
+        });
+        const friday = await appointmentService.byDate({
+            date: '2026-10-30',
+            offsetMinutes: offsetForDate('2026-10-30'),
+        });
+
+        expect(thursday.map((row) => row.startsAt.toISOString())).toEqual([lateThursday]);
+        expect(friday).toEqual([]);
+        expect(thursday[0]?.ref).toStartWith('291026-');
+    });
+
+    test("a reminder quotes the clinic's time on the far side of the change", async () => {
+        const fixtures = await clinic();
+        await settingsService.update({ reminderTemplate: '{{date}} {{time}}' });
+        // 17:30 in Cairo on 2 November, at +2.
+        await appointmentService.create({
+            patient: { kind: 'existing', patientId: fixtures.patient.id },
+            branchId: fixtures.branch.id,
+            startsAt: '2026-11-02T15:30:00.000Z',
+            offsetMinutes: offsetForDate('2026-11-02'),
+        });
+
+        const [reminder] = await reminderService.pending({
+            dueOnly: false,
+            limit: 100,
+            offsetMinutes: clinicOffsetNow(),
+        });
+
+        expect(reminder?.message).toBe('2026-11-02 17:30');
     });
 });

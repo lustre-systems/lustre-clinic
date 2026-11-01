@@ -1,6 +1,6 @@
 /**
  * SPEC §15. What the operator's release script (`packages/app/scripts/release.ts`)
- * stages in `RELEASES_DIR`, and the ansible `releases` tag copies to the clinic:
+ * stages in `RELEASES_DIR`, and `scripts/pushReleases.ts` copies to the clinic:
  *
  *   android/latest.json                 { versionCode, version, size, … }
  *   android/lustre.apk
@@ -11,12 +11,17 @@
  * private key never reaches this server, and it is served byte for byte because
  * the signature covers those bytes.
  *
- * A copy to the clinic lands file by file, in no order the server can rely on,
- * and can be interrupted. So nothing is offered until everything it needs is
- * here: an APK whose size matches its metadata, and an update whose signature
- * and every file its manifest names are present. Offered early, a phone would
- * download the previous APK under the new build number, or fail an update's
- * download on every launch.
+ * The copy renames each file into place with the pointers last, but it lands
+ * file by file and can be interrupted, and a releases directory may have come
+ * by other means. So nothing is offered until everything it needs is here: an
+ * APK whose size matches its metadata, and an update whose signature and every
+ * file its manifest names are present. Offered early, a phone would download
+ * the previous APK under the new build number, or fail an update's download on
+ * every launch.
+ *
+ * The APK and the latest update need not be the same release: an OTA update
+ * leaves the staged APK as it was, and a fresh install takes the update on its
+ * first launch. Each is read on its own.
  *
  * Nothing here throws. No releases at all is where every fresh install starts,
  * and a phone reads "nothing newer" and "no answer" the same way.

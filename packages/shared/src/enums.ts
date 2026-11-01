@@ -156,14 +156,22 @@ export function viewOf(role: Role): ClientRole {
 }
 
 /**
- * Payment history, what a patient owes, and the money screen and its stats. A
- * doctor still sees prices and can check a patient out.
+ * Payment history and what a patient owes. A doctor still sees prices and can
+ * check a patient out.
  *
  * `null` is a phone with no credential, which keeps what it could do before
  * roles existed until the clinic turns `requireProvisioning` on.
  */
 export function seesPayments(role: Role | null): boolean {
     return role !== 'doctor';
+}
+
+/**
+ * The stats screen and what procedures cost the clinic: the owner's figures.
+ * The desk takes payments but never sees the margin on them.
+ */
+export function seesStats(role: Role | null): boolean {
+    return role === null || role === 'admin';
 }
 
 /**

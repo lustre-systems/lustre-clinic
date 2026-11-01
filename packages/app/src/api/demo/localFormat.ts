@@ -88,7 +88,7 @@ export function parseLocalFile(raw: string, checkRows = false): { db: DemoDb; ex
     }
     const exportedAt = typeof parsed.exportedAt === 'string' ? new Date(parsed.exportedAt) : null;
     return {
-        db: revive(parsed.db),
+        db: upgrade(revive(parsed.db)),
         exportedAt: exportedAt && !Number.isNaN(exportedAt.getTime()) ? exportedAt : null,
     };
 }
@@ -96,6 +96,20 @@ export function parseLocalFile(raw: string, checkRows = false): { db: DemoDb; ex
 /** Whether opening another clinic over this one would lose anybody's records. */
 export function hasRecords(db: DemoDb): boolean {
     return db.patients.length > 0 || db.appointments.length > 0;
+}
+
+/**
+ * Rows written by an older build, brought up to today's shape. Each step fills
+ * what that build did not write with what it meant.
+ *
+ * - Costs: a procedure nobody priced the cost of costs nothing, and so does a
+ *   line on a visit from before costs existed — the stats screen counts old
+ *   visits as all profit rather than guessing.
+ */
+function upgrade(db: DemoDb): DemoDb {
+    for (const row of db.procedureTypes) row.cost ??= 0;
+    for (const line of db.visitProcedures) line.unitCost ??= 0;
+    return db;
 }
 
 function hasEveryTable(db: object): boolean {

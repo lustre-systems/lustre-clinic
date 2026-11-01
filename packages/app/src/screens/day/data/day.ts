@@ -20,7 +20,7 @@
 import type { PaymentMethod, Tooth } from '@lustre/shared';
 import { errorCodeOf, isOffline, trpcClient } from '../../../api';
 import { withoutTeeth } from '../procedures';
-import { localOffsetMinutes, offsetForDate } from '../time';
+import { clinicOffsetNow, offsetForDate } from '../time';
 import { RequestError } from './client';
 import type {
     Appointment,
@@ -28,6 +28,7 @@ import type {
     Branch,
     ClinicDay,
     ClinicSettings,
+    NextProcedure,
     Patient,
     PendingReminder,
     ProcedureCategory,
@@ -124,12 +125,12 @@ export const api = {
             return settings.clinicType === 'general' ? withoutTeeth(tree) : tree;
         }),
 
-    pendingReminders: (date: string): Promise<PendingReminder[]> =>
+    pendingReminders: (): Promise<PendingReminder[]> =>
         wrap(() =>
             trpcClient.reminder.pending.query({
                 dueOnly: true,
                 limit: 100,
-                offsetMinutes: offsetForDate(date),
+                offsetMinutes: clinicOffsetNow(),
             }),
         ),
 
@@ -148,6 +149,10 @@ export const api = {
     dismissRemindersToday: (date: string): Promise<unknown> =>
         wrap(() => trpcClient.reminder.dismissToday.mutate({ date })),
 
+    /** Undoes `dismissRemindersToday` for `date`: the nudge arms again. */
+    resumeRemindersToday: (date: string): Promise<unknown> =>
+        wrap(() => trpcClient.reminder.resumeToday.mutate({ date })),
+
     searchPatients: (q: string): Promise<Patient[]> =>
         wrap(() => trpcClient.patient.search.query({ q, limit: 8 })),
 
@@ -157,7 +162,7 @@ export const api = {
      * and keeps the chair's queue to one day.
      */
     checkIn: (appointmentId: string): Promise<VisitRow> =>
-        wrap(() => trpcClient.visit.checkIn.mutate({ appointmentId, offsetMinutes: localOffsetMinutes() })),
+        wrap(() => trpcClient.visit.checkIn.mutate({ appointmentId, offsetMinutes: clinicOffsetNow() })),
 
     walkIn: (input: {
         patient: PatientRef;
@@ -211,7 +216,7 @@ export const api = {
         wrap(() => trpcClient.appointment.markLabReady.mutate({ id })),
 
     awaitPayment: (id: string): Promise<AppointmentRow> =>
-        wrap(() => trpcClient.appointment.awaitPayment.mutate({ id, offsetMinutes: localOffsetMinutes() })),
+        wrap(() => trpcClient.appointment.awaitPayment.mutate({ id, offsetMinutes: clinicOffsetNow() })),
 
     /**
      * Replaces the visit's whole list — the procedure does not patch a line
@@ -228,7 +233,13 @@ export const api = {
             tooth?: Tooth | null;
             note?: string | null;
         }>;
+        /** Left off keeps the visit's next procedures; empty clears them. */
+        nextProcedures?: Array<{ procedureId: string; tooth: Tooth | null }>;
     }): Promise<Visit> => wrap(() => trpcClient.visit.setProcedures.mutate(input)),
+
+    /** What this patient's next booking should be for, if a visit asked for anything. */
+    pendingNextProcedures: (patientId: string): Promise<NextProcedure[]> =>
+        wrap(() => trpcClient.visit.pendingNextProcedures.query({ patientId })),
 
     checkOut: (input: {
         visitId: string;
@@ -237,7 +248,7 @@ export const api = {
         method: PaymentMethod;
         methodNote?: string | null;
     }): Promise<Visit> =>
-        wrap(() => trpcClient.visit.checkOut.mutate({ ...input, offsetMinutes: localOffsetMinutes() })),
+        wrap(() => trpcClient.visit.checkOut.mutate({ ...input, offsetMinutes: clinicOffsetNow() })),
 
     /**
      * What the visit was paid, in total, rather than another payment on top —
@@ -251,6 +262,17 @@ export const api = {
         method: PaymentMethod;
         methodNote?: string | null;
     }): Promise<Visit> => wrap(() => trpcClient.visit.setPaid.mutate(input)),
+
+    /**
+     * How the money already on the visit was paid, said again — card, not
+     * cash — with the total unchanged. The server gives each other method's
+     * share back and takes it again in this one, so nothing is overwritten.
+     */
+    setPaidMethod: (input: {
+        visitId: string;
+        method: PaymentMethod;
+        methodNote?: string | null;
+    }): Promise<Visit> => wrap(() => trpcClient.visit.setPaidMethod.mutate(input)),
 
     visitById: (id: string): Promise<Visit> => wrap(() => trpcClient.visit.byId.query({ id })),
 
@@ -272,7 +294,7 @@ export const api = {
      * payment is on the visit — those come off first, one at a time.
      */
     deleteVisit: (visitId: string): Promise<void> =>
-        wrap(() => trpcClient.visit.delete.mutate({ visitId, offsetMinutes: localOffsetMinutes() })),
+        wrap(() => trpcClient.visit.delete.mutate({ visitId, offsetMinutes: clinicOffsetNow() })),
 
     /** A payment that was never taken. `setPaid` is for one that was, at the wrong figure. */
     deletePayment: (paymentId: string): Promise<Visit> =>
@@ -336,6 +358,7 @@ export async function amend(input: {
     closed: boolean;
     procedures: Array<{ procedureId: string; quantity: number; unitPrice: number; tooth: Tooth | null }>;
     note?: string | null;
+    nextProcedures?: Array<{ procedureId: string; tooth: Tooth | null }>;
 }): Promise<Visit> {
     // `closed` is what the screen was opened on, which a failed attempt has
     // already made stale: the reopen lands, `setProcedures` is refused for a
@@ -354,7 +377,11 @@ export async function amend(input: {
         if (current.completedAt) await api.reopenVisit(input.visitId);
     }
 
-    return api.setProcedures({ visitId: input.visitId, procedures: input.procedures });
+    return api.setProcedures({
+        visitId: input.visitId,
+        procedures: input.procedures,
+        nextProcedures: input.nextProcedures,
+    });
 }
 
 /**

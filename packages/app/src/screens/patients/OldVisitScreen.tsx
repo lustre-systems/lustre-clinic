@@ -54,7 +54,7 @@ import {
     type PlannedProcedure,
     toothPosition,
 } from '../day/procedures';
-import { monthShort, parseKey, relativeDayLabel, todayKey } from '../day/time';
+import { dayOfMonth, monthShort, relativeDayLabel, todayKey } from '../day/time';
 import { MonthGrid } from './components/MonthGrid';
 import { formatMoney } from './components/money';
 import { patientsApi } from './data/api';
@@ -187,7 +187,7 @@ export function OldVisitScreen({ patientId, onBack, onSavingChange, onRecorded }
                     {performedOn ? (
                         <>
                             <Text variant="title2" script="sans" weight="bold" tone="inverse">
-                                {parseKey(performedOn).getDate()}
+                                {dayOfMonth(performedOn)}
                             </Text>
                             <Text variant="eyebrow" tone="inverse" style={styles.tileMonth}>
                                 {monthShort(performedOn).toUpperCase()}

@@ -20,6 +20,7 @@
  * keeps the seed fast enough to run on a phone at launch.
  */
 import {
+    addDays,
     DEFAULT_DURATION_MINUTES,
     DEFAULT_DURATION_OPTIONS,
     DEFAULT_REMINDER_LEAD_HOURS,
@@ -28,8 +29,13 @@ import {
     DEFAULT_REMINDER_TEMPLATE,
     DEFAULT_REQUIRE_AGE,
     DEFAULT_REQUIRE_GENDER,
+    dateKey,
+    instantAt,
+    minutesOfDay,
     type PaymentMethod,
+    pad2,
     type Tooth,
+    weekdayOf,
 } from '@lustre/shared';
 import {
     type AppointmentRow,
@@ -65,8 +71,10 @@ function at(offsetMinutes: number, from: number = Date.now()): Date {
     return new Date(Math.round((from + offsetMinutes * MINUTE) / GRID) * GRID);
 }
 
-function localHhMm(date: Date): string {
-    return `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
+/** `HH:MM` on the clinic's clock. */
+function clinicHhMm(at: Date | number): string {
+    const minutes = minutesOfDay(at);
+    return `${pad2(Math.floor(minutes / 60))}:${pad2(minutes % 60)}`;
 }
 
 function money(pounds: number): number {
@@ -88,6 +96,11 @@ interface Catalogue {
     all: ProcedureTypeRow[];
 }
 
+/** About a third of the price, in whole pounds, so the stats screen has a margin to show. */
+function demoCost(defaultPrice: number): number {
+    return Math.round((defaultPrice * 35) / 100 / 100) * 100;
+}
+
 function procedure(
     name: string,
     defaultPrice: number,
@@ -99,6 +112,7 @@ function procedure(
         parentId: null,
         name,
         defaultPrice,
+        cost: demoCost(defaultPrice),
         hasQuantity: false,
         isToothSpecific: false,
         isCheckup: false,
@@ -215,13 +229,15 @@ function buildPatients(createdFrom: number): PatientRow[] {
         phone: normalizePhone(phone),
         email: null,
         // Newest first in the register is what the patients tab opens on, so
-        // they are registered in the order they are listed here.
+        // they are registered in the order they are listed here — three weeks
+        // apart, across the year of history, so Stats has new patients to count
+        // in more than the last month.
         birthDate,
         gender: null,
         custom: {},
         notes: null,
         legacyRef: index < 4 ? `OLD-${1200 + index}` : null,
-        createdAt: new Date(createdFrom - (NAMES.length - index) * 3 * DAY),
+        createdAt: new Date(createdFrom - (NAMES.length - index) * 21 * DAY),
     }));
 }
 
@@ -338,6 +354,7 @@ function writeClosedVisit(
             procedureId: line.procedure.id,
             quantity: line.quantity ?? 1,
             unitPrice: line.procedure.defaultPrice,
+            unitCost: line.procedure.cost,
             tooth: line.tooth ?? null,
             note: null,
         });
@@ -360,6 +377,8 @@ function writeClosedVisit(
         completedAt: closedAt,
         computedTotal: chargedTotal,
         chargedTotal,
+        nextProcedures: [],
+        nextAppointmentId: null,
         createdAt: new Date(startsAt.getTime() - 6 * MINUTE),
     });
 
@@ -410,6 +429,8 @@ function writeOpeningBalance(db: DemoDb, patient: PatientRow, branch: BranchRow,
         completedAt: cutoff,
         computedTotal: amount,
         chargedTotal: amount,
+        nextProcedures: [],
+        nextAppointmentId: null,
         createdAt: cutoff,
     });
 }
@@ -507,8 +528,7 @@ export function seedDemoDb(): DemoDb {
     ];
 
     for (let daysAgo = 14; daysAgo >= 1; daysAgo -= 1) {
-        const midday = new Date(Date.now() - daysAgo * DAY);
-        midday.setHours(11, 0, 0, 0);
+        const midday = new Date(instantAt(addDays(dateKey(Date.now()), -daysAgo), 11 * 60));
 
         for (let slot = 0; slot < 3; slot += 1) {
             const index = (daysAgo * 3 + slot) % patients.length;
@@ -529,6 +549,36 @@ export function seedDemoDb(): DemoDb {
                 lines,
                 paid: owes ? money(200) : 'full',
                 method: slot === 1 ? 'visa' : 'cash',
+            });
+        }
+    }
+
+    // --- a year behind that, for the stats screen ---------------------------
+    //
+    // Thinner than the fortnight, at a different pace each month and split
+    // between the branches by weekday, so Stats has weeks, months and a
+    // previous year to compare and two branches to stack. All paid: the
+    // debtors the money screens show come from the fortnight above.
+
+    const PACE = [2, 1, 3, 2, 3, 1, 2, 3, 2, 1, 3, 2];
+    const METHODS: PaymentMethod[] = ['cash', 'cash', 'visa', 'instapay'];
+    for (let daysAgo = 365; daysAgo > 14; daysAgo -= 1) {
+        const key = addDays(dateKey(Date.now()), -daysAgo);
+        const weekday = weekdayOf(key);
+        if (weekday === 5) continue;
+        const branch = weekday % 2 === 0 ? main : second;
+        const visits = PACE[Math.floor(daysAgo / 30) % PACE.length] ?? 2;
+        const midday = new Date(instantAt(key, 11 * 60));
+
+        for (let slot = 0; slot < visits; slot += 1) {
+            writeClosedVisit(db, {
+                patient: patient((daysAgo + slot) % patients.length),
+                branch,
+                startsAt: new Date(midday.getTime() + slot * 90 * MINUTE),
+                durationMinutes: 30,
+                lines: history[(daysAgo * 7 + slot) % history.length] ?? [],
+                paid: 'full',
+                method: METHODS[(daysAgo + slot) % METHODS.length] ?? 'cash',
             });
         }
     }
@@ -699,8 +749,7 @@ export function seedDemoDb(): DemoDb {
     }
 
     for (let daysAhead = 1; daysAhead <= 6; daysAhead += 1) {
-        const morning = new Date(Date.now() + daysAhead * DAY);
-        morning.setHours(10, 0, 0, 0);
+        const morning = new Date(instantAt(addDays(dateKey(Date.now()), daysAhead), 10 * 60));
 
         for (let slot = 0; slot < 2; slot += 1) {
             const index = (daysAhead * 2 + slot + 3) % patients.length;
@@ -727,7 +776,7 @@ export function seedDemoDb(): DemoDb {
     // is: a 9pm demo on 09:00–17:00 hours would open on a clinic that shut four
     // hours ago.
     const todayStamps = db.appointments
-        .filter((row) => !row.isOpeningBalance && sameLocalDay(row.startsAt, new Date()))
+        .filter((row) => !row.isOpeningBalance && dateKey(row.startsAt) === dateKey(Date.now()))
         .map((row) => row.startsAt.getTime());
 
     // `now` is on the grid like the stamps are, so that the window is still on
@@ -747,7 +796,7 @@ export function seedDemoDb(): DemoDb {
     // 23:50 and 23:59, so the day view would open on a clinic that is closed.
     // Never earlier than now is what this file's header promises.
     const padded = clampToDay(new Date(latest + 90 * MINUTE), '23:50');
-    const nowHhMm = localHhMm(new Date());
+    const nowHhMm = clinicHhMm(Date.now());
     const closesAt = padded > nowHhMm ? padded : '23:59';
 
     // Late enough in the evening, the window runs past midnight at both ends
@@ -770,12 +819,6 @@ export function seedDemoDb(): DemoDb {
     return db;
 }
 
-function sameLocalDay(a: Date, b: Date): boolean {
-    return (
-        a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate()
-    );
-}
-
 /**
  * A time that ran past either end of *today* is pinned there. Opening hours are
  * `HH:MM` with no date on them, so a closing time of 00:57 tomorrow is not a
@@ -787,10 +830,8 @@ function sameLocalDay(a: Date, b: Date): boolean {
  * never be crossed, and an evening demo gets `00:57` as its closing time.
  */
 function clampToDay(date: Date, fallback: string): string {
-    const midnight = new Date();
-    midnight.setHours(0, 0, 0, 0);
-
-    if (date.getTime() < midnight.getTime()) return fallback;
-    if (date.getTime() >= midnight.getTime() + DAY) return fallback;
-    return localHhMm(date);
+    const today = dateKey(Date.now());
+    if (date.getTime() < instantAt(today, 0)) return fallback;
+    if (date.getTime() >= instantAt(addDays(today, 1), 0)) return fallback;
+    return clinicHhMm(date);
 }

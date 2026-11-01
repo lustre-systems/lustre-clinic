@@ -38,6 +38,7 @@ import {
     Callout,
     Chevron,
     Chip,
+    ConfirmSheet,
     Select,
     StepView,
     Textarea,
@@ -45,6 +46,7 @@ import {
 } from '../../../components/ui';
 import { useT } from '../../../i18n';
 import { border, color, radius, size, space, Text } from '../../../theme';
+import { bookingActions } from '../actions';
 import {
     dayLabel,
     daysOffered,
@@ -80,13 +82,13 @@ import {
 } from '../procedures';
 import {
     addDays,
+    clinicOffsetNow,
     dateKey as dayKeyOf,
+    dayOfMonth,
     isoAt,
-    localOffsetMinutes,
     minutesOfDay,
     monthShort,
     offsetForDate,
-    parseKey,
     relativeDayLabel,
     time12,
     todayKey,
@@ -126,6 +128,13 @@ export type BookingScreenProps = {
     nowMinutes: number;
     onBack: () => void;
     onBooked: (message: string) => void;
+    /**
+     * The booking being edited was cancelled. Given, a reschedule offers
+     * Cancel booking: the patient record opens a booking straight onto this
+     * page, so without it a booking on a later day had no way to be called
+     * off short of finding its day on the calendar.
+     */
+    onCancelled?: (message: string) => void;
 };
 
 /**
@@ -159,6 +168,7 @@ export function BookingScreen({
     nowMinutes,
     onBack,
     onBooked,
+    onCancelled,
 }: BookingScreenProps) {
     const t = useT();
     const today = todayKey();
@@ -169,7 +179,7 @@ export function BookingScreen({
     // price it. Until then there is nothing to compare, so nothing has changed.
     const [planSeeded, setPlanSeeded] = useState(rescheduling === undefined);
     // A move opens on the day the appointment already has, not the day behind.
-    const movingFrom = rescheduling ? dayKeyOf(new Date(rescheduling.startsAt)) : null;
+    const movingFrom = rescheduling ? dayKeyOf(rescheduling.startsAt) : null;
     const openOn = movingFrom ?? dateKey;
     const [timing, setTiming] = useState<Timing>(
         asked ?? (!isClosed(today, schedule, branchId) && dateKey === today ? 'now' : 'later'),
@@ -216,6 +226,10 @@ export function BookingScreen({
     const walkIn = useLocalMutation(api.walkIn);
     const create = useLocalMutation(api.create);
     const move = useLocalMutation(api.reschedule);
+    const cancel = useLocalMutation(api.cancel);
+    const [confirmingCancel, setConfirmingCancel] = useState(false);
+    const canCancel =
+        rescheduling !== undefined && onCancelled !== undefined && bookingActions(rescheduling, today).cancel;
 
     const step = STEPS[index]?.key ?? 'confirm';
     // Picking a branch that is not working today takes the walk-in away under
@@ -223,7 +237,7 @@ export function BookingScreen({
     // leaving a booking with no when at all.
     // A move is always to a time: a walk-in is a new arrival, not this booking.
     const scheduled = rescheduling !== undefined || timing === 'later' || !canWalkIn;
-    const pending = walkIn.pending || create.pending || move.pending;
+    const pending = walkIn.pending || create.pending || move.pending || cancel.pending;
     const error = rescheduling ? move.error : scheduled ? create.error : walkIn.error;
     const failure = error
         ? describeError(error, rescheduling ? 'move' : scheduled ? 'booking' : 'walk-in')
@@ -251,6 +265,33 @@ export function BookingScreen({
     if (!planSeeded && rescheduling && catalogue.data) {
         setPlanSeeded(true);
         setPlan(planFrom(rescheduling.procedures, catalogue.data));
+    }
+
+    // A new booking for someone on file opens on the procedures their last visit
+    // asked for next (`visit.next.ts`). Making the booking is what uses them up,
+    // so the desk can take lines off and they are still spent.
+    const owedTo =
+        rescheduling === undefined && patient.mode === 'existing' ? (patient.picked?.id ?? null) : null;
+    const owed = useLocalQuery(`next-procedures:${owedTo}`, () => api.pendingNextProcedures(owedTo ?? ''), {
+        enabled: owedTo !== null,
+    });
+    const [owedSeeded, setOwedSeeded] = useState(owedTo === null);
+    if (!owedSeeded && owed.data !== undefined && catalogue.data) {
+        setOwedSeeded(true);
+        if (owed.data.length > 0 && plan.length === 0) {
+            setPlan(
+                planFrom(
+                    owed.data.map((line, i) => ({
+                        ...line,
+                        id: `next-${i}-${line.procedureId}`,
+                        quantity: 1,
+                        note: null,
+                        quotedPrice: null,
+                    })),
+                    catalogue.data,
+                ),
+            );
+        }
     }
 
     // Every day the branch works in the fortnight ahead, not just the one on
@@ -349,6 +390,16 @@ export function BookingScreen({
         move.reset();
     }
 
+    function cancelBooking() {
+        if (!rescheduling || !onCancelled) return;
+        cancel.mutate(rescheduling.id, {
+            onSuccess: () => {
+                setConfirmingCancel(false);
+                onCancelled(t("{name}'s booking was cancelled", { name }));
+            },
+        });
+    }
+
     function book() {
         if (!ref || !branch || !ready) return;
 
@@ -357,7 +408,7 @@ export function BookingScreen({
             if (at === null) return;
             // Nothing the server holds has changed, so there is nothing to write.
             if (!timeChanged && !lengthChanged && !branchChanged && !planChanged && !noteEdited) {
-                onBooked(`${name}'s booking is unchanged`);
+                onBooked(t("{name}'s booking is unchanged", { name }));
                 return;
             }
             move.mutate(
@@ -375,8 +426,12 @@ export function BookingScreen({
                     onSuccess: () =>
                         onBooked(
                             !timeChanged
-                                ? `${name}'s booking updated`
-                                : `${name} moved to ${dayLabel(date)} at ${timeLabel(at)}`,
+                                ? t("{name}'s booking updated", { name })
+                                : t('{name} moved to {day} at {time}', {
+                                      name,
+                                      day: dayLabel(date),
+                                      time: timeLabel(at),
+                                  }),
                         ),
                 },
             );
@@ -395,7 +450,7 @@ export function BookingScreen({
                     procedures,
                     note: body,
                     needsLab,
-                    offsetMinutes: localOffsetMinutes(),
+                    offsetMinutes: clinicOffsetNow(),
                 },
                 {
                     // A walk-in is never refused for want of room — the booked
@@ -409,16 +464,31 @@ export function BookingScreen({
                     // when in the same breath.
                     onSuccess: (result) => {
                         const pushed = result.moved.length;
-                        const who = name ? `${name} is checked in` : 'Walk-in checked in';
                         const seated = time12(result.appointment.startsAt);
+                        const at = `${seated.time} ${seated.meridiem}`;
                         // A minute of slack: the round trip alone puts the
                         // start a few seconds behind the clock, and that is
                         // still "now" to the person at the desk.
                         const waits = new Date(result.appointment.startsAt).getTime() > serverNow() + 60_000;
 
                         const parts = [
-                            waits ? `${who}, seen at ${seated.time} ${seated.meridiem}` : who,
-                            pushed > 0 ? `${pushed} appointment${pushed === 1 ? '' : 's'} moved back` : null,
+                            name
+                                ? waits
+                                    ? t('{name} is checked in, seen at {time}', { name, time: at })
+                                    : t('{name} is checked in', { name })
+                                : waits
+                                  ? t('Walk-in checked in, seen at {time}', { time: at })
+                                  : t('Walk-in checked in'),
+                            pushed > 0
+                                ? t(
+                                      pushed === 1
+                                          ? '{count} appointment moved back'
+                                          : '{count} appointments moved back',
+                                      {
+                                          count: pushed,
+                                      },
+                                  )
+                                : null,
                         ].filter((part) => part !== null);
 
                         onBooked(parts.join(' — '));
@@ -441,7 +511,16 @@ export function BookingScreen({
                 needsLab,
                 offsetMinutes: offsetForDate(date),
             },
-            { onSuccess: () => onBooked(`${name} — ${dayLabel(date)} at ${timeLabel(slotMinutes)}`) },
+            {
+                onSuccess: () =>
+                    onBooked(
+                        t('{name} — {day} at {time}', {
+                            name,
+                            day: dayLabel(date),
+                            time: timeLabel(slotMinutes),
+                        }),
+                    ),
+            },
         );
     }
 
@@ -503,9 +582,22 @@ export function BookingScreen({
                 >
                     <Chevron direction="back" size={10} tone="ink" />
                 </Pressable>
-                <Text variant="eyebrow" tone="muted">
+                <Text variant="eyebrow" tone="muted" style={styles.topbarTitle}>
                     {t(rescheduling ? 'RESCHEDULE' : 'NEW BOOKING')}
                 </Text>
+                {canCancel ? (
+                    <Button
+                        label="Cancel booking"
+                        variant="dangerText"
+                        size="md"
+                        disabled={pending}
+                        onPress={() => {
+                            cancel.reset();
+                            setConfirmingCancel(true);
+                        }}
+                        testID="booking-cancel"
+                    />
+                ) : null}
             </View>
 
             <View style={styles.identity}>
@@ -513,7 +605,7 @@ export function BookingScreen({
                     {scheduled ? (
                         <>
                             <Text variant="title2" script="sans" weight="bold" tone="inverse">
-                                {parseKey(date).getDate()}
+                                {dayOfMonth(date)}
                             </Text>
                             <Text variant="eyebrow" tone="inverse" style={styles.tileMonth}>
                                 {monthShort(date).toUpperCase()}
@@ -908,6 +1000,26 @@ export function BookingScreen({
                 }}
                 onClose={() => setCalendar(closeCalendar)}
             />
+
+            <ConfirmSheet
+                visible={confirmingCancel}
+                title="Cancel this appointment?"
+                body="The slot goes back on the day and the patient keeps their record. Nothing is deleted."
+                detail={
+                    cancel.error ? (
+                        <Callout tone="warning" title={describeError(cancel.error).title}>
+                            {describeError(cancel.error).body ?? ''}
+                        </Callout>
+                    ) : null
+                }
+                confirmLabel="Cancel it"
+                cancelLabel="Keep it"
+                destructive
+                loading={cancel.pending}
+                onConfirm={cancelBooking}
+                onCancel={() => setConfirmingCancel(false)}
+                testID="booking-cancel-confirm"
+            />
         </View>
     );
 }
@@ -941,6 +1053,7 @@ const styles = StyleSheet.create({
         paddingTop: space[2],
         paddingBottom: space[1],
     },
+    topbarTitle: { flex: 1 },
     back: {
         width: 34,
         height: 34,

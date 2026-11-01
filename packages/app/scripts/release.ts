@@ -3,14 +3,16 @@
  * Run by `bun ship` (scripts/ship.ts), not by hand.
  *
  *   release.ts apk [--major]    prebuild, build and sign the release APK
- *   release.ts update [--minor] [--screen] export the JavaScript and sign it as an OTA update, and
- *                               rebuild the APK with it so a fresh install starts on it.
+ *   release.ts update [--minor] [--screen] [--with-apk]
+ *                               export the JavaScript and sign it as an OTA update.
  *                               A patch applies quietly on the next launch; --minor
  *                               makes phones stop, download it and restart now.
+ *                               --with-apk also rebuilds the APK with it, so a fresh
+ *                               install starts on it rather than taking it on first launch.
  *
  * Both write into `dist/releases` (or LUSTRE_RELEASES_DIR) in the layout
- * `server/src/modules/release` serves. Neither touches a server: the ansible
- * `releases` tag copies the directory to the clinic.
+ * `server/src/modules/release` serves. Neither touches a server:
+ * `scripts/pushReleases.ts` copies the directory to the clinic.
  *
  * Both need LUSTRE_UPDATES_URL, the clinic server's tailnet address; the dev
  * track needs LUSTRE_DEV_UPDATES_URL, the dev stack's, and uses it in its place. The APK
@@ -22,8 +24,9 @@
  * and an APK built without it reports no crashes for as long as it is installed.
  *
  * Both number the release (`releaseVersion.ts`): an APK is the next minor, an
- * update the next patch on the APK its runtime belongs to. The APK an update
- * restages carries the update's number, `X.Y.Z`, on the same runtime. Both refuse a working
+ * update the next patch on the APK its runtime belongs to. An APK rebuilt with
+ * an update (--with-apk) carries the update's number, `X.Y.Z`, on the same
+ * runtime; otherwise the staged APK keeps its own, older number. Both refuse a working
  * tree with uncommitted changes, and both tag the commit they were built from
  * `vX.Y.Z`, so a number always names code that can be checked out again.
  *
@@ -418,7 +421,7 @@ async function releaseApk(major: boolean): Promise<void> {
     await tagRelease(next, `Lustre ${built.version}, APK build ${built.versionCode}`);
 }
 
-async function publishUpdate(minor: boolean, screen: boolean): Promise<void> {
+async function publishUpdate(minor: boolean, screen: boolean, withApk: boolean): Promise<void> {
     const url = updatesUrl();
     // Not used here, but checked: the DSN is hashed into the runtime fingerprint, so
     // an update published without the one the APK was built with resolves a runtime
@@ -442,12 +445,14 @@ async function publishUpdate(minor: boolean, screen: boolean): Promise<void> {
     const env = { ...process.env, LUSTRE_VERSION: version };
     say(`Publishing Lustre ${version}${screen ? ', behind the download screen' : ''}`);
 
-    // The APK a fresh install downloads, rebuilt with this update's JavaScript in
-    // it, so a new phone starts on the latest patch instead of waiting for an
-    // update. Built first: a failed build stages nothing. Phones already on this
-    // runtime are not offered it (`newerApk`), as the update brings them the same.
-    const built = await buildApk(version);
-    if (built.runtimeVersion !== runtimeVersion) {
+    // Only with --with-apk: the APK a fresh install downloads, rebuilt with this
+    // update's JavaScript in it. Without it a fresh install starts on the staged
+    // APK's bundle and takes this update on first launch, which saves a Gradle
+    // build and a 56 MB upload on every patch. Built first: a failed build stages
+    // nothing. Phones already on this runtime are not offered it (`newerApk`), as
+    // the update brings them the same.
+    const built = withApk ? await buildApk(version) : null;
+    if (built && built.runtimeVersion !== runtimeVersion) {
         fail(
             `the rebuilt APK is runtime ${built.runtimeVersion}, but this update is ${runtimeVersion}. Nothing was staged.`,
         );
@@ -503,19 +508,23 @@ async function publishUpdate(minor: boolean, screen: boolean): Promise<void> {
     await rm(staging, { recursive: true, force: true });
 
     say(`Staged Lustre ${version} (update ${id}) for runtime ${runtimeVersion} in ${target}`);
-    await stageApk(built, url);
-    await tagRelease(next, `Lustre ${version}, update ${id}, APK build ${built.versionCode}`);
+    if (built) await stageApk(built, url);
+    await tagRelease(
+        next,
+        `Lustre ${version}, update ${id}${built ? `, APK build ${built.versionCode}` : ''}`,
+    );
 }
 
 const [command, kind] = process.argv.slice(2);
 const major = process.argv.includes('--major');
 const minor = process.argv.includes('--minor');
 const screen = process.argv.includes('--screen');
+const withApk = process.argv.includes('--with-apk');
 if (command === 'apk') await releaseApk(major);
-else if (command === 'update') await publishUpdate(minor, screen);
+else if (command === 'update') await publishUpdate(minor, screen, withApk);
 else if (command === 'next' && kind === 'apk') say(formatVersion(await nextApk(major)));
 else if (command === 'next' && kind === 'update') say(formatVersion((await nextUpdate(minor)).next));
 else
     fail(
-        'usage: bun packages/app/scripts/release.ts [next] apk [--major] | [next] update [--minor] [--screen]',
+        'usage: bun packages/app/scripts/release.ts [next] apk [--major] | [next] update [--minor] [--screen] [--with-apk]',
     );

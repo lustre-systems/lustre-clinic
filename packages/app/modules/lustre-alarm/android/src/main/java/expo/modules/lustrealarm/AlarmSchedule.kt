@@ -9,7 +9,7 @@ import android.content.Intent
 data class AlarmCopy(
   val title: String,
   val body: String,
-  val snooze: String,
+  val done: String,
   val open: String,
   val channelName: String,
 )
@@ -32,7 +32,8 @@ object AlarmSchedule {
   private const val KEY_RINGS = "rings"
   private const val KEY_TITLE = "title"
   private const val KEY_BODY = "body"
-  private const val KEY_SNOOZE = "snooze"
+  private const val KEY_DONE = "done"
+  private const val KEY_DAY = "day"
   private const val KEY_OPEN = "open"
   private const val KEY_CHANNEL = "channelName"
   private const val KEY_CHECK_BASES = "checkBases"
@@ -40,11 +41,23 @@ object AlarmSchedule {
   private const val KEY_CHECK_SETTINGS = "checkSettings"
   private const val KEY_CHECK_TODAY = "checkToday"
 
-  /** False when Android refused the alarm: the exact-alarm permission revoked, on 12. */
-  fun replace(context: Context, at: List<Long>, copy: AlarmCopy, check: ReminderCheck.Check?, rings: Boolean): Boolean {
+  /**
+   * False when Android refused the alarm: the exact-alarm permission revoked, on
+   * 12. `day` is the clinic day the series belongs to, which Done for today
+   * stops ([Dismissal]).
+   */
+  fun replace(
+    context: Context,
+    at: List<Long>,
+    day: String,
+    copy: AlarmCopy,
+    check: ReminderCheck.Check?,
+    rings: Boolean,
+  ): Boolean {
     saveCopy(context, copy)
     prefs(context).edit()
       .putString(KEY_AT, at.sorted().joinToString(","))
+      .putString(KEY_DAY, day)
       .putBoolean(KEY_RINGS, rings)
       .putString(KEY_CHECK_BASES, check?.bases?.joinToString("\n"))
       .putString(KEY_CHECK_PENDING, check?.pendingPath)
@@ -58,12 +71,12 @@ object AlarmSchedule {
    * One ring at `at`, beside the series rather than in it, so trying the alarm
    * out never moves the day's real ones. For demo mode.
    */
-  fun tryAt(context: Context, at: Long, copy: AlarmCopy): Boolean {
+  fun tryAt(context: Context, at: Long, day: String, copy: AlarmCopy): Boolean {
     saveCopy(context, copy)
     val ring = PendingIntent.getBroadcast(
       context,
       1,
-      Intent(context, AlarmReceiver::class.java).setAction(AlarmReceiver.ACTION_TRY),
+      Intent(context, AlarmReceiver::class.java).setAction(AlarmReceiver.ACTION_TRY).putExtra(AlarmReceiver.EXTRA_DAY, day),
       PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
     )
     return try {
@@ -79,7 +92,7 @@ object AlarmSchedule {
     prefs(context).edit()
       .putString(KEY_TITLE, copy.title)
       .putString(KEY_BODY, copy.body)
-      .putString(KEY_SNOOZE, copy.snooze)
+      .putString(KEY_DONE, copy.done)
       .putString(KEY_OPEN, copy.open)
       .putString(KEY_CHANNEL, copy.channelName)
       .apply()
@@ -90,10 +103,10 @@ object AlarmSchedule {
     context.getSystemService(AlarmManager::class.java).cancel(ringIntent(context, 0))
   }
 
-  /** Arms the first ring strictly after `after`, or cancels when there is none left today. */
+  /** Arms the first ring strictly after `after`, or cancels when there is none left today or it was done for. */
   fun armNext(context: Context, after: Long): Boolean {
     val manager = context.getSystemService(AlarmManager::class.java)
-    val next = times(context).firstOrNull { it > after }
+    val next = if (Dismissal.covers(context, day(context))) null else times(context).firstOrNull { it > after }
     if (next == null) {
       manager.cancel(ringIntent(context, 0))
       return true
@@ -110,8 +123,11 @@ object AlarmSchedule {
     }
   }
 
-  /** Whether a series is armed at all: `clear` empties the file. */
-  fun armed(context: Context): Boolean = prefs(context).contains(KEY_AT)
+  /** Whether a series is armed and not done for: `clear` empties the file. */
+  fun armed(context: Context): Boolean = prefs(context).contains(KEY_AT) && !Dismissal.covers(context, day(context))
+
+  /** The clinic day the armed series is for, or null when there is none. */
+  fun day(context: Context): String? = prefs(context).getString(KEY_DAY, null)
 
   /** Whether the series rings like an alarm, or only posts the nudge. */
   fun rings(context: Context): Boolean = prefs(context).getBoolean(KEY_RINGS, true)
@@ -121,7 +137,7 @@ object AlarmSchedule {
     return AlarmCopy(
       title = prefs.getString(KEY_TITLE, null) ?: "Reminders pending",
       body = prefs.getString(KEY_BODY, null) ?: "",
-      snooze = prefs.getString(KEY_SNOOZE, null) ?: "Snooze",
+      done = prefs.getString(KEY_DONE, null) ?: "Done for today",
       open = prefs.getString(KEY_OPEN, null) ?: "Open",
       channelName = prefs.getString(KEY_CHANNEL, null) ?: "Reminder alarm",
     )

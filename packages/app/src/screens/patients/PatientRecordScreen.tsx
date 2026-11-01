@@ -146,8 +146,6 @@ export function PatientRecordScreen({
 
     const record = useQuery(['byId', patientId], () => patientsApi.byId(patientId));
     const questions = useQuery(['questions'], () => patientsApi.listQuestions());
-    const branches = useQuery(['branches'], () => patientsApi.listBranches());
-    const schedule = useQuery(['schedule'], () => patientsApi.schedule());
     const settle = useMutation(patientsApi.settle);
     const remove = useMutation(patientsApi.delete);
 
@@ -159,7 +157,7 @@ export function PatientRecordScreen({
     // such a row: a record opened for anyone else costs no extra read.
     const today = todayKey();
     const arrived = history.find(
-        (entry) => entry.status === 'checked_in' && dateKey(new Date(entry.startsAt)) === today,
+        (entry) => entry.status === 'checked_in' && dateKey(entry.startsAt) === today,
     );
     const chair = useQuery(
         ['chair', today, arrived?.appointmentId ?? 'none'],
@@ -245,12 +243,7 @@ export function PatientRecordScreen({
                     showsVerticalScrollIndicator={false}
                 >
                     <View style={styles.top}>
-                        <PatientHeader
-                            patient={patient}
-                            branches={branches.data}
-                            schedule={schedule.data}
-                            onFailed={setToast}
-                        />
+                        <PatientHeader patient={patient} onFailed={setToast} />
 
                         <Openers
                             patient={patient}
@@ -629,13 +622,13 @@ function sinceLabel(history: PatientHistoryEntry[], t: (copy: string, vars?: Cop
     const oldest = history.at(-1);
     if (!oldest) return '';
 
-    return t('Since {month}', { month: formatMonth(dateKey(new Date(oldest.startsAt))) });
+    return t('Since {month}', { month: formatMonth(dateKey(oldest.startsAt)) });
 }
 
 function groupByYear(history: PatientHistoryEntry[]): Array<[string, PatientHistoryEntry[]]> {
     const groups = new Map<string, PatientHistoryEntry[]>();
     for (const entry of history) {
-        const year = String(new Date(entry.startsAt).getFullYear());
+        const year = dateKey(entry.startsAt).slice(0, 4);
         const bucket = groups.get(year);
         if (bucket) bucket.push(entry);
         else groups.set(year, [entry]);

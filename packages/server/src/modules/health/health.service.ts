@@ -3,9 +3,12 @@
  * build on its LAN address first, so it must be cheap and must not throw — an
  * unreachable database is a reportable state, not an error.
  */
+import type { ClinicZone } from '@lustre/shared';
+import { utcOffsetMinutes } from '@lustre/shared/zoneSpans';
 import { sql as raw } from 'drizzle-orm';
 import { config, serverEnvironment, tailnetAddress } from '../../config.ts';
 import { db, sql } from '../../db/index.ts';
+import { serverClinicZone } from '../../util/clinicZone.ts';
 
 interface HealthReport {
     ok: boolean;
@@ -31,42 +34,23 @@ interface ClockReport {
     now: number;
     /** The clinic's offset from UTC right now, in minutes east — DST included. */
     utcOffsetMinutes: number;
-}
-
-/**
- * Minutes east of UTC for `timeZone` at `at`. Read off the wall-clock fields
- * the zone gives that instant rather than a fixed table, so the switch in and
- * out of summer time comes from the ICU data and not from code here.
- */
-export function utcOffsetMinutes(timeZone: string, at: Date): number {
-    const parts = new Intl.DateTimeFormat('en-US', {
-        timeZone,
-        hourCycle: 'h23',
-        year: 'numeric',
-        month: 'numeric',
-        day: 'numeric',
-        hour: 'numeric',
-        minute: 'numeric',
-        second: 'numeric',
-    }).formatToParts(at);
-    const field = (type: Intl.DateTimeFormatPartTypes) =>
-        Number(parts.find((part) => part.type === type)?.value);
-
-    const wall = Date.UTC(
-        field('year'),
-        field('month') - 1,
-        field('day'),
-        field('hour'),
-        field('minute'),
-        field('second'),
-    );
-    return Math.round((wall - Math.floor(at.getTime() / 1000) * 1000) / 60_000);
+    /**
+     * The clinic zone's offsets over the years around now. The app converts
+     * every time with this rather than its own zone data, which on an old
+     * phone predates Egypt's summer time (`clinicTime`). Older servers leave
+     * it out, and the app falls back on the table it was built with.
+     */
+    zone: ClinicZone;
 }
 
 export const healthService = {
     clock(): ClockReport {
         const now = new Date();
-        return { now: now.getTime(), utcOffsetMinutes: utcOffsetMinutes(config.CLINIC_TIME_ZONE, now) };
+        return {
+            now: now.getTime(),
+            utcOffsetMinutes: utcOffsetMinutes(config.CLINIC_TIME_ZONE, now),
+            zone: serverClinicZone(now),
+        };
     },
 
     async check(): Promise<HealthReport> {

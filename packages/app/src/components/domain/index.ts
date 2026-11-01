@@ -11,7 +11,7 @@
 // pair is what a screen should reach for.
 
 export type { BottomTabBarProps, TabKey } from './BottomTabBar';
-export { BottomTabBar } from './BottomTabBar';
+export { BottomTabBar, showsStats } from './BottomTabBar';
 export type { BrandMarkProps } from './BrandMark';
 export { BrandMark } from './BrandMark';
 export type { Clock12 } from './clock';

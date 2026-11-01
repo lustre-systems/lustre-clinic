@@ -19,6 +19,7 @@
  * An unrecognized placeholder is left visible in either syntax, so a typo
  * shows rather than vanishing.
  */
+import { callerWallClock, clinicDayOf } from './clinicTime.ts';
 import { REMINDER_PLACEHOLDERS, type ReminderPlaceholder } from './constants.ts';
 
 /** `'name'` → `'{{name}}'`. The form the pane inserts and the preview reads. */
@@ -50,7 +51,8 @@ export function renderReminderTemplate(template: string, values: Record<string, 
  * yet, and the alarm brought them up one per repeat as each crossed the line.
  *
  * `notifyAt` is `HH:MM` (or `HH:MM:SS`) in clinic local time; `offsetMinutes` is
- * the client's UTC offset, which is what places `now` in the clinic's day.
+ * the client's UTC offset now, which is what places `now` in the clinic's day
+ * (`callerWallClock`).
  */
 export function reminderDueCutoff(input: {
     now: Date;
@@ -59,14 +61,12 @@ export function reminderDueCutoff(input: {
     throughToday?: boolean;
 }): Date {
     const { now, offsetMinutes } = input;
-    const local = new Date(now.getTime() + offsetMinutes * 60_000);
     const [hours = 0, minutes = 0] = input.notifyAt.split(':').map(Number);
 
-    const localMinutes = local.getUTCHours() * 60 + local.getUTCMinutes();
-    if (!input.throughToday && localMinutes < hours * 60 + minutes) return now;
+    const wall = callerWallClock(now, offsetMinutes, now.getTime());
+    if (!input.throughToday && wall.minutes < hours * 60 + minutes) return now;
 
-    const nextMidnight = Date.UTC(local.getUTCFullYear(), local.getUTCMonth(), local.getUTCDate() + 1);
-    return new Date(nextMidnight - offsetMinutes * 60_000 - 1);
+    return new Date(clinicDayOf(now, offsetMinutes, now.getTime()).to.getTime() - 1);
 }
 
 /**

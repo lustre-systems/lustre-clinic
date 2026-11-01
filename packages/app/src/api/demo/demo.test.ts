@@ -15,7 +15,15 @@
  * reach.
  */
 import { afterEach, beforeEach, describe, expect, it, mock, setSystemTime } from 'bun:test';
-import { REMINDER_TOKENS } from '@lustre/shared';
+import {
+    instantAt,
+    minutesOfDay,
+    offsetForDate,
+    pad2,
+    REMINDER_TOKENS,
+    todayKey,
+    weekdayOf,
+} from '@lustre/shared';
 
 mock.module('@react-native-async-storage/async-storage', () => ({
     default: {
@@ -45,13 +53,12 @@ const { provisionDemo } = await import('./handlers/device');
 const { nudgePendingInput, planNudges } = await import('../../notifications/schedule');
 
 function today(): string {
-    const now = new Date();
-    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    return todayKey();
 }
 
 /** The offset the app sends: minutes east of UTC for the day being asked about. */
 function offsetMinutes(): number {
-    return -new Date().getTimezoneOffset();
+    return offsetForDate(today());
 }
 
 beforeEach(() => {
@@ -67,10 +74,11 @@ describe('the seeded day', () => {
         const schedule = settingsHandlers.schedule();
         expect(schedule).toHaveLength(7);
 
-        const day = schedule.find((row) => row.weekday === new Date().getDay());
+        const day = schedule.find((row) => row.weekday === weekdayOf(today()));
         if (!day) throw new Error('the seed left today closed');
 
-        const now = `${String(new Date().getHours()).padStart(2, '0')}:${String(new Date().getMinutes()).padStart(2, '0')}`;
+        const minutes = minutesOfDay(Date.now());
+        const now = `${pad2(Math.floor(minutes / 60))}:${pad2(minutes % 60)}`;
         // Zero-padded `HH:MM`, so a string comparison orders them by time.
         expect(day.opensAt <= now).toBe(true);
         expect(day.closesAt >= now).toBe(true);
@@ -88,7 +96,7 @@ describe('the seeded day', () => {
         const opensOn = branchHandlers.list({ includeInactive: false })[0];
         if (!opensOn) throw new Error('the seed registered no branches');
 
-        const day = settingsHandlers.schedule().find((row) => row.weekday === new Date().getDay());
+        const day = settingsHandlers.schedule().find((row) => row.weekday === weekdayOf(today()));
         expect(day?.branchId).toBe(opensOn.id);
 
         // And the day's own appointments are at that branch, or they draw as
@@ -113,7 +121,7 @@ describe('the seeded day', () => {
      */
     it('books every appointment on a ten-minute boundary', () => {
         const offGrid = getDb()
-            .appointments.filter((row) => row.startsAt.getMinutes() % 10 !== 0)
+            .appointments.filter((row) => minutesOfDay(row.startsAt) % 10 !== 0)
             .map((row) => row.startsAt.toString());
 
         expect(offGrid).toEqual([]);
@@ -197,7 +205,7 @@ describe('the seeded day', () => {
     // most of it lands on tomorrow and today holds three rows, which is right
     // for that hour and not what this checks.
     it('draws a day, a register, a catalogue and money', () => {
-        setSystemTime(new Date(2030, 0, 15, 12, 0));
+        setSystemTime(new Date(instantAt('2030-01-15', 12 * 60)));
         setDb(seedDemoDb());
 
         expect(
@@ -405,7 +413,7 @@ describe('a visit, end to end', () => {
         const next = waiting[0];
         if (!next) throw new Error('the seed left nobody waiting');
 
-        appointmentHandlers.awaitPayment({ id: seatedBefore.appointmentId });
+        appointmentHandlers.awaitPayment({ id: seatedBefore.appointmentId, offsetMinutes: offsetMinutes() });
 
         // The one who had been waiting longest is now the one in the chair, and
         // their bar starts here rather than at the time they arrived.
@@ -479,7 +487,7 @@ describe('the chair, when someone leaves the queue by another door', () => {
         // Sending a waiting patient to the desk does not empty the chair, so
         // nothing may be seated off it. Seating anyway leaves two visits
         // answering "in the chair" and the day view drawing two running bars.
-        appointmentHandlers.awaitPayment({ id: waiting.appointmentId });
+        appointmentHandlers.awaitPayment({ id: waiting.appointmentId, offsetMinutes: offsetMinutes() });
 
         expect(seated()).toBe(1);
     });
@@ -504,7 +512,7 @@ describe('the chair, when someone leaves the queue by another door', () => {
         });
         if (!waiting) throw new Error('the seed left nobody waiting');
 
-        visitHandlers.delete({ visitId: inChair.id });
+        visitHandlers.delete({ visitId: inChair.id, offsetMinutes: offsetMinutes() });
 
         expect(getDb().visits.find((row) => row.id === inChair.id)).toBeUndefined();
         expect(getDb().visits.find((row) => row.id === waiting.id)?.inChairAt).not.toBeNull();
@@ -523,11 +531,35 @@ describe('the chair, when someone leaves the queue by another door', () => {
         });
         if (!inChair) throw new Error('the seed seated nobody');
 
-        appointmentHandlers.awaitPayment({ id: inChair.appointmentId });
+        appointmentHandlers.awaitPayment({ id: inChair.appointmentId, offsetMinutes: offsetMinutes() });
 
         // The chair emptied, so the longest-waiting visit takes it.
         expect(seated()).toBe(1);
         expect(getDb().visits.find((row) => row.id === inChair.id)?.inChairAt).not.toBeNull();
+    });
+
+    // The seed books the chair fifty minutes back and the queue around now, so
+    // just after midnight UTC the two straddle a UTC date. The clinic's day is
+    // what counts, and the app always sends its offset: these tests used to
+    // leave it off, fell back to UTC, and failed in CI's first hour of the day.
+    it('seats the next patient just after midnight UTC, on the clinic’s day', () => {
+        setSystemTime(new Date('2026-10-10T00:20:00.000Z'));
+        try {
+            setDb(seedDemoDb());
+            const db = getDb();
+            const inChair = db.visits.find((visit) => {
+                if (!visit.inChairAt) return false;
+                const appointment = db.appointments.find((row) => row.id === visit.appointmentId);
+                return appointment?.status === 'checked_in';
+            });
+            if (!inChair) throw new Error('the seed seated nobody');
+
+            appointmentHandlers.awaitPayment({ id: inChair.appointmentId, offsetMinutes: offsetMinutes() });
+
+            expect(seated()).toBe(1);
+        } finally {
+            setSystemTime();
+        }
     });
 });
 
@@ -556,6 +588,30 @@ describe('the refusals a demo runs into', () => {
         } catch (error) {
             expect((error as InstanceType<typeof DemoError>).code).toBe('SLOT_OVERLAP');
         }
+    });
+
+    it('cancels a booking on a future day and lets the same slot be booked again', () => {
+        const db = getDb();
+        const branch = db.branches[0];
+        const patient = db.patients[1];
+        if (!branch || !patient) throw new Error('the seed is missing its fixtures');
+
+        const startsAt = new Date(Date.now() + 10 * 24 * 3_600_000).toISOString();
+        const book = () =>
+            appointmentHandlers.create({
+                patient: { kind: 'existing', patientId: patient.id },
+                branchId: branch.id,
+                startsAt,
+                durationMinutes: 30,
+                offsetMinutes: 0,
+            });
+
+        const first = book();
+        expect(appointmentHandlers.cancel({ id: first.id }).status).toBe('cancelled');
+
+        const rebooked = book();
+        expect(rebooked.id).not.toBe(first.id);
+        expect(rebooked.status).toBe('booked');
     });
 
     it('refuses a payment larger than the balance', () => {
@@ -1069,6 +1125,23 @@ describe('roles', () => {
         }
     });
 
+    it('keeps the clinic’s figures and what procedures cost to the admin', () => {
+        for (const role of ['secretary', 'doctor'] as const) {
+            const token = as(role);
+            for (const path of ['stats.overview', 'stats.trend', 'balance.summary', 'balance.takings']) {
+                expect(() => admit(path, token)).toThrow(DemoError);
+            }
+            const caller = admit('procedure.list', token);
+            const list = shownTo('procedure.list', procedureHandlers.list(), caller) as { cost: unknown }[];
+            expect(list.every((row) => row.cost === null)).toBe(true);
+        }
+        expect(admit('balance.outstanding', as('secretary')).role).toBe('secretary');
+
+        const admin = admit('procedure.list', as('admin'));
+        const list = shownTo('procedure.list', procedureHandlers.list(), admin) as { cost: unknown }[];
+        expect(list.some((row) => typeof row.cost === 'number' && row.cost > 0)).toBe(true);
+    });
+
     it('turns a phone with no role away once provisioning is required', () => {
         getDb().settings.requireProvisioning = true;
         expect(() => admit('settings.get', null)).toThrow(DemoError);
@@ -1178,9 +1251,42 @@ describe('the reminders due from the notify time', () => {
             pendingCount,
             dismissedOn: null,
             today: '2026-09-28',
-            now: new Date(2026, 8, 28, 9, 0),
+            now: instantAt('2026-09-28', 9 * 60),
         });
         expect(plan.silent).toBe('pending');
-        expect(plan.at[0]).toEqual(new Date(2026, 8, 28, 17, 0));
+        expect(plan.at[0]).toEqual(new Date(instantAt('2026-09-28', 17 * 60)));
+    });
+});
+
+describe('stats', () => {
+    function everything() {
+        const to = today();
+        return { from: '2000-01-01', to, offsetMinutes: offsetForDate(to), fromOffsetMinutes: 120 };
+    }
+
+    it('makes profit revenue less what the lines cost, branch by branch', () => {
+        const figures = statsHandlers.overview(everything());
+
+        expect(figures.revenue).toBeGreaterThan(0);
+        expect(figures.cost).toBeGreaterThan(0);
+        expect(figures.profit).toBe(figures.revenue - figures.cost);
+        expect(figures.branches.reduce((sum, row) => sum + row.profit, 0)).toBe(figures.profit);
+        expect(figures.branches.every((row) => row.workingDays > 0)).toBe(true);
+    });
+
+    it('keeps a visit’s cost as it was when it was priced', () => {
+        const before = statsHandlers.overview(everything()).cost;
+        for (const row of getDb().procedureTypes) {
+            procedureHandlers.update({ id: row.id, cost: row.cost + 10_000 });
+        }
+        expect(statsHandlers.overview(everything()).cost).toBe(before);
+    });
+
+    it('answers a trend in the order it was asked', () => {
+        const range = everything();
+        const empty = { from: '2001-01-01', to: '2001-12-31', offsetMinutes: 120 };
+        const points = statsHandlers.trend({ periods: [empty, range] });
+
+        expect(points.map((point) => point.revenue > 0)).toEqual([false, true]);
     });
 });

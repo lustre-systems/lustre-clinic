@@ -8,9 +8,36 @@ listed.
 
 ## [Unreleased]
 
-### Added
-
 - A clinic kept on one phone can now be copied off it. Settings → Export clinic opens Android's share sheet with the whole clinic as one file, which can go to Google Drive, WhatsApp, email or the phone's Files. The row says when the last export was, says "Not exported yet" until there has been one, and asks for another once the last is a week old. On a new phone, or after reinstalling, "Open a clinic file" on the "Connect to the clinic" screen opens that file and carries on where it left off. If the phone already holds a clinic with patients in it, the app asks before replacing it. The same file can move the clinic onto a clinic server when one is set up later (`lustre import-local`, see infra/README.md). This needs the new APK.
+
+## [1.10.2] - 2026-10-31
+
+- The WhatsApp button on a patient's record now asks whether to open WhatsApp or WhatsApp Business, instead of choosing from the branch. If the one you pick can't open, the app says so.
+
+## [1.10.1] - 2026-10-23
+
+- The doctor can now choose several next procedures on a visit, not just one: "Add next procedure" adds another, tapping one changes it and × removes it. All of them go onto the patient's next booking together.
+- A saved next procedure that is a variant now reads in full ("Extraction · Surgical") when the visit is opened again, not just "Surgical".
+- If the booking that took the next procedures is cancelled or marked a no-show, the visit no longer says they are on the patient's next booking. They are offered again the next time the patient is booked.
+
+## [1.10.0] - 2026-10-22
+
+- A new "Last done" button (the clock with a turning arrow) at the top centre of the day view lists what was done on this phone, newest first: bookings, moves, cancellations, no-shows, check-ins, finished visits, saved procedures, payments, patients added or edited and old visits. It is on every phone, the doctor's included. Right after each save, and when the day view opens with something new, the button briefly spells out the last thing done, for example "Arrived Nour". Tapping a line opens that booking, visit or patient. Only saves that went through are listed. The list stays on the phone, holding the last 30 actions from the past 7 days.
+- The Money tab is now Stats, and only the admin's phone has it. It charts profit, revenue, cost or new patients over the last days, weeks, months or years, shows profit split by branch, and how people paid. The secretary's "Who owe" list moved to the Patients tab: the list can be shown as Recent, Alphabetical or Who owes, and Who owes shows the total owed, largest balance first, and can be searched. Profit is revenue less what each procedure costs the clinic, which the admin sets per procedure in Settings → Procedures; visits recorded before a cost was set count as costing nothing.
+- Cancelled appointments no longer show on the day view, for the desk or the doctor, so the day only lists appointments that are actually happening. Their slot shows as free and can be booked. They are still listed on the patient's record.
+- When editing a visit, the doctor can choose a next procedure (and its tooth): what the patient should have done next time. If the patient already has a booking coming up, it's added to the earliest one. If not, the next time the desk books them the booking opens with it already filled in.
+
+## [1.9.0] - 2026-10-10
+
+- The reminder alarm's Snooze is now "Done for today": it stops the alarm for the rest of the day on both desk phones, even with the app closed, and it starts again tomorrow. The Reminders tab has the same button, and "Turn back on" if it was pressed by mistake.
+- With the app in Arabic, the short messages at the top of the screen after booking, moving, checking in, marking a no-show, finishing a visit or adding a procedure category now show in Arabic. They used to stay in English because they included the patient's name.
+- At some phone display sizes, the days in the calendar (the day view's calendar and the Old visit date picker) slipped out from under the weekday letters, so a date sat under the wrong day of the week. The days now line up at every display and font size.
+- Editing the payment on a visit that was already checked out works again. Full, Half and Nothing now mean paid in full, half the bill paid and unpaid, so a visit can be moved between any of them, including back down from paid in full. Before, on a visit that was already paid, all three left the amount where it was. The patient's balance follows the edit. A visit priced in pounds and piastres keeps its exact amount when the payment isn't touched, and the paid amount still can't go above what the visit charges.
+- When editing a checked-out visit, how it was paid can be changed without changing the amount: the payment screen now opens on the method the visit was actually paid by (it used to always show Cash), and picking another one, say Card instead of Cash, re-records what was paid that way. The balance doesn't change, and the money screen's split by method follows. A visit paid in two ways can be put all onto one.
+
+## [1.8.1] - 2026-10-06
+
+- Bookings and times now always use the clinic's time, even on a phone whose time zone or clock is set wrong, so a 5:30 booking no longer lands at 6:30.
 
 ## [1.8.0] - 2026-10-02
 
@@ -248,7 +275,13 @@ The first release at the clinic.
 - Settings for working hours, branches, procedures and reminders.
 - Runs on the clinic's own server over Tailscale, with over-the-air updates.
 
-[Unreleased]: https://github.com/Youssef-codin/lustre-clinic/compare/v1.8.0...HEAD
+[Unreleased]: https://github.com/Youssef-codin/lustre-clinic/compare/v1.10.2...HEAD
+[1.10.2]: https://github.com/Youssef-codin/lustre-clinic/compare/v1.10.1...v1.10.2
+[1.10.1]: https://github.com/Youssef-codin/lustre-clinic/compare/v1.10.0...v1.10.1
+[1.10.0]: https://github.com/Youssef-codin/lustre-clinic/compare/v1.9.1...v1.10.0
+[1.9.1]: https://github.com/Youssef-codin/lustre-clinic/compare/v1.9.0...v1.9.1
+[1.9.0]: https://github.com/Youssef-codin/lustre-clinic/compare/v1.8.1...v1.9.0
+[1.8.1]: https://github.com/Youssef-codin/lustre-clinic/compare/v1.8.0...v1.8.1
 [1.8.0]: https://github.com/Youssef-codin/lustre-clinic/compare/v1.7.2...v1.8.0
 [1.7.2]: https://github.com/Youssef-codin/lustre-clinic/compare/v1.7.1...v1.7.2
 [1.7.1]: https://github.com/Youssef-codin/lustre-clinic/compare/v1.7.0...v1.7.1

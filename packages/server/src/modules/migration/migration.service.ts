@@ -38,9 +38,8 @@
  * months later, so if any of it cannot be written none of it is, the patient
  * included, and the row is typed again.
  */
-import { type Role, seesPayments } from '@lustre/shared';
+import { type Role, seesPayments, todayKey } from '@lustre/shared';
 import { count, eq, sql } from 'drizzle-orm';
-import { config } from '../../config.ts';
 import { db, type Executor } from '../../db/index.ts';
 import { appointments, patients, visits } from '../../db/schema.ts';
 import { AppError } from '../../errors/AppError.ts';
@@ -79,14 +78,9 @@ export async function planOldPatientHistory(
 
     return {
         branchId: await defaultBranchId(),
-        cutoffDate: clinicToday(),
+        cutoffDate: todayKey(),
         openingBalance: old.openingBalance,
     };
-}
-
-/** Today in the clinic's zone, `YYYY-MM-DD`. The server runs on UTC; the clinic does not. */
-function clinicToday(): string {
-    return new Intl.DateTimeFormat('en-CA', { timeZone: config.CLINIC_TIME_ZONE }).format(new Date());
 }
 
 /**

@@ -2,6 +2,7 @@ import type { AppRouter } from '@lustre/server/src/trpc/router.ts';
 import { DEVICE_TOKEN_HEADER, TRPC_ENDPOINT } from '@lustre/shared';
 import { createTRPCClient, httpBatchLink, splitLink } from '@trpc/client';
 import { createTRPCOptionsProxy } from '@trpc/tanstack-react-query';
+import { lastDoneLink } from '../lastDone/link';
 // The trail, not the `reporting` barrel, which loads the SDK (see its index).
 import { noteApi } from '../reporting/trail';
 import { timing } from './config';
@@ -87,8 +88,15 @@ async function credentialHeaders(): Promise<Record<string, string>> {
 // is asked of `deviceBackend()` and never of the connection: a server that is
 // merely down must reach the offline screen, not a working-looking app over
 // invented patients or an empty clinic (`demo/flag.ts`).
+//
+// The "Last done" log sits ahead of the split, so it sees every write whichever
+// side answers it (`lastDone/link.ts`).
 export const trpcClient = createTRPCClient<AppRouter>({
     links: [
+        lastDoneLink({
+            appointment: (id): Promise<unknown> => trpcClient.appointment.byId.query({ id }),
+            patient: (id): Promise<unknown> => trpcClient.patient.byId.query({ id }),
+        }),
         splitLink({
             condition: () => deviceBackend() !== null,
             true: demoLink,

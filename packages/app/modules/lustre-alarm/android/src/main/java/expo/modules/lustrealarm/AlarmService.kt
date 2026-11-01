@@ -30,7 +30,7 @@ import android.os.VibratorManager
  * alarm volume sets it), vibration on a loop, and a notification whose
  * full-screen intent puts [AlarmActivity] over the lock screen. On a phone in
  * use Android shows that notification as a banner instead, with the same two
- * buttons.
+ * buttons: Done for today ([Dismissal]) and Open reminders.
  *
  * A service rather than the screen doing the ringing, because the screen is
  * not always shown: Android 14 can withhold full-screen intents, and an
@@ -50,14 +50,15 @@ class AlarmService : Service() {
     // screen at once, and the screen closes itself if nothing is ringing.
     ringing = true
     running = this
+    val tried = intent?.getBooleanExtra(EXTRA_TRIAL, false) ?: false
+    // A real ring landing on a trial one makes it real, and its day the one Done stops.
+    if (!started || !tried) day = intent?.getStringExtra(EXTRA_DAY) ?: day
     val notification = buildNotification(AlarmSchedule.copy(this))
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
       startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK)
     } else {
       startForeground(NOTIFICATION_ID, notification)
     }
-    val tried = intent?.getBooleanExtra(EXTRA_TRIAL, false) ?: false
-    // A real ring landing on a trial one makes it real.
     trial = if (started) trial && tried else tried
     // A ring landing on one still going carries on from where it is.
     if (!started) {
@@ -81,6 +82,7 @@ class AlarmService : Service() {
     abandonFocus()
     ringing = false
     trial = false
+    day = null
     if (running === this) running = null
     silenced?.invoke()
     super.onDestroy()
@@ -196,10 +198,10 @@ class AlarmService : Service() {
 
     val flags = PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
     val screen = PendingIntent.getActivity(this, 0, Intent(this, AlarmActivity::class.java), flags)
-    val snooze = PendingIntent.getBroadcast(
+    val done = PendingIntent.getBroadcast(
       this,
       1,
-      Intent(this, AlarmReceiver::class.java).setAction(AlarmReceiver.ACTION_SNOOZE),
+      Intent(this, AlarmReceiver::class.java).setAction(AlarmReceiver.ACTION_DONE).putExtra(AlarmReceiver.EXTRA_DAY, day),
       flags,
     )
     // An activity, not a receiver that starts one: Android 12 blocks that trampoline.
@@ -223,7 +225,7 @@ class AlarmService : Service() {
       .setOnlyAlertOnce(true)
       .apply { if (fullScreen) setFullScreenIntent(screen, true) }
       .setContentIntent(screen)
-      .addAction(Notification.Action.Builder(icon, copy.snooze, snooze).build())
+      .addAction(Notification.Action.Builder(icon, copy.done, done).build())
       .addAction(Notification.Action.Builder(icon, copy.open, open).build())
       .build()
   }
@@ -240,6 +242,7 @@ class AlarmService : Service() {
       .build()
 
     private const val EXTRA_TRIAL = "trial"
+    private const val EXTRA_DAY = "day"
 
     @Volatile
     var ringing = false
@@ -248,6 +251,11 @@ class AlarmService : Service() {
     /** Demo mode's "Try the alarm". Disarming the series leaves it ringing. */
     @Volatile
     var trial = false
+      private set
+
+    /** The clinic day of the ring going, which Done for today stops. Null for a ring armed before this build. */
+    @Volatile
+    var day: String? = null
       private set
 
     @Volatile
@@ -261,8 +269,8 @@ class AlarmService : Service() {
     @Volatile
     var silenced: (() -> Unit)? = null
 
-    fun ring(context: Context, trial: Boolean) {
-      val intent = Intent(context, AlarmService::class.java).putExtra(EXTRA_TRIAL, trial)
+    fun ring(context: Context, trial: Boolean, day: String?) {
+      val intent = Intent(context, AlarmService::class.java).putExtra(EXTRA_TRIAL, trial).putExtra(EXTRA_DAY, day)
       try {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
           context.startForegroundService(intent)

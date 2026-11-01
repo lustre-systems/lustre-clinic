@@ -46,7 +46,7 @@ import {
 import { describeError } from '../errors';
 import { formatAmount, formatMoney } from '../money';
 import { chargeableTotal, checkupIsWaived, toothGroupsOf, toothPosition } from '../procedures';
-import { dateKey, formatLongDate, formatTime12, monthShort } from '../time';
+import { dateKey, dayOfMonth, formatLongDate, formatTime12, monthShort } from '../time';
 import { MoreIcon, TrashIcon } from './icons';
 import { VisitStatusChip } from './VisitStatusChip';
 
@@ -78,7 +78,7 @@ function methodLabel(payment: VisitPayment): string {
 
 /** The tile's month: capitals in English, the month's name in Arabic, which has no capitals. */
 function monthOf(iso: string): string {
-    const month = monthShort(dateKey(new Date(iso)));
+    const month = monthShort(dateKey(iso));
     return getLocale() === 'ar' ? month : month.toUpperCase();
 }
 
@@ -153,7 +153,7 @@ export function VisitViewScreen({
     // Null on a finished visit a doctor's phone reads: the treatment is shown
     // without a price anywhere on it, and it cannot be reopened to edit.
     const priced = visit.chargedTotal !== null;
-    const day = dateKey(new Date(appointment.startsAt));
+    const day = dateKey(appointment.startsAt);
 
     return (
         <View style={styles.screen} testID="visit-view-screen">
@@ -182,7 +182,7 @@ export function VisitViewScreen({
             <View style={styles.identity}>
                 <View style={styles.tile}>
                     <Text variant="title3" script="sans" weight="semibold" tone="inverse">
-                        {new Date(appointment.startsAt).getDate()}
+                        {dayOfMonth(day)}
                     </Text>
                     <Text variant="tag" tone="inverse" style={styles.tileMonth}>
                         {monthOf(appointment.startsAt)}
@@ -372,7 +372,7 @@ export function VisitViewScreen({
                                     >
                                         <View style={styles.stamp}>
                                             <Text variant="callout" script="mono" weight="bold">
-                                                {new Date(payment.paidAt).getDate()}
+                                                {dayOfMonth(dateKey(payment.paidAt))}
                                             </Text>
                                             <Text variant="tag" tone="muted">
                                                 {monthOf(payment.paidAt)}

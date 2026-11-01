@@ -1,6 +1,14 @@
 import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
-import { allowsDemo, BUILD_VARIANT, enableDemoMode, type Refusal, retryProvisioning } from '../api';
+import {
+    allowsDemo,
+    BUILD_VARIANT,
+    enableDemoMode,
+    type Refusal,
+    resetDemoData,
+    retryProvisioning,
+    useDemoMode,
+} from '../api';
 import { GLYPH } from '../components/domain';
 import { Button, PushView, useHardwareBack } from '../components/ui';
 import { useT } from '../i18n';
@@ -38,6 +46,7 @@ const BODY: Record<Exclude<Refusal, 'none'>, string> = {
 export function ProvisionScreen({ refusal }: { refusal: Exclude<Refusal, 'none'> }) {
     const t = useT();
     const [scanning, setScanning] = useState(false);
+    const inDemo = useDemoMode().enabled;
     // The shell hands the hardware back to the launcher on this route; the
     // scanner over it is the one thing back should close first.
     useHardwareBack(scanning, () => {
@@ -73,10 +82,12 @@ export function ProvisionScreen({ refusal }: { refusal: Exclude<Refusal, 'none'>
                     />
                 ) : null}
 
+                {/* Already in the demo, entering it again changes nothing; the
+                refusal is the demo's own, and starting it over clears it. */}
                 {DEMO_ALLOWED ? (
                     <Button
-                        label="Enter demo mode"
-                        onPress={() => void enableDemoMode()}
+                        label={inDemo ? 'Reset demo data' : 'Enter demo mode'}
+                        onPress={() => void (inDemo ? resetDemoData() : enableDemoMode())}
                         variant="ghost"
                         size="md"
                         block

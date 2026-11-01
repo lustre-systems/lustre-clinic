@@ -77,6 +77,10 @@ function newestFirst(a: PatientRow, b: PatientRow): number {
     return b.createdAt.getTime() - a.createdAt.getTime() || (b.id < a.id ? -1 : b.id > a.id ? 1 : 0);
 }
 
+function byName(a: PatientRow, b: PatientRow): number {
+    return a.name.localeCompare(b.name) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
+}
+
 function pageOf(input: { limit?: number; offset?: number }): [number, number] {
     const offset = input.offset ?? 0;
     return [offset, offset + (input.limit ?? 25)];
@@ -126,7 +130,7 @@ export const patientHandlers = {
     },
 
     recent(input: RouterInput['patient']['recent']): Dated<RouterOutput['patient']['recent']> {
-        const rows = [...getDb().patients].sort(newestFirst);
+        const rows = [...getDb().patients].sort(input.order === 'name' ? byName : newestFirst);
 
         return {
             patients: rows.slice(...pageOf(input)).map(toPatient),

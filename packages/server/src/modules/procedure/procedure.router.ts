@@ -11,9 +11,11 @@ import {
 import { procedureService } from './procedure.service.ts';
 
 export const procedureRouter = router({
-    tree: clinicProcedure.input(procedureTreeInput).query(({ input }) => procedureService.tree(input)),
+    tree: clinicProcedure
+        .input(procedureTreeInput)
+        .query(({ input, ctx }) => procedureService.tree(input, ctx.caller.role)),
 
-    list: clinicProcedure.query(() => procedureService.selectableList()),
+    list: clinicProcedure.query(({ ctx }) => procedureService.selectableList(ctx.caller.role)),
 
     create: setupProcedure
         .input(createProcedureInput)

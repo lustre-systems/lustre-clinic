@@ -23,6 +23,8 @@ export const visitByIdInput = z.object({ id: z.uuid() });
 
 export const visitByAppointmentInput = z.object({ appointmentId: z.uuid() });
 
+const nextLine = z.object({ procedureId: z.uuid(), tooth: toothSchema.nullish() });
+
 export const setProceduresInput = z.object({
     visitId: z.uuid(),
     procedures: z
@@ -36,7 +38,20 @@ export const setProceduresInput = z.object({
             }),
         )
         .max(100),
+    /**
+     * What to do at the patient's next visit (`visit.next.ts`), in order. Left
+     * off keeps what is there; empty clears it.
+     */
+    nextProcedures: z.array(nextLine).max(20).optional(),
+    /**
+     * The single next procedure phones on 1.10 send: one becomes a list of one,
+     * null clears. Ignored when `nextProcedures` is given.
+     */
+    nextProcedure: nextLine.nullable().optional(),
 });
+
+/** What this patient's next booking should be for, if a visit asked for anything. */
+export const pendingNextInput = z.object({ patientId: z.uuid() });
 
 export const setPriceInput = z.object({
     visitId: z.uuid(),
@@ -85,6 +100,20 @@ export const setPaidInput = z
         path: ['methodNote'],
     });
 
+/**
+ * How the money already on a visit was paid, said again: everything on it moves
+ * onto `method`, and the total does not change — see `setPaidMethod`.
+ */
+export const setPaidMethodInput = z
+    .object({
+        visitId: z.uuid(),
+        ...payment,
+    })
+    .refine((v) => v.method !== 'other' || !!v.methodNote?.trim(), {
+        message: "method 'other' requires methodNote",
+        path: ['methodNote'],
+    });
+
 export const recordPaymentInput = z
     .object({
         visitId: z.uuid(),
@@ -105,4 +134,5 @@ export type DeleteVisitInput = z.input<typeof deleteVisitInput>;
 export type DeletePaymentInput = z.infer<typeof deletePaymentInput>;
 export type CheckOutInput = z.input<typeof checkOutInput>;
 export type SetPaidInput = z.infer<typeof setPaidInput>;
+export type SetPaidMethodInput = z.infer<typeof setPaidMethodInput>;
 export type RecordPaymentInput = z.infer<typeof recordPaymentInput>;

@@ -42,6 +42,7 @@ import { BookPatientSheet } from './components/BookPatientSheet';
 import { CalendarSheet } from './components/CalendarSheet';
 import { ClosedDay } from './components/ClosedDay';
 import { DayHeader } from './components/DayHeader';
+import { useDayLastDone } from './components/DayLastDone';
 import { DayEmpty, DayError, DaySkeleton } from './components/DayStates';
 import { ChatIcon, ClockIcon } from './components/icons';
 import { LateNotice } from './components/LateNotice';
@@ -354,6 +355,12 @@ function DayScreenView({
     // branch the user picked wins, for the rest of that day, and after it the
     // branch the schedule has working (`currentBranch.ts`).
     const day = useLocalQuery(`day:${dateKey}`, () => api.byDate(dateKey));
+    const history = useDayLastDone({
+        goHome,
+        covered: routes.stack.open.length > 0 || toast !== null || bookNextOpen,
+        onOpenRecord,
+        onChanged: () => day.refetch(),
+    });
     const clinicDay = day.data ?? [];
     const branch =
         branchId ??
@@ -362,7 +369,7 @@ function DayScreenView({
         branches.data?.[0]?.id ??
         null;
 
-    const reminders = useLocalQuery('reminders', () => api.pendingReminders(todayKey()));
+    const reminders = useLocalQuery('reminders', () => api.pendingReminders());
     const reminderCount = reminders.data?.length ?? 0;
 
     // Tapping a row that already has a visit. Separate from `loadVisit` so a
@@ -370,7 +377,9 @@ function DayScreenView({
     const openRow = useLocalMutation(visitForAppointment);
     const noShow = useLocalMutation(api.markNoShow);
 
-    const appointments = clinicDay.filter((row) => row.branchId === branch);
+    // Cancelled rows hold no slot and nothing is left to do with them, so the
+    // day leaves them out; the patient's record still lists them.
+    const appointments = clinicDay.filter((row) => row.branchId === branch && row.status !== 'cancelled');
     const closed = isClosed(dateKey, schedule.data, branch);
 
     // An empty branch on a day the clinic is working says so, and offers the
@@ -540,7 +549,7 @@ function DayScreenView({
     function seated(): string {
         // Checking in no longer means going in: with the chair taken they join
         // the queue, and the message has to say which happened.
-        return chair ? `waiting, ${waiting.length + 1} ahead` : 'in the chair';
+        return chair ? t('waiting, {count} ahead', { count: waiting.length + 1 }) : t('in the chair');
     }
 
     /**
@@ -556,7 +565,7 @@ function DayScreenView({
      */
     function stayOnDay(patient: EmbeddedPatient, standing: string) {
         setBookNextOpen(false);
-        setToast(`${patient.name} is ${standing}`);
+        setToast(t('{name} is {standing}', { name: patient.name, standing }));
     }
 
     /**
@@ -601,7 +610,7 @@ function DayScreenView({
     function markNoShow(appointment: Appointment) {
         noShow.mutate(appointment.id, {
             onSuccess: () => {
-                setToast(`${appointment.patient.name} marked as a no-show`);
+                setToast(t('{name} marked as a no-show', { name: appointment.patient.name }));
                 day.refetch();
             },
         });
@@ -615,6 +624,7 @@ function DayScreenView({
                 branchId={branch}
                 onPickBranch={pickBranch}
                 onOpenCalendar={() => setCalendar(openCalendar)}
+                history={history.button}
             />
 
             {reminderCount > 0 || tab === 'reminders' ? (
@@ -913,6 +923,11 @@ function DayScreenView({
                                 setToast(message);
                                 day.refetch();
                             }}
+                            onCancelled={(message) => {
+                                routes.pop();
+                                setToast(message);
+                                day.refetch();
+                            }}
                         />
                     ) : null}
 
@@ -978,7 +993,11 @@ function DayScreenView({
                                 // until the work is done.
                                 if (visit.standing === 'waiting') {
                                     routes.popToRoot();
-                                    setToast(`${visit.appointment.patient.name} is still waiting`);
+                                    setToast(
+                                        t('{name} is still waiting', {
+                                            name: visit.appointment.patient.name,
+                                        }),
+                                    );
                                     day.refetch();
                                     return;
                                 }
@@ -1015,6 +1034,8 @@ function DayScreenView({
                     ) : null}
                 </PushView>
             ))}
+
+            {history.layer}
 
             <Toast visible={toast !== null} message={toast ?? ''} onDismiss={() => setToast(null)} />
         </View>

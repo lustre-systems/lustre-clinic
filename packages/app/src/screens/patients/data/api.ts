@@ -20,7 +20,7 @@ import type { PatientRequirements } from '../../../components/domain/patientDraf
 // cluster, and the queue rule is all this needs.
 import { arrivalQueue } from '../../day/chair';
 import { checkInTimes, api as dayApi } from '../../day/data';
-import { localOffsetMinutes, todayKey } from '../../day/time';
+import { clinicOffsetNow, todayKey } from '../../day/time';
 import { PatientsRequestError } from './requestError';
 import type {
     AddedOldVisit,
@@ -114,8 +114,8 @@ export const patientsApi = {
     },
 
     /** Newest first, plus the size of the whole register for the heading's count. */
-    recent(offset = 0, limit = PAGE_SIZE): Promise<RecentPatients> {
-        return wrap(() => trpcClient.patient.recent.query({ limit, offset }));
+    recent(offset = 0, order: 'newest' | 'name' = 'newest', limit = PAGE_SIZE): Promise<RecentPatients> {
+        return wrap(() => trpcClient.patient.recent.query({ order, limit, offset }));
     },
 
     byId(id: string): Promise<PatientDetail> {
@@ -171,7 +171,7 @@ export const patientsApi = {
      */
     addOldVisit(input: AddOldVisitInput): Promise<AddedOldVisit> {
         return wrap(() =>
-            trpcClient.procedure.addOldVisit.mutate({ ...input, offsetMinutes: localOffsetMinutes() }),
+            trpcClient.procedure.addOldVisit.mutate({ ...input, offsetMinutes: clinicOffsetNow() }),
         );
     },
 

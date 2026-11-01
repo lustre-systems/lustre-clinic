@@ -1,6 +1,6 @@
 // biome-ignore lint/style/noRestrictedImports: a timer and a `/ws` subscription, both outside React
 import { useEffect } from 'react';
-import { onServerChange, serverAddresses, useConnection, useDeviceBackend } from '../../api';
+import { onServerChange, serverAddresses, serverNow, useConnection, useDeviceBackend } from '../../api';
 import { api } from './data';
 import { serverIdentity, takeSchedule } from './savedSchedule';
 import { saveSchedule } from './savedScheduleStore';
@@ -51,7 +51,7 @@ export function useSavedScheduleWriter(enabled: boolean): void {
                 await saveSchedule(
                     takeSchedule({
                         server,
-                        savedAt: Date.now(),
+                        savedAt: serverNow(),
                         branches,
                         days: dates.map((date, index) => ({ date, appointments: days[index] ?? [] })),
                     }),

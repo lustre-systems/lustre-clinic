@@ -134,4 +134,15 @@ export const settingsHandlers = {
         broadcast(WS_EVENT.SETTINGS_UPDATED);
         return toSettings(current);
     },
+
+    resumeRemindersFor(date: string): Settings {
+        const current = getDb().settings;
+        if (current.reminderDismissedOn !== date) return toSettings(current);
+        current.reminderDismissedOn = null;
+        current.updatedAt = new Date();
+
+        save();
+        broadcast(WS_EVENT.SETTINGS_UPDATED);
+        return toSettings(current);
+    },
 };

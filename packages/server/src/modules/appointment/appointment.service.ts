@@ -50,6 +50,7 @@ import {
 } from '../procedure/procedure.rules.ts';
 import { reminderService } from '../reminder/reminder.service.ts';
 import { settingsService } from '../settings/settings.service.ts';
+import { takeNext } from '../visit/visit.next.ts';
 import { seatNextInChair } from '../visit/visit.service.ts';
 import type {
     ByDateInput,
@@ -512,6 +513,7 @@ export const appointmentService = {
             );
 
             await replaceProcedures(tx, appointment.id, resolved);
+            await takeNext(tx, patientId, appointment.id);
 
             await reminderService.scheduleFor(tx, appointment, reminderLeadHours);
             return appointment;
@@ -558,6 +560,7 @@ export const appointmentService = {
                 );
 
                 await replaceProcedures(tx, appointment.id, resolved);
+                await takeNext(tx, patientId, appointment.id);
 
                 await reminderService.scheduleFor(tx, appointment, reminderLeadHours);
                 await reminderService.skipFor(tx, appointment.id);

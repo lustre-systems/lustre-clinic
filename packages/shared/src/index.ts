@@ -6,6 +6,8 @@
  * Request and response types are NOT written here. They flow from the inferred
  * `AppRouter` type, which the app imports from the server package.
  */
+export * from './clinicTime.ts';
+export { BUNDLED_CLINIC_ZONE } from './clinicZone.bundled.ts';
 export * from './constants.ts';
 export * from './dates.ts';
 export * from './enums.ts';

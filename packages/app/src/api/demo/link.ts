@@ -34,7 +34,7 @@ import type { AppRouter } from '@lustre/server/src/trpc/router.ts';
 import { ERROR_CODE, type ErrorCode } from '@lustre/shared';
 import { TRPCClientError, type TRPCLink } from '@trpc/client';
 import { observable } from '@trpc/server/observable';
-import { credentialToken, noteRefusal } from '../credential';
+import { credentialToken, forgetDemoCredential, noteRefusal } from '../credential';
 import { admit, inputFor, shownTo } from './access';
 import { getDb, isOpen, loadStored, setDb, takeDirty } from './db';
 import { type DeviceBackend, deviceBackend } from './flag';
@@ -91,7 +91,14 @@ export function openDeviceDb(backend: DeviceBackend = deviceBackend() ?? 'demo')
 
     opening = loadStored()
         .then((stored) => {
-            setDb(stored ?? seedDemoDb());
+            if (stored) {
+                setDb(stored);
+                return;
+            }
+            // A new seed has no devices, so the token the phone kept from the
+            // last one would be refused as withdrawn, and that refusal persists.
+            setDb(seedDemoDb());
+            forgetDemoCredential();
         })
         .finally(() => {
             opening = null;

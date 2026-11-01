@@ -7,6 +7,7 @@
 export { alarmsAvailable, openLockScreenSettings } from '../../modules/lustre-alarm';
 export { setReminderAlarm, useReminderAlarm } from './alarmStore';
 export { tryReminderAlarm } from './notifications';
+export { forgetAlarmDismissal, useRemindersOffToday } from './useAlarmDismissal';
 export { useAlarmOpen } from './useAlarmOpen';
 export { useArrivalNotices } from './useArrivalNotices';
 export { useLockScreenAllowed, useNotificationsAllowed } from './useNotificationsAllowed';

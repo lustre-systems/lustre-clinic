@@ -88,7 +88,7 @@ describe('createBackStack', () => {
 
         expect(stacks.patients.run()).toBe(true);
         expect(stacks.day.run()).toBe(false);
-        expect(stacks.money.run()).toBe(false);
+        expect(stacks.stats.run()).toBe(false);
         expect(stacks.settings.run()).toBe(false);
     });
 });
@@ -96,7 +96,7 @@ describe('createBackStack', () => {
 describe('backFromRoot', () => {
     it('sends every other tab back to the day', () => {
         expect(backFromRoot('patients')).toBe('day');
-        expect(backFromRoot('money')).toBe('day');
+        expect(backFromRoot('stats')).toBe('day');
         expect(backFromRoot('settings')).toBe('day');
     });
 

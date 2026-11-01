@@ -22,6 +22,7 @@ import { createMinimalPatient, requirePatient } from './patient';
 import { rescheduleReminder, scheduleReminderFor, skipReminderFor } from './reminder';
 import { settingsHandlers } from './settings';
 import { seatNextInChair, visitHandlers } from './visit';
+import { takeNext } from './visitNext';
 
 type AppointmentWithPatient = Dated<RouterOutput['appointment']['byDate'][number]>;
 type AppointmentLine = AppointmentWithPatient['procedures'][number];
@@ -275,6 +276,7 @@ export const appointmentHandlers = {
         );
 
         replaceProcedures(row.id, input.procedures ?? []);
+        takeNext(patientId, row.id);
         scheduleReminderFor(row, reminderLeadHours);
 
         save();
@@ -313,6 +315,7 @@ export const appointmentHandlers = {
         );
 
         replaceProcedures(appointment.id, input.procedures ?? []);
+        takeNext(patientId, appointment.id);
         scheduleReminderFor(appointment, reminderLeadHours);
         skipReminderFor(appointment.id);
 

@@ -6,6 +6,7 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.graphics.drawable.Icon
 import android.os.Build
 
 // The white "C" `expo-notifications` generates from assets/notification-icon.png.
@@ -47,6 +48,15 @@ object NudgeNotice {
       Intent(context, AlarmActivity::class.java).setAction(AlarmActivity.ACTION_OPEN),
       PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
     )
+    val done = PendingIntent.getBroadcast(
+      context,
+      4,
+      Intent(context, AlarmReceiver::class.java)
+        .setAction(AlarmReceiver.ACTION_DONE)
+        .putExtra(AlarmReceiver.EXTRA_DAY, AlarmSchedule.day(context)),
+      PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+    )
+    val icon = Icon.createWithResource(context, smallIcon(context))
     // Public on the lock screen: the nudge names no patient.
     manager.notify(
       NOTIFICATION_ID,
@@ -59,7 +69,12 @@ object NudgeNotice {
         .setVisibility(Notification.VISIBILITY_PUBLIC)
         .setAutoCancel(true)
         .setContentIntent(open)
+        .addAction(Notification.Action.Builder(icon, copy.done, done).build())
         .build(),
     )
+  }
+
+  fun cancel(context: Context) {
+    context.getSystemService(NotificationManager::class.java).cancel(NOTIFICATION_ID)
   }
 }

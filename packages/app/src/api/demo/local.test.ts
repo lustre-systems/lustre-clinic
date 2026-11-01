@@ -152,6 +152,18 @@ describe('the clinic file', () => {
         expect(read.branches).toEqual(db.branches);
     });
 
+    it('reads a file from before costs as costing nothing', () => {
+        const db = freshLocalDb();
+        const old = JSON.parse(serializeLocal(db));
+        old.db.procedureTypes = [{ id: 'p', name: 'Checkup', defaultPrice: 100 }];
+        old.db.visitProcedures = [{ id: 'l', visitId: 'v', procedureId: 'p', quantity: 1, unitPrice: 100 }];
+
+        const read = parseLocal(JSON.stringify(old));
+
+        expect(read.procedureTypes[0]?.cost).toBe(0);
+        expect(read.visitProcedures[0]?.unitCost).toBe(0);
+    });
+
     it('refuses a file it cannot read rather than calling it empty', () => {
         expect(() => parseLocal('{not json')).toThrow(LocalStoreError);
         expect(() => parseLocal(JSON.stringify({ version: 1, db: {} }))).toThrow(LocalStoreError);
@@ -267,6 +279,26 @@ describe('the clinic leaving the phone', () => {
         const parsed = localClinicFileSchema.safeParse(file);
 
         expect(parsed.success ? null : parsed.error.issues.slice(0, 3)).toBeNull();
+    });
+
+    // Zod drops a key it does not know, so a column added to the rows and not to
+    // the schema would vanish on the way to a server without anything failing.
+    it('has every field of every row in the shared format', () => {
+        const file = JSON.parse(serializeLocal(seedDemoDb()));
+        const parsed = localClinicFileSchema.parse(file);
+
+        for (const [table, rows] of Object.entries(file.db)) {
+            const kept = (parsed.db as Record<string, unknown>)[table];
+            if (!Array.isArray(rows)) {
+                expect(Object.keys(kept as object).sort()).toEqual(Object.keys(rows as object).sort());
+                continue;
+            }
+            rows.forEach((row: object, index: number) => {
+                expect(Object.keys((kept as object[])[index] as object).sort()).toEqual(
+                    Object.keys(row).sort(),
+                );
+            });
+        }
     });
 });
 

@@ -71,7 +71,8 @@ export const searchPatientInput = z.object({
     ...page,
 });
 
-export const recentPatientsInput = z.object(page);
+/** `name` is the register A–Z, for the list's "Alphabetical"; newest first otherwise. */
+export const recentPatientsInput = z.object({ order: z.enum(['newest', 'name']).default('newest'), ...page });
 
 export const patientByIdInput = z.object({ id: z.uuid() });
 
@@ -105,5 +106,7 @@ export type UpdatePatientRefInput = z.infer<typeof updatePatientRefInput>;
 /** A direct service caller may leave `offset` out and read the first page, as the router's default does. */
 type FirstPageByDefault<T extends { offset: number }> = Omit<T, 'offset'> & { offset?: number };
 export type SearchPatientInput = FirstPageByDefault<z.infer<typeof searchPatientInput>>;
-export type RecentPatientsInput = FirstPageByDefault<z.infer<typeof recentPatientsInput>>;
+export type RecentPatientsInput = FirstPageByDefault<Omit<z.infer<typeof recentPatientsInput>, 'order'>> & {
+    order?: z.infer<typeof recentPatientsInput>['order'];
+};
 export type PatientByPhoneInput = z.infer<typeof patientByPhoneInput>;

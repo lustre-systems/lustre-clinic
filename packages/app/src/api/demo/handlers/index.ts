@@ -87,6 +87,8 @@ const handlers = {
 
     'visit.byId': visitHandlers.byId,
     'visit.byAppointment': visitHandlers.byAppointment,
+    'visit.pendingNextProcedures': visitHandlers.pendingNextProcedures,
+    'visit.pendingNext': visitHandlers.pendingNext,
     'visit.checkIn': visitHandlers.checkIn,
     'visit.setProcedures': visitHandlers.setProcedures,
     'visit.setPrice': visitHandlers.setPrice,
@@ -94,6 +96,7 @@ const handlers = {
     'visit.recordPayment': visitHandlers.recordPayment,
     'visit.reopen': visitHandlers.reopen,
     'visit.setPaid': visitHandlers.setPaid,
+    'visit.setPaidMethod': visitHandlers.setPaidMethod,
     'visit.delete': visitHandlers.delete,
     'visit.deletePayment': visitHandlers.deletePayment,
 
@@ -107,8 +110,11 @@ const handlers = {
     'reminder.markSent': reminderHandlers.markSent,
     'reminder.markSkipped': reminderHandlers.markSkipped,
     'reminder.dismissToday': reminderHandlers.dismissToday,
+    'reminder.resumeToday': reminderHandlers.resumeToday,
 
     'stats.summary': statsHandlers.summary,
+    'stats.overview': statsHandlers.overview,
+    'stats.trend': statsHandlers.trend,
 
     'backup.status': backupHandlers.status,
     'backup.signInConfig': backupHandlers.signInConfig,

@@ -25,6 +25,7 @@ import { expectAppError } from './helpers/factories.ts';
 
 const CHARGED = 150_000;
 const PAID = 50_000;
+const COST = 20_000;
 
 function phoneClinic() {
     const branchId = uuid();
@@ -60,6 +61,7 @@ function phoneClinic() {
                 parentId,
                 name: 'Composite',
                 defaultPrice: CHARGED,
+                cost: COST,
                 hasQuantity: false,
                 isToothSpecific: false,
                 isCheckup: false,
@@ -71,6 +73,7 @@ function phoneClinic() {
                 parentId: null,
                 name: 'Fillings',
                 defaultPrice: 0,
+                cost: 0,
                 hasQuantity: false,
                 isToothSpecific: false,
                 isCheckup: false,
@@ -108,6 +111,8 @@ function phoneClinic() {
                 completedAt: at,
                 computedTotal: CHARGED,
                 chargedTotal: CHARGED,
+                nextProcedures: [{ procedureId: childId, tooth: null }],
+                nextAppointmentId: null,
                 createdAt: at,
             },
         ],
@@ -118,6 +123,7 @@ function phoneClinic() {
                 procedureId: childId,
                 quantity: 1,
                 unitPrice: CHARGED,
+                unitCost: COST,
                 tooth: null,
                 note: null,
             },
@@ -171,6 +177,10 @@ describe('importing a clinic kept on one phone', () => {
         expect(summary).toMatchObject({ patients: 1, appointments: 1, visits: 1, payments: 1 });
         const owed = await balanceService.outstanding([patientId]);
         expect(owed.total).toBe(CHARGED - PAID);
+        const [line] = await sql<{ unit_cost: number }[]>`SELECT unit_cost FROM visit_procedures`;
+        expect(line?.unit_cost).toBe(COST);
+        const next = await sql`SELECT procedure_id FROM visit_next_procedures`;
+        expect(next).toHaveLength(1);
         const settings = await settingsService.get();
         expect(settings).toMatchObject({
             clinicName: 'Phone Clinic',

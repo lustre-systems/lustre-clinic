@@ -54,9 +54,17 @@ import {
 import { describeError } from '../errors';
 import { discountPercent, formatAmount, poundsEntry } from '../money';
 import { noteChanged, noteDraft, noteValue } from '../notes';
-import { asksTooth, chargeableTotal, checkupIsWaived, toothGroupsOf, toothPosition } from '../procedures';
-import { dateKey, formatLongDate, formatTime12, monthShort, todayKey } from '../time';
+import {
+    asksTooth,
+    chargeableTotal,
+    checkupIsWaived,
+    headingOf,
+    toothGroupsOf,
+    toothPosition,
+} from '../procedures';
+import { dateKey, dayOfMonth, formatLongDate, formatTime12, monthShort, todayKey } from '../time';
 import { PlusIcon, XIcon } from './icons';
+import { type NextDraft, NextProcedureBox } from './NextProcedureBox';
 import { type PickedProcedure, ProcedureSheet } from './ProcedureSheet';
 import { ToothSheet } from './ToothSheet';
 import { VisitStatusChip, visitState } from './VisitStatusChip';
@@ -206,6 +214,12 @@ export function VisitScreen({
     const locale = useLocale();
     const keyboard = useKeyboardHeight();
     const [lines, setLines] = useState<DraftLine[]>(() => seed(appointment, visit));
+    const [next, setNext] = useState<NextDraft[]>(() =>
+        (visit?.nextProcedures ?? []).map((line) => ({ ...line, variant: null })),
+    );
+    // Which list a pick from the sheets lands on: the visit's, or the box for
+    // next time — added to the end, or in place of the one tapped.
+    const [target, setTarget] = useState<'line' | { next: number | null }>('line');
     const [note, setNote] = useState(() => noteDraft(appointment.note));
     const [asking, setAsking] = useState<Asking>(null);
     const [collapsed, setCollapsed] = useState<readonly string[]>([]);
@@ -285,7 +299,8 @@ export function VisitScreen({
     const inChair = where === 'chair';
     const planning = where === 'arriving' || where === 'waiting';
 
-    function startAdding() {
+    function startAdding(to: 'line' | { next: number | null } = 'line') {
+        setTarget(to);
         setAsking(
             asksTooth(catalogue.data, general) ? { step: 'tooth' } : { step: 'procedure', tooth: null },
         );
@@ -298,6 +313,8 @@ export function VisitScreen({
      */
     function askProcedure(tooth: Tooth | null, afterSheet: boolean) {
         if (!afterSheet) {
+            // Straight from a tooth's own "Add to" — always a line on this visit.
+            setTarget('line');
             setAsking({ step: 'procedure', tooth });
             return;
         }
@@ -320,6 +337,28 @@ export function VisitScreen({
     }
 
     function add(tooth: Tooth | null, picked: PickedProcedure) {
+        if (target !== 'line') {
+            const draft = {
+                procedureId: picked.procedureId,
+                name: picked.name,
+                variant: picked.variant,
+                tooth,
+            };
+            setNext((current) => {
+                const others = current.filter((_, i) => i !== target.next);
+                // §5 refuses the same procedure on the same tooth twice, so a repeat pick is a no-op.
+                if (
+                    others.some((row) => row.procedureId === draft.procedureId && row.tooth === draft.tooth)
+                ) {
+                    return others.length === current.length ? current : others;
+                }
+                return target.next === null
+                    ? [...current, draft]
+                    : current.map((row, i) => (i === target.next ? draft : row));
+            });
+            setAsking(null);
+            return;
+        }
         setEdited(true);
         setLines((current) => [
             ...current,
@@ -367,6 +406,15 @@ export function VisitScreen({
             tooth: line.tooth,
         }));
 
+    /** Like the note: `undefined` when it is still what the visit holds. */
+    const nextPatch = () => {
+        const was = visit?.nextProcedures ?? [];
+        const same =
+            was.length === next.length &&
+            was.every((row, i) => row.procedureId === next[i]?.procedureId && row.tooth === next[i]?.tooth);
+        return same ? undefined : next.map((row) => ({ procedureId: row.procedureId, tooth: row.tooth }));
+    };
+
     /** The note as the write takes it: `undefined` when nobody touched it. */
     const notePatch = (): string | null | undefined =>
         noteChanged(appointment.note, note) ? noteValue(note) : undefined;
@@ -398,6 +446,7 @@ export function VisitScreen({
                 closed: visit.completedAt !== null,
                 procedures: written(),
                 note: savedNote,
+                nextProcedures: nextPatch(),
             },
             {
                 onSuccess: (priced) => {
@@ -461,7 +510,7 @@ export function VisitScreen({
     // desk makes most — looking idle for the whole round trip.
     const confirming = acting.current === 'confirm' && (price.pending || checkIn.pending);
     const handingOver = acting.current === 'desk' && (price.pending || sendToDesk.pending);
-    const day = dateKey(new Date(appointment.startsAt));
+    const day = dateKey(appointment.startsAt);
 
     return (
         <View style={styles.screen} testID="visit-screen">
@@ -483,7 +532,7 @@ export function VisitScreen({
             <View style={styles.identity}>
                 <View style={styles.tile}>
                     <Text variant="title3" script="sans" weight="semibold" tone="inverse">
-                        {new Date(appointment.startsAt).getDate()}
+                        {dayOfMonth(day)}
                     </Text>
                     <Text variant="tag" tone="inverse" style={styles.tileMonth}>
                         {monthShort(day)}
@@ -538,7 +587,7 @@ export function VisitScreen({
                         </Text>
                         <Button
                             label="Add a procedure"
-                            onPress={startAdding}
+                            onPress={() => startAdding()}
                             style={styles.emptyCta}
                             testID="visit-add-first"
                         />
@@ -710,7 +759,7 @@ export function VisitScreen({
                 {empty ? null : (
                     <Pressable
                         accessibilityRole="button"
-                        onPress={startAdding}
+                        onPress={() => startAdding()}
                         style={({ pressed }) => [styles.add, pressed && styles.pressed]}
                         testID="visit-add"
                     >
@@ -722,6 +771,22 @@ export function VisitScreen({
                         </Text>
                     </Pressable>
                 )}
+
+                {mode === 'checkout' ? (
+                    <NextProcedureBox
+                        next={next.map((row) => {
+                            // Saved ones come back as the leaf alone; the catalogue has the heading.
+                            const found = row.variant
+                                ? null
+                                : headingOf(row.procedureId, catalogue.data ?? []);
+                            return found ? { ...row, name: found.name, variant: found.variant } : row;
+                        })}
+                        booked={nextPatch() === undefined && (visit?.nextAppointmentId ?? null) !== null}
+                        onAdd={() => startAdding({ next: null })}
+                        onChange={(i) => startAdding({ next: i })}
+                        onRemove={(i) => setNext((current) => current.filter((_, at) => at !== i))}
+                    />
+                ) : null}
 
                 <View style={styles.noteSection}>
                     <View style={styles.sectionHead}>

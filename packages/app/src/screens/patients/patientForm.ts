@@ -55,7 +55,7 @@
 // and the four-character code a patient registered before numbering carries —
 // that code is still the number written on their file.
 
-import { PATIENT_REF_PATTERN, PIASTRES_PER_POUND } from '@lustre/shared';
+import { PATIENT_REF_PATTERN, PIASTRES_PER_POUND, todayKey } from '@lustre/shared';
 import {
     birthDateOf,
     blankNameAndPhone,
@@ -216,7 +216,7 @@ function basicsAreSound(form: PatientForm, requires: PatientRequirements): boole
 }
 
 /** Blank is no age, which `basicsAreSound` has already allowed or refused. */
-function birthDateInputOf(age: string, today: Date): string | null {
+function birthDateInputOf(age: string, today: string): string | null {
     return age.trim() === '' ? null : birthDateOf(age, today);
 }
 
@@ -378,7 +378,7 @@ export function createInputOf(
     form: PatientForm,
     questions: CustomQuestion[],
     requires: PatientRequirements,
-    today: Date = new Date(),
+    today: string = todayKey(),
 ): CreatePatientInput | null {
     if (!basicsAreSound(form, requires)) return null;
     if (missingRequired(form, questions).length > 0) return null;
@@ -418,7 +418,7 @@ export function updateInputOf(
     initial: PatientForm,
     questions: CustomQuestion[],
     requires: PatientRequirements,
-    today: Date = new Date(),
+    today: string = todayKey(),
 ): UpdatePatientInput | null {
     if (!basicsAreSound(form, requires)) return null;
     if (clearedRequired(form, initial, questions).length > 0) return null;

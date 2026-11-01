@@ -27,7 +27,7 @@ export function useSavedSchedule(): SavedSchedule | null {
 export function SavedScheduleList({ schedule }: { schedule: SavedSchedule }) {
     const t = useT();
     const today = todayKey();
-    const savedOn = dateKey(new Date(schedule.savedAt));
+    const savedOn = dateKey(schedule.savedAt);
     const time = formatStamp(schedule.savedAt);
     const branchName = new Map(schedule.branches.map((branch) => [branch.id, branch.name]));
     const manyBranches = schedule.branches.length > 1;

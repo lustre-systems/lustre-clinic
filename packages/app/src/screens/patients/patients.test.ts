@@ -101,7 +101,7 @@ const oldOn = (over: Partial<PatientForm['old']> = {}): PatientForm['old'] => ({
     ...over,
 });
 
-const TODAY = new Date('2026-08-17T09:00:00.000Z');
+const TODAY = '2026-08-17';
 
 describe('money (§7.12, §7.13)', () => {
     it('formats piastres as whole EGP', () => {

@@ -1483,6 +1483,31 @@ describe('appointment', () => {
         expect(pending.map((r) => r.appointmentId)).not.toContain(first.id);
     });
 
+    test('a booking on a future day can be cancelled and its slot rebooked', async () => {
+        const { branch, patient } = await fixtures();
+        const startsAt = slot(7 * 24 * 60);
+
+        const first = await appointmentService.create({
+            patient: { kind: 'existing', patientId: patient.id },
+            branchId: branch.id,
+            startsAt,
+            offsetMinutes: 0,
+        });
+
+        const cancelled = await appointmentService.cancel(first.id);
+        expect(cancelled.status).toBe('cancelled');
+
+        const rebooked = await appointmentService.create({
+            patient: { kind: 'existing', patientId: patient.id },
+            branchId: branch.id,
+            startsAt,
+            offsetMinutes: 0,
+        });
+
+        expect(rebooked.id).not.toBe(first.id);
+        expect(rebooked.startsAt.toISOString()).toBe(startsAt);
+    });
+
     test('refuses to cancel twice', async () => {
         const { branch, patient } = await fixtures();
         const appointment = await appointmentService.create({
@@ -2666,6 +2691,15 @@ describe('reminder', () => {
     test('dismissing for today records the date on settings', async () => {
         await reminderService.dismissToday({ date: '2026-08-03' });
         expect((await settingsService.get()).reminderDismissedOn).toBe('2026-08-03');
+    });
+
+    test('resuming today clears only that date', async () => {
+        await reminderService.dismissToday({ date: '2026-08-03' });
+        await reminderService.resumeToday({ date: '2026-08-02' });
+        expect((await settingsService.get()).reminderDismissedOn).toBe('2026-08-03');
+
+        await reminderService.resumeToday({ date: '2026-08-03' });
+        expect((await settingsService.get()).reminderDismissedOn).toBeNull();
     });
 
     test('leaves an unknown placeholder visible rather than dropping it', () => {

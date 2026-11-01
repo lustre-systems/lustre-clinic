@@ -1,4 +1,4 @@
-import { paymentProcedure, router } from '../../trpc/init.ts';
+import { paymentProcedure, router, statsProcedure } from '../../trpc/init.ts';
 import {
     balanceSummaryInput,
     balanceTakingsInput,
@@ -20,7 +20,8 @@ export const balanceRouter = router({
     /** The app's one payment entry point: money against a patient, not a visit. */
     settle: paymentProcedure.input(settleInput).mutation(({ input }) => balanceService.settle(input)),
 
-    summary: paymentProcedure.input(balanceSummaryInput).query(({ input }) => balanceService.summary(input)),
+    // The clinic's takings, not one patient's: the owner's figures, like `stats`.
+    summary: statsProcedure.input(balanceSummaryInput).query(({ input }) => balanceService.summary(input)),
 
-    takings: paymentProcedure.input(balanceTakingsInput).query(({ input }) => balanceService.takings(input)),
+    takings: statsProcedure.input(balanceTakingsInput).query(({ input }) => balanceService.takings(input)),
 });

@@ -38,6 +38,8 @@ export type { ErrorBoundaryProps } from './ErrorBoundary';
 export { ErrorBoundary } from './ErrorBoundary';
 export type { ErrorStateProps } from './ErrorState';
 export { ErrorState } from './ErrorState';
+export type { FadeUpProps } from './FadeUp';
+export { FadeUp } from './FadeUp';
 export type { FieldLayout, FieldProps } from './Field';
 export { Field } from './Field';
 export type { IconButtonProps, IconButtonTone, IconButtonVariant } from './IconButton';

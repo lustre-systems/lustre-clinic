@@ -11,6 +11,7 @@
  * S3 when both are configured.
  */
 import { z } from 'zod';
+import { installClinicZone } from './util/clinicZone.ts';
 
 const envSchema = z.object({
     DATABASE_URL: z.string().min(1),
@@ -29,9 +30,9 @@ const envSchema = z.object({
     // next to the schema in the source tree.
     MIGRATIONS_DIR: z.string().min(1).optional(),
     PORT: z.coerce.number().int().positive().default(3000),
-    // The clinic's zone, not the host's: the container runs on UTC. Handsets
-    // are checked against it (`health.clock`), because the app reads and writes
-    // every booked time in the phone's own zone.
+    // The clinic's zone, not the host's: the container runs on UTC. Its offsets
+    // go to the handsets with `health.clock`, and every time the app shows or
+    // books is read in it, whatever zone the phone is on (`clinicTime`).
     CLINIC_TIME_ZONE: z.string().min(1).default('Africa/Cairo'),
     LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
     NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
@@ -58,8 +59,8 @@ const envSchema = z.object({
     PG_BIN_DIR: z.string().optional(),
 
     // The release APK and OTA updates the phones download (§15), staged by
-    // `packages/app/scripts/release.ts` and copied here by the ansible
-    // `releases` tag. Read on every request, so a new release needs no restart.
+    // `packages/app/scripts/release.ts` and copied here by
+    // `scripts/pushReleases.ts`. Read on every request, so a new release needs no restart.
     RELEASES_DIR: z.string().default('./releases'),
     UPDATES_CHANNEL: z.enum(['production', 'development']).default('production'),
     // Which stack this is, reported by `health.check` so a dev build can refuse
@@ -105,6 +106,7 @@ function load(): Config {
 }
 
 export const config = load();
+installClinicZone(config.CLINIC_TIME_ZONE);
 
 // A tailnet address is in the 100.64.0.0/10 carrier-grade NAT range Tailscale
 // hands out. The check exists to reject `TAILSCALE_IP`'s dev default of

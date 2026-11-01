@@ -12,6 +12,7 @@ export const createProcedureInput = z.object({
     parentId: z.uuid().nullish(),
     name: z.string().trim().min(1).max(MAX_PROCEDURE_NAME),
     defaultPrice: price,
+    cost: price.default(0),
     hasQuantity: z.boolean().default(false),
     isToothSpecific: z.boolean().default(false),
     isCheckup: z.boolean().default(false),
@@ -23,6 +24,7 @@ export const updateProcedureInput = z.object({
     parentId: z.uuid().nullish(),
     name: z.string().trim().min(1).max(MAX_PROCEDURE_NAME).optional(),
     defaultPrice: price.optional(),
+    cost: price.optional(),
     hasQuantity: z.boolean().optional(),
     isToothSpecific: z.boolean().optional(),
     isCheckup: z.boolean().optional(),
@@ -48,6 +50,7 @@ export const createCategoryInput = z.object({
     first: z.object({
         name: z.string().trim().min(1).max(MAX_PROCEDURE_NAME),
         defaultPrice: price,
+        cost: price.default(0),
         hasQuantity: z.boolean().default(false),
         isToothSpecific: z.boolean().default(false),
         isCheckup: z.boolean().default(false),
@@ -63,8 +66,14 @@ export const reorderProceduresInput = z.object({
     ids: z.array(z.uuid()).min(1).max(500),
 });
 
-export type CreateProcedureInput = z.infer<typeof createProcedureInput>;
-export type CreateCategoryInput = z.infer<typeof createCategoryInput>;
+/** The schema defaults `cost` on the wire; a caller inside the server, a seed or a test, may leave it out. */
+type CostOptional<T extends { cost: number }> = Omit<T, 'cost'> & { cost?: number };
+type CategoryInput = z.infer<typeof createCategoryInput>;
+
+export type CreateProcedureInput = CostOptional<z.infer<typeof createProcedureInput>>;
+export type CreateCategoryInput = Omit<CategoryInput, 'first'> & {
+    first: CostOptional<CategoryInput['first']>;
+};
 export type UpdateProcedureInput = z.infer<typeof updateProcedureInput>;
 export type ProcedureTreeInput = z.infer<typeof procedureTreeInput>;
 export type ReorderProceduresInput = z.infer<typeof reorderProceduresInput>;

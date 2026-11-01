@@ -60,6 +60,7 @@ import { CalendarSheet } from './components/CalendarSheet';
 import { ChairCard, type ChairCardKind, ChairStrip } from './components/Chair';
 import { ClosedDay } from './components/ClosedDay';
 import { DayHeader } from './components/DayHeader';
+import { useDayLastDone } from './components/DayLastDone';
 import { DayEmpty, DayError, DaySkeleton } from './components/DayStates';
 import { AfterThis } from './components/DoctorAgenda';
 import { DoctorVisitSheet } from './components/DoctorVisitSheet';
@@ -174,6 +175,12 @@ function DoctorDayScreenView({ onOpenRecord, open, onReturn, goHome = 0 }: Docto
     // branch holding most of the day rather than on `branches[0]` — see
     // `DayScreen`. A branch the user picked that day wins, then the schedule's.
     const day = useLocalQuery(`day:${dateKey}`, () => api.byDate(dateKey));
+    const history = useDayLastDone({
+        goHome,
+        covered: routes.stack.open.length > 0 || toast !== null,
+        onOpenRecord,
+        onChanged: () => day.refetch(),
+    });
     const clinicDay = day.data ?? [];
     const branch =
         branchId ??
@@ -183,7 +190,8 @@ function DoctorDayScreenView({ onOpenRecord, open, onReturn, goHome = 0 }: Docto
         null;
 
     const appointments = useMemo(
-        () => clinicDay.filter((row) => row.branchId === branch),
+        // Cancelled rows are left out, as on the desk's day (`DayScreen`).
+        () => clinicDay.filter((row) => row.branchId === branch && row.status !== 'cancelled'),
         [clinicDay, branch],
     );
     const closed = isClosed(dateKey, schedule.data, branch);
@@ -315,7 +323,7 @@ function DoctorDayScreenView({ onOpenRecord, open, onReturn, goHome = 0 }: Docto
         setFinishing(appointment.id);
         finish.mutate(appointment.id, {
             onSuccess: () => {
-                setToast(`${appointment.patient.name} is at the desk`);
+                setToast(t('{name} is at the desk', { name: appointment.patient.name }));
                 day.refetch();
             },
         });
@@ -329,6 +337,7 @@ function DoctorDayScreenView({ onOpenRecord, open, onReturn, goHome = 0 }: Docto
                 branchId={branch}
                 onPickBranch={pickBranch}
                 onOpenCalendar={() => setCalendar(openCalendar)}
+                history={history.button}
             />
 
             {day.status === 'error' && day.error && appointments.length > 0 ? (
@@ -539,7 +548,9 @@ function DoctorDayScreenView({ onOpenRecord, open, onReturn, goHome = 0 }: Docto
                             onBack={routes.pop}
                             onConfirm={(priced) => {
                                 routes.popToRoot();
-                                setToast(`Saved · ${formatMoney(priced.chargedTotal ?? 0)}`);
+                                setToast(
+                                    t('Saved · {amount}', { amount: formatMoney(priced.chargedTotal ?? 0) }),
+                                );
                                 day.refetch();
                             }}
                             onSentToDesk={(message) => {
@@ -551,6 +562,8 @@ function DoctorDayScreenView({ onOpenRecord, open, onReturn, goHome = 0 }: Docto
                     ) : null}
                 </PushView>
             ))}
+
+            {history.layer}
 
             <Toast visible={toast !== null} message={toast ?? ''} onDismiss={() => setToast(null)} />
         </View>

@@ -158,6 +158,10 @@ describe('copy catalogue', () => {
      * - A literal handed to something that shows it later: a toast setter, an
      *   `onSaved` callback, `localizeCopy`, the date helpers' `say`, and the
      *   sentence tables in each cluster's `errors.ts`.
+     * - A template handed to a toast setter, or to a callback a parent toasts —
+     *   `` setToast(`${name} is at the desk`) ``. The toast puts its message
+     *   through `t`, but no key matches a filled-in name, so these stayed
+     *   English in Arabic with this test passing.
      *
      * The expression scans only count a literal as copy when it reads like a
      * sentence — capitalised, or more than one word — so the `'book'` in
@@ -211,8 +215,14 @@ describe('copy catalogue', () => {
             }
 
             for (const args of callArguments(text, SHOWN_BY)) {
-                for (const literal of literalsIn(stripLocalized(args))) {
+                const plain = stripLocalized(args);
+                for (const literal of literalsIn(plain)) {
                     if (readsAsCopy(literal) && !(literal in COPY_AR)) add(literal, file);
+                }
+                for (const template of templatesIn(plain)) {
+                    if (/(?:^|\s)[A-Za-z]{2,}(?:\W|$)/.test(withoutSlots(template))) {
+                        add(template, file, '  [template: use t with a {slot}]');
+                    }
                 }
             }
 
@@ -278,8 +288,12 @@ const JSX_TEMPLATE = /(?:>|(?<!\b(?:key|testID|nativeID))=)\s*\{\s*`([^`]*)`\s*\
 /** `[ERROR_CODE.NOT_FOUND]: 'That visit no longer exists.'` in any map. */
 const ERROR_SENTENCE = /\[ERROR_CODE\.\w+\]:\s*(['"])((?:(?!\1)[^\\]|\\.)*)\1/g;
 
-/** A toast setter or a save callback: whatever it is handed is shown, ternaries and all. */
-const SHOWN_BY = /\b(?:set\w*Toast|onSaved|showToast)\(/g;
+/**
+ * A toast setter, or a callback whose argument a parent hands to one: whatever
+ * it is handed is shown, ternaries and templates and all.
+ */
+const SHOWN_BY =
+    /\b(?:set\w*Toast|onSaved|showToast|onBooked|onSentToDesk|onClosed|onFailed|onDone|onReturn)\(/g;
 
 /** The argument list of every call `start` opens. */
 function callArguments(code: string, start: RegExp): string[] {

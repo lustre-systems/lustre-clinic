@@ -68,6 +68,7 @@ const procedureType = z.object({
     parentId: uuid.nullable(),
     name: z.string(),
     defaultPrice: piastres,
+    cost: piastres.min(0),
     hasQuantity: z.boolean(),
     isToothSpecific: z.boolean(),
     isCheckup: z.boolean(),
@@ -113,6 +114,8 @@ const visit = z.object({
     completedAt: instant.nullable(),
     computedTotal: piastres,
     chargedTotal: piastres,
+    nextProcedures: z.array(z.object({ procedureId: uuid, tooth: toothSchema.nullable() })),
+    nextAppointmentId: uuid.nullable(),
     createdAt: instant,
 });
 
@@ -122,6 +125,7 @@ const visitProcedure = z.object({
     procedureId: uuid,
     quantity: z.number().int().positive(),
     unitPrice: piastres,
+    unitCost: piastres.min(0),
     tooth: toothSchema.nullable(),
     note: z.string().nullable(),
 });

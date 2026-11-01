@@ -48,10 +48,13 @@ export type TimePickerFieldProps = {
     testID?: string;
 };
 
+/**
+ * The picker deals in a `Date`, but the value is a clinic wall-clock time, not
+ * an instant. Pinned to GMT on both sides (`timeZoneName: 'GMT'`) so the
+ * phone's zone, and any DST jump in it, never reaches the numbers.
+ */
 function dateAt(minutes: number): Date {
-    const date = new Date();
-    date.setHours(Math.floor(minutes / 60), minutes % 60, 0, 0);
-    return date;
+    return new Date(Date.UTC(2000, 0, 1, Math.floor(minutes / 60), minutes % 60));
 }
 
 export function TimePickerField({
@@ -81,12 +84,13 @@ export function TimePickerField({
             value: dateAt(value),
             mode: 'time',
             is24Hour: false,
+            timeZoneName: 'GMT',
             onChange: (event, picked) => {
                 asked.current = false;
                 // 'dismissed' is Cancel and the back gesture both; only 'set'
                 // is the user saying yes.
                 if (event.type !== 'set' || !picked) return;
-                onChange(picked.getHours() * 60 + picked.getMinutes());
+                onChange(picked.getUTCHours() * 60 + picked.getUTCMinutes());
             },
         });
     }

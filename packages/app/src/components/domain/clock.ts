@@ -25,7 +25,12 @@
  * `timeFromMinutes` in `settings/data/reminders` writes it back out. Neither
  * string reaches a screen.
  */
-import { type Locale, localizeCopy } from '@lustre/shared';
+import {
+    minutesOfDay as clinicMinutesOfDay,
+    secondsOfDay as clinicSecondsOfDay,
+    type Locale,
+    localizeCopy,
+} from '@lustre/shared';
 import { getLocale } from '../../i18n/runtime';
 
 export interface Clock12 {
@@ -46,10 +51,9 @@ function pad(value: number): string {
     return value < 10 ? `0${value}` : String(value);
 }
 
-/** Minutes since midnight, local time — there is no second timezone. */
-export function minutesOfDay(iso: string): number {
-    const date = new Date(iso);
-    return date.getHours() * 60 + date.getMinutes();
+/** Minutes since the clinic's midnight (`clinicTime`), whatever zone the phone is on. */
+export function minutesOfDay(at: string | number): number {
+    return clinicMinutesOfDay(at);
 }
 
 /**
@@ -60,9 +64,8 @@ export function minutesOfDay(iso: string): number {
  * 09:47:23 read as seated at 09:47:00, so the count ran up to 37 seconds ahead
  * of the visit it claimed to be measuring.
  */
-export function secondsOfDay(iso: string): number {
-    const date = new Date(iso);
-    return date.getHours() * 3_600 + date.getMinutes() * 60 + date.getSeconds();
+export function secondsOfDay(at: string | number): number {
+    return clinicSecondsOfDay(at);
 }
 
 export function clock12(minutes: number, locale: Locale = getLocale()): Clock12 {
@@ -92,8 +95,7 @@ export function formatTime12(iso: string, locale: Locale = getLocale()): string 
 
 /** The same, off a wall-clock timestamp: the connection card's probe stamp. */
 export function formatStamp(at: number, locale: Locale = getLocale()): string {
-    const date = new Date(at);
-    return formatClock12(date.getHours() * 60 + date.getMinutes(), locale);
+    return formatClock12(clinicMinutesOfDay(at), locale);
 }
 
 /**

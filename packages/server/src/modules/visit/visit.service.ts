@@ -35,6 +35,7 @@ import { computeTotal } from '../../util/money.ts';
 import { clinicDayOf } from '../../util/time.ts';
 import { broadcast } from '../../ws/index.ts';
 import { resolveProcedureLines } from '../procedure/procedure.rules.ts';
+import { type NextProcedure, nextOf, pendingNext, setNext, takenBy } from './visit.next.ts';
 import type {
     CheckInInput,
     CheckOutInput,
@@ -43,6 +44,7 @@ import type {
     RecordPaymentInput,
     ReopenInput,
     SetPaidInput,
+    SetPaidMethodInput,
     SetPriceInput,
     SetProceduresInput,
 } from './visit.schema.ts';
@@ -82,6 +84,10 @@ interface VisitPayment {
 interface Visit extends Omit<VisitRow, 'chargedTotal' | 'computedTotal'> {
     chargedTotal: number | null;
     computedTotal: number | null;
+    /** What the patient's next visit is for (`visit.next.ts`), in order. */
+    nextProcedures: NextProcedure[];
+    /** The first of them, as phones on 1.10 read it. */
+    nextProcedure: (NextProcedure & { appointmentId: string | null }) | null;
     procedures: VisitLine[];
     payments: VisitPayment[] | null;
     paidTotal: number | null;
@@ -273,6 +279,7 @@ export const visitService = {
                     note: appointmentProcedures.note,
                     quotedPrice: appointmentProcedures.quotedPrice,
                     defaultPrice: procedureTypes.defaultPrice,
+                    cost: procedureTypes.cost,
                 })
                 .from(appointmentProcedures)
                 .innerJoin(procedureTypes, eq(appointmentProcedures.procedureId, procedureTypes.id))
@@ -287,6 +294,7 @@ export const visitService = {
                         procedureId: line.procedureId,
                         quantity: line.quantity,
                         unitPrice: line.quotedPrice ?? line.defaultPrice,
+                        unitCost: line.cost,
                         tooth: line.tooth,
                         note: line.note,
                     })),
@@ -312,6 +320,15 @@ export const visitService = {
         // The caller announces the arrival once it has committed.
         if (!executor) broadcast(WS_EVENT.APPOINTMENT_CHECKED_IN, { id: visit.appointmentId });
         return visit;
+    },
+
+    async pendingNextProcedures(patientId: string): Promise<NextProcedure[]> {
+        return pendingNext(db, patientId);
+    },
+
+    /** The first of them, as phones on 1.10 ask for it. */
+    async pendingNext(patientId: string): Promise<NextProcedure | null> {
+        return (await pendingNext(db, patientId))[0] ?? null;
     },
 
     async byId(id: string, viewer?: Viewer): Promise<Visit> {
@@ -343,6 +360,10 @@ export const visitService = {
             .from(payments)
             .where(eq(payments.visitId, id));
 
+        const nextProcedures = await nextOf(db, id);
+        // Only while it still stands: a cancelled or missed booking leaves them owed.
+        const nextAppointmentId = await takenBy(db, visit.nextAppointmentId);
+
         const paidTotal = paymentRows.reduce((sum, p) => sum + p.amount, 0);
         const shown = viewer === undefined || seesPayments(viewer);
         // Priced for the doctor until checkout: a patient sent to the desk can
@@ -358,6 +379,11 @@ export const visitService = {
                     ? { ...l, lineTotal: l.unitPrice * l.quantity }
                     : { ...l, unitPrice: null, lineTotal: null },
             ),
+            nextAppointmentId,
+            nextProcedures,
+            nextProcedure: nextProcedures[0]
+                ? { ...nextProcedures[0], appointmentId: nextAppointmentId }
+                : null,
             payments: shown ? paymentRows : null,
             paidTotal: shown ? paidTotal : null,
             balance: shown ? visit.chargedTotal - paidTotal : null,
@@ -366,16 +392,33 @@ export const visitService = {
 
     async setProcedures(input: SetProceduresInput, viewer?: Viewer): Promise<Visit> {
         const lines = await resolveProcedureLines(input.procedures);
+        const asked =
+            input.nextProcedures ??
+            (input.nextProcedure === undefined
+                ? undefined
+                : input.nextProcedure
+                  ? [input.nextProcedure]
+                  : []);
+        const next =
+            asked === undefined
+                ? undefined
+                : (await resolveProcedureLines(asked.map((line) => ({ ...line, quantity: 1 })))).map(
+                      (line) => ({
+                          procedureId: line.procedure.id,
+                          tooth: line.tooth,
+                      }),
+                  );
 
         const resolved = lines.map((line, i) => ({
             procedureId: line.procedure.id,
             quantity: line.quantity,
             unitPrice: input.procedures[i]?.unitPrice ?? line.procedure.defaultPrice,
+            unitCost: line.procedure.cost,
             tooth: line.tooth,
             note: line.note,
         }));
 
-        await db.transaction(async (tx) => {
+        const booked = await db.transaction(async (tx) => {
             const visit = await requireVisit(tx, input.visitId);
             if (visit.completedAt) {
                 throw new AppError(
@@ -385,6 +428,16 @@ export const visitService = {
                 );
             }
 
+            // A line keeps the cost it was first priced at, like `unitPrice`'s
+            // snapshot: correcting a reopened visit must not re-read the
+            // catalogue and rewrite its profit. Only a procedure new to the
+            // visit takes today's cost.
+            const before = await tx
+                .select({ procedureId: visitProcedures.procedureId, unitCost: visitProcedures.unitCost })
+                .from(visitProcedures)
+                .where(eq(visitProcedures.visitId, visit.id));
+            const savedCost = new Map(before.map((line) => [line.procedureId, line.unitCost]));
+
             await tx.delete(visitProcedures).where(eq(visitProcedures.visitId, visit.id));
 
             if (resolved.length > 0) {
@@ -393,6 +446,7 @@ export const visitService = {
                         id: Bun.randomUUIDv7(),
                         visitId: visit.id,
                         ...line,
+                        unitCost: savedCost.get(line.procedureId) ?? line.unitCost,
                     })),
                 );
             }
@@ -402,8 +456,11 @@ export const visitService = {
             if (!visit.pricedAt) {
                 await tx.update(visits).set({ chargedTotal: computedTotal }).where(eq(visits.id, visit.id));
             }
+
+            return next === undefined ? null : setNext(tx, visit, next, new Date());
         });
 
+        if (booked) broadcast(WS_EVENT.APPOINTMENT_UPDATED, { id: booked });
         broadcast(WS_EVENT.VISIT_UPDATED, { id: input.visitId });
         return this.byId(input.visitId, viewer);
     },
@@ -554,10 +611,23 @@ export const visitService = {
      * (`stats`, `balance`), so the money lands in the right place on its own.
      *
      * Saying what is already on the visit writes nothing at all.
+     *
+     * Raising the total past the charge is refused, as at checkout (§7.6): the
+     * phone clamps, so only a stale or hand-made call meets this. Lowering is
+     * never refused, even while still above the charge — that is a visit whose
+     * charge came down after it was paid, and the correction is the refund.
      */
     async setPaid(input: SetPaidInput): Promise<Visit> {
         await db.transaction(async (tx) => {
-            const visit = await requireVisit(tx, input.visitId);
+            // Locked so two phones correcting the same visit cannot both
+            // measure against the same total and write two deltas.
+            const [visit] = await tx
+                .select()
+                .from(visits)
+                .where(eq(visits.id, input.visitId))
+                .limit(1)
+                .for('update');
+            if (!visit) throw AppError.notFound('visit');
 
             const [collected] = await tx
                 .select({ total: sql<number>`COALESCE(SUM(${payments.amount}), 0)::int` })
@@ -567,7 +637,52 @@ export const visitService = {
             const delta = input.paidTotal - (collected?.total ?? 0);
             if (delta === 0) return;
 
+            if (delta > 0 && input.paidTotal > visit.chargedTotal) {
+                throw new AppError(
+                    ERROR_CODE.PAYMENT_EXCEEDS_BALANCE,
+                    'the paid total is more than this visit charges',
+                    422,
+                );
+            }
+
             await insertPayment(tx, visit.id, delta, input.method, input.methodNote ?? null);
+        });
+
+        broadcast(WS_EVENT.VISIT_UPDATED, { id: input.visitId });
+        return this.byId(input.visitId);
+    },
+
+    /**
+     * Say again how the money on a visit was paid — "that was card, not cash" —
+     * without changing how much. Each other method's net on the visit is given
+     * back in that method and taken again in `method`, as rows of their own and
+     * dated today, so the takings by method come out right and nothing that was
+     * entered is edited away. `other` is told apart by its note.
+     *
+     * Already all in `method`, it writes nothing.
+     */
+    async setPaidMethod(input: SetPaidMethodInput): Promise<Visit> {
+        const methodNote = input.method === 'other' ? (input.methodNote?.trim() ?? null) : null;
+
+        await db.transaction(async (tx) => {
+            // Locked as in `setPaid`: two phones restating the same visit must
+            // not both move the same money.
+            const [visit] = await tx
+                .select({ id: visits.id })
+                .from(visits)
+                .where(eq(visits.id, input.visitId))
+                .limit(1)
+                .for('update');
+            if (!visit) throw AppError.notFound('visit');
+
+            const rows = await tx
+                .select({ amount: payments.amount, method: payments.method, methodNote: payments.methodNote })
+                .from(payments)
+                .where(eq(payments.visitId, visit.id));
+
+            for (const row of restated(rows, input.method, methodNote)) {
+                await insertPayment(tx, visit.id, row.amount, row.method, row.methodNote);
+            }
         });
 
         broadcast(WS_EVENT.VISIT_UPDATED, { id: input.visitId });
@@ -708,6 +823,42 @@ export const visitService = {
         return row ?? null;
     },
 };
+
+type Method = RecordPaymentInput['method'];
+
+interface PaymentLine {
+    amount: number;
+    method: Method;
+    methodNote: string | null;
+}
+
+/**
+ * The rows that move every other method's net onto `method`: one giving each
+ * back, then one taking the lot again. Their sum is zero, so the paid total
+ * does not move.
+ */
+function restated(rows: readonly PaymentLine[], method: Method, methodNote: string | null): PaymentLine[] {
+    const keyOf = (m: Method, note: string | null) => (m === 'other' ? `other:${note?.trim() ?? ''}` : m);
+    const target = keyOf(method, methodNote);
+
+    const nets = new Map<string, PaymentLine>();
+    for (const row of rows) {
+        const key = keyOf(row.method, row.methodNote);
+        const net = nets.get(key);
+        if (net) net.amount += row.amount;
+        else nets.set(key, { ...row });
+    }
+
+    const out: PaymentLine[] = [];
+    let moved = 0;
+    for (const [key, net] of nets) {
+        if (key === target || net.amount === 0) continue;
+        out.push({ amount: -net.amount, method: net.method, methodNote: net.methodNote });
+        moved += net.amount;
+    }
+    if (moved !== 0) out.push({ amount: moved, method, methodNote });
+    return out;
+}
 
 /**
  * The one place a `payments` row is written. Exported because `balance.settle`

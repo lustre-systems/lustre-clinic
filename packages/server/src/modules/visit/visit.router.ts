@@ -9,9 +9,11 @@ import {
     checkOutInput,
     deletePaymentInput,
     deleteVisitInput,
+    pendingNextInput,
     recordPaymentInput,
     reopenInput,
     setPaidInput,
+    setPaidMethodInput,
     setPriceInput,
     setProceduresInput,
     visitByAppointmentInput,
@@ -28,6 +30,15 @@ export const visitRouter = router({
         const row = await visitService.byAppointment(input.appointmentId);
         return row ? visitService.byId(row.id, ctx.caller.role) : null;
     }),
+
+    pendingNextProcedures: clinicProcedure
+        .input(pendingNextInput)
+        .query(({ input }) => visitService.pendingNextProcedures(input.patientId)),
+
+    /** The first of them, for phones on 1.10. */
+    pendingNext: clinicProcedure
+        .input(pendingNextInput)
+        .query(({ input }) => visitService.pendingNext(input.patientId)),
 
     checkIn: clinicProcedure.input(checkInInput).mutation(({ input }) => visitService.checkIn(input)),
 
@@ -52,6 +63,10 @@ export const visitRouter = router({
         .mutation(({ input, ctx }) => visitService.reopen(input, ctx.caller.role)),
 
     setPaid: paymentProcedure.input(setPaidInput).mutation(({ input }) => visitService.setPaid(input)),
+
+    setPaidMethod: paymentProcedure
+        .input(setPaidMethodInput)
+        .mutation(({ input }) => visitService.setPaidMethod(input)),
 
     delete: clinicProcedure.input(deleteVisitInput).mutation(({ input }) => visitService.delete(input)),
 

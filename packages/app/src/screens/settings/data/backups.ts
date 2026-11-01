@@ -16,7 +16,7 @@
  * is built at render, so the screen passes its `t`; the tests, and anything
  * else with no locale in hand, get the English.
  */
-import { type CopyVars, localizeCopy } from '@lustre/shared';
+import { type CopyVars, dateKey, localizeCopy } from '@lustre/shared';
 import { serverNow } from '../../../api/serverClock';
 
 type Translate = (copy: string, vars?: CopyVars) => string;
@@ -61,15 +61,13 @@ export function driveSignInError(code: string): string {
 }
 
 /**
- * Calendar days on this phone's clock rather than 24-hour spans: the pane puts
+ * Calendar days on the clinic's clock rather than 24-hour spans: the pane puts
  * the age beside a clock time, and "11:00 PM · today" read at 1 AM is wrong.
  */
 function calendarDaysSince(since: string, now: number): number | null {
-    const at = new Date(since);
-    if (Number.isNaN(at.getTime())) return null;
-    const today = new Date(now);
-    const dayOf = (d: Date) => Date.UTC(d.getFullYear(), d.getMonth(), d.getDate());
-    return Math.max(0, Math.round((dayOf(today) - dayOf(at)) / 86_400_000));
+    if (Number.isNaN(new Date(since).getTime())) return null;
+    const dayOf = (at: string | number) => Date.parse(`${dateKey(at)}T00:00:00Z`);
+    return Math.max(0, Math.round((dayOf(now) - dayOf(since)) / 86_400_000));
 }
 
 export function ageInDays(since: string, now: number): number | null {

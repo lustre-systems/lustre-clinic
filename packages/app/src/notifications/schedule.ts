@@ -20,7 +20,13 @@
  * **`dismissedOn` is the stop.** `reminder_dismissed_on` already exists and
  * `reminder.dismissToday` already sets it; this is the thing that consults it.
  * It is per calendar day, so tomorrow arms again on its own.
+ *
+ * **Clinic time.** The notify time is the clinic's, so the plan is made on the
+ * clinic's clock (`clinicTime`) and comes out as absolute instants. The OS
+ * fires by the phone's own clock, which may be wound wrong; `phoneTimeOf` moves
+ * each instant onto it when it is armed.
  */
+import { instantAt, minutesOfDay } from '@lustre/shared';
 
 /** Android tolerates far more, but a 06:00 start repeating every 15 minutes is 72 alarms for one fact. */
 const MAX_NUDGES = 24;
@@ -28,7 +34,7 @@ const MAX_NUDGES = 24;
 const DAY_MINUTES = 24 * 60;
 
 export type NudgePlan = {
-    /** Local instants to fire at, soonest first. Empty means: cancel everything and arm nothing. */
+    /** Instants to fire at, soonest first. Empty means: cancel everything and arm nothing. */
     at: Date[];
     /** Why the plan is empty, for the log line and for the settings pane to read back. */
     silent: 'pending' | 'none-pending' | 'dismissed' | 'past-midnight' | null;
@@ -43,9 +49,10 @@ export type NudgeInput = {
     pendingCount: number;
     /** `reminder_dismissed_on`, a `YYYY-MM-DD` or null. */
     dismissedOn: string | null;
-    /** The local day being planned, as `YYYY-MM-DD`. */
+    /** The clinic day being planned, as `YYYY-MM-DD`. */
     today: string;
-    now: Date;
+    /** The clinic's now, epoch ms. */
+    now: number;
 };
 
 /**
@@ -64,7 +71,7 @@ export function planNudges(input: NudgeInput): NudgePlan {
     if (pendingCount <= 0) return { at: [], silent: 'none-pending' };
     if (dismissedOn === today) return { at: [], silent: 'dismissed' };
 
-    const nowMinutes = now.getHours() * 60 + now.getMinutes();
+    const nowMinutes = minutesOfDay(now);
     const step = Math.max(1, Math.trunc(repeatMinutes));
 
     const at: Date[] = [];
@@ -73,7 +80,7 @@ export function planNudges(input: NudgeInput): NudgePlan {
         // the instant it is scheduled, which on a mid-afternoon foreground would
         // buzz once for every slot since the notify time.
         if (minutes <= nowMinutes) continue;
-        at.push(atMinute(now, minutes));
+        at.push(new Date(instantAt(today, minutes)));
     }
 
     if (at.length === 0) return { at: [], silent: 'past-midnight' };
@@ -94,10 +101,4 @@ export function minutesOfClock(clock: string): number {
     const total = hours * 60 + minutes;
     if (!Number.isFinite(total)) return 0;
     return Math.min(DAY_MINUTES - 1, Math.max(0, Math.trunc(total)));
-}
-
-function atMinute(day: Date, minutes: number): Date {
-    const at = new Date(day);
-    at.setHours(Math.floor(minutes / 60), minutes % 60, 0, 0);
-    return at;
 }
