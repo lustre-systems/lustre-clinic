@@ -10,6 +10,8 @@ listed.
 
 - A clinic kept on one phone can now be copied off it. Settings → Export clinic opens Android's share sheet with the whole clinic as one file, which can go to Google Drive, WhatsApp, email or the phone's Files. The row says when the last export was, says "Not exported yet" until there has been one, and asks for another once the last is a week old. On a new phone, or after reinstalling, "Open a clinic file" on the "Connect to the clinic" screen opens that file and carries on where it left off. If the phone already holds a clinic with patients in it, the app asks before replacing it. The same file can move the clinic onto a clinic server when one is set up later (`lustre import-local`, see infra/README.md). This needs the new APK.
 
+- A booking made after the clocks go back, for the last hour of the day they changed, now gets a reference with that day's date instead of the next day's.
+
 ## [1.10.2] - 2026-10-31
 
 - The WhatsApp button on a patient's record now asks whether to open WhatsApp or WhatsApp Business, instead of choosing from the branch. If the one you pick can't open, the app says so.

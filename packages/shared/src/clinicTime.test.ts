@@ -142,6 +142,16 @@ describe('the clinic day', () => {
         expect(() => dayRange('not-a-date', 0)).toThrow();
     });
 
+    it('keeps the last hour of the day summer time ends on that day, after the change has passed', () => {
+        const lateThursday = at('2026-10-29T21:30:00Z');
+        const november = at('2026-11-01T09:00:00Z');
+
+        expect(callerWallClock(lateThursday, offsetForDate('2026-10-29'), november).key).toBe('2026-10-29');
+        expect(clinicDayOf(new Date(lateThursday), offsetForDate('2026-10-29'), november)).toEqual(
+            dayRange('2026-10-29', offsetForDate('2026-10-29')),
+        );
+    });
+
     it('reads a caller on clinic time in the clinic zone, across the change', () => {
         // Sent in October at +3, about an appointment in November at +2.
         const november = at('2026-11-02T15:30:00Z');

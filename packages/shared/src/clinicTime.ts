@@ -223,8 +223,17 @@ export function dayRange(date: string, offsetMinutes = 0): { from: Date; to: Dat
     return { from, to: new Date(from.getTime() + DAY) };
 }
 
+/**
+ * The offset that starts `at`'s day counts too, as it does in `dayRange`: it is
+ * what the app sends for a date, and the last hour of the day summer time ends
+ * is on neither that offset nor, once the change has passed, today's.
+ */
 function onClinicTime(at: number, offsetMinutes: number, now: number): boolean {
-    return offsetMinutes === offsetAt(at) || offsetMinutes === offsetAt(now);
+    return (
+        offsetMinutes === offsetAt(at) ||
+        offsetMinutes === offsetAt(now) ||
+        offsetMinutes === offsetForDate(dateKey(at))
+    );
 }
 
 /**
