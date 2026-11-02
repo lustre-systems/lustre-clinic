@@ -8,6 +8,8 @@ listed.
 
 ## [Unreleased]
 
+## [1.11.0] - 2026-11-02
+
 - A clinic kept on one phone backs itself up to Google Drive. Settings → Backups links the phone's Google account; a copy then goes to a hidden folder in it once a day when the clinic has changed, and the last 14 are kept. The same screen has Back up now, restores any backup, deletes them all, and unlinks. The card at the top of Settings shows the backup status, and a warning over the day and in Settings says when backups are off, need a new sign-in, or are behind. On a new phone or after reinstalling, "Restore from Google Drive" on the "Connect to the clinic" screen brings the newest one back. The backups do not show in Drive and can only be restored from the app. This needs the new APK.
 
 - A clinic kept on one phone now saves into a database on the phone instead of rewriting one big file on every change, so saving stays quick as the clinic grows. A phone already using it moves over by itself the next time the app opens, with nothing to do.
@@ -281,7 +283,8 @@ The first release at the clinic.
 - Settings for working hours, branches, procedures and reminders.
 - Runs on the clinic's own server over Tailscale, with over-the-air updates.
 
-[Unreleased]: https://github.com/Youssef-codin/lustre-clinic/compare/v1.10.2...HEAD
+[Unreleased]: https://github.com/Youssef-codin/lustre-clinic/compare/v1.11.0...HEAD
+[1.11.0]: https://github.com/Youssef-codin/lustre-clinic/compare/v1.10.2...v1.11.0
 [1.10.2]: https://github.com/Youssef-codin/lustre-clinic/compare/v1.10.1...v1.10.2
 [1.10.1]: https://github.com/Youssef-codin/lustre-clinic/compare/v1.10.0...v1.10.1
 [1.10.0]: https://github.com/Youssef-codin/lustre-clinic/compare/v1.9.1...v1.10.0
