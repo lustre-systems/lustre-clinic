@@ -15,7 +15,7 @@
  */
 import { ERROR_CODE } from '@lustre/shared';
 import type { RouterOutput } from '../../types';
-import { openKind } from '../db';
+import { getDb, openKind } from '../db';
 import { currentDriveLink, hasDriveUnsaved, lastDriveBackupAt } from '../exported';
 import { DemoError } from '../rules';
 import type { Dated } from '../wire';
@@ -27,7 +27,12 @@ export const backupHandlers = {
         if (openKind() === 'local') {
             const link = currentDriveLink();
             const last = lastDriveBackupAt();
-            const old = last ? Date.now() - last.getTime() > DRIVE_STALE_AFTER_HOURS * 3_600_000 : false;
+            const { patients, appointments } = getDb();
+            // Never backed up is behind once there is something to lose: a first
+            // upload that keeps failing must not read as nothing to report.
+            const old = last
+                ? Date.now() - last.getTime() > DRIVE_STALE_AFTER_HOURS * 3_600_000
+                : patients.length > 0 || appointments.length > 0;
             return {
                 lastSuccessAt: last?.toISOString() ?? null,
                 stale: !link || (hasDriveUnsaved() && old),

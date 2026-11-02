@@ -562,6 +562,19 @@ describe('backups to Google Drive', () => {
         expect((await client.backup.status.query()).stale).toBe(true);
     });
 
+    it('calls a linked clinic behind when its first backup never made it', async () => {
+        await linkedClinicWithAPatient();
+        sqlite.exec("DELETE FROM clinic_meta WHERE key = 'driveBackupAt'");
+        relaunch();
+        drive.down = true;
+
+        await expect(backUpIfDue()).rejects.toThrow();
+
+        const status = await client.backup.status.query();
+        expect(status.lastSuccessAt).toBeNull();
+        expect(status.stale).toBe(true);
+    });
+
     it('calls a clinic with no Google account behind', async () => {
         await startLocalMode();
 

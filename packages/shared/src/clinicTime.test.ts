@@ -152,6 +152,14 @@ describe('the clinic day', () => {
         );
     });
 
+    // 08:00 UTC on 24 April is 11:00 in the clinic, already on +3. A caller on a
+    // fixed +2 sends 120, the offset that started the day, and means 10:00.
+    it('reads a fixed +2 caller as +2 on the day summer time starts', () => {
+        const morning = at('2026-04-24T08:00:00Z');
+        expect(callerWallClock(morning, 120, morning)).toMatchObject({ key: '2026-04-24', minutes: 600 });
+        expect(callerWallClock(morning, 180, morning)).toMatchObject({ key: '2026-04-24', minutes: 660 });
+    });
+
     it('reads a caller on clinic time in the clinic zone, across the change', () => {
         // Sent in October at +3, about an appointment in November at +2.
         const november = at('2026-11-02T15:30:00Z');
