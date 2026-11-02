@@ -147,22 +147,22 @@ checkout, `bun cli grant admin` does the same against `.env`'s database.
 
 ### Moving a phone-only clinic onto the server
 
-A clinic that started with "Use on this phone only" exports itself from the
-phone (Settings → Export clinic) as one `.json` file. To move it onto a new
-stack, start the server once so the database is migrated, copy the file into
-the stack's `backups/` directory, and run:
+`import-local` reads a `.db.gz` snapshot of a phone-only clinic, but the app no
+longer has a way to save one: it backs up to a hidden Google Drive folder only,
+which nothing outside the app can read. Moving such a clinic needs that way out
+built first.
 
-```sh
-docker compose run --rm server import-local /app/backups/lustre-clinic-2026-10-02.json
-```
+### Backups of a phone-only clinic
 
-It refuses a server that already has patients or appointments, and writes
-everything or nothing. The clinic's branches, hours, procedures, patient fields
-and settings replace whatever the fresh server had; the server's phones and its
-"Every phone needs a role code" setting stay. The phone's own role does not
-carry over, so issue the first admin with `grant admin` as above, then on the
-phone go to Settings → Connect to a server. From a checkout,
-`bun cli import-local <file>` does the same against `.env`'s database.
+These are not the server's backups below: the phone uploads to the hidden app
+folder of its own Google account, with no server involved. Create an Android
+OAuth client in Google Cloud for each build (package `com.lustre.clinic` or
+`com.lustre.clinic.dev`, and that build's signing SHA-1), enable its custom URI
+scheme under Advanced settings, add the `drive.appdata` scope to the consent
+screen, and build with `LUSTRE_DRIVE_CLIENT_ID` set. Without it the feature is
+hidden, and such a clinic has no backup at all. Only clients in the same Google
+Cloud project can read existing backups, so keep every build's client in one
+project.
 
 ## Google Drive backups
 

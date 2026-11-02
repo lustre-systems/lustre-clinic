@@ -1,9 +1,10 @@
 import { BottomSheetModalProvider } from '@gorhom/bottom-sheet';
 import { StatusBar } from 'expo-status-bar';
+import { useSyncExternalStore } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
-import { ApiProvider } from './src/api';
+import { ApiProvider, clinicGeneration, subscribeToDataReset } from './src/api';
 import { ErrorBoundary } from './src/components/ui';
 import { LocaleProvider, useT } from './src/i18n';
 import { renderErrorReporter } from './src/reporting';
@@ -76,6 +77,7 @@ export default function App() {
 }
 
 function LocalizedRoot({ showSetup }: { showSetup: boolean }) {
+    const clinic = useSyncExternalStore(subscribeToDataReset, clinicGeneration);
     const t = useT();
     const join = usePendingJoin();
     return (
@@ -93,7 +95,7 @@ function LocalizedRoot({ showSetup }: { showSetup: boolean }) {
                 <DevBanner />
                 {/* Keyed on the server a join link names, so a link that
                     arrives while setup is up fills it in. */}
-                {showSetup ? <SetupScreen key={join?.server ?? ''} /> : <AppShell />}
+                {showSetup ? <SetupScreen key={join?.server ?? ''} /> : <AppShell key={clinic} />}
                 {/* Over both, last so it draws on top: a minor update takes the
                     whole screen until it has downloaded and restarted. */}
                 <UpdateScreen />

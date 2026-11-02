@@ -6,6 +6,8 @@
  * app knows this exists — the screens call the same procedures over the same
  * client and get the same shapes back.
  */
+
+export { BACKUPS_KEPT, DRIVE_SCOPE, type DriveBackup, DriveError } from './drive';
 export { subscribeToDemoEvents } from './events';
 export {
     deviceBackend,
@@ -18,17 +20,29 @@ export {
     useDeviceBackend,
 } from './flag';
 export { demoLink } from './link';
-export { exportLocal, type PickedClinic, pickClinicFile } from './local';
+export type { PickedClinic } from './local';
+export {
+    backUpIfDue,
+    backUpToDrive,
+    deleteDriveBackups,
+    driveClientId,
+    fetchDriveBackup,
+    hydrateDriveLink,
+    linkDrive,
+    listDriveBackups,
+    unlinkDrive,
+} from './localDrive';
 export { LocalStoreError } from './localFormat';
 
 import type { Role } from '@lustre/shared';
 import { credentialToken, forgetDemoCredential, grantCredential, hydrateCredential } from '../credential';
-import { noteDataReset } from '../dataReset';
+import { noteClinicReplaced, noteDataReset } from '../dataReset';
 import { clearStored, getDb, setDb, takeDirty } from './db';
 import { disableLocalMode, enableLocalMode } from './flag';
 import { provisionDemo } from './handlers/device';
 import { openDeviceDb } from './link';
-import { commitLocal, openClinicFile, type PickedClinic } from './local';
+import { commitLocal, openClinicFile, type PickedClinic, takeDriveDirty } from './local';
+import { hydrateDriveLink } from './localDrive';
 import { seedDemoDb } from './seed';
 
 /**
@@ -41,6 +55,7 @@ export async function startLocalMode(): Promise<void> {
     try {
         await hydrateCredential();
         await openDeviceDb('local');
+        hydrateDriveLink();
         const token = credentialToken();
         const known = getDb().devices.some((device) => device.token === token && !device.revokedAt);
         if (known) return;
@@ -54,13 +69,17 @@ export async function startLocalMode(): Promise<void> {
 }
 
 /**
- * Local mode on a clinic brought in from a file: another phone's export, or
- * this phone's own from before it was reset. The phone is made its admin the
+ * Local mode on a clinic brought back from a backup: another phone's, or this
+ * one's from before it was reset. The phone is made its admin the
  * way `startLocalMode` makes it the admin of any clinic it has not seen.
  */
 export async function startLocalModeFrom(picked: PickedClinic): Promise<void> {
     openClinicFile(picked);
     await startLocalMode();
+    // Registering this phone wrote a row, which is no reason to upload the clinic
+    // that just came out of Drive straight back into it.
+    if (picked.exportedAt) takeDriveDirty();
+    noteClinicReplaced();
 }
 
 /**

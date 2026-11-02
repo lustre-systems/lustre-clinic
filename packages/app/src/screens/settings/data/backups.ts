@@ -97,18 +97,28 @@ function lastLine(lastSuccessAt: string | null, now: number, t: Translate): stri
 }
 
 /**
- * Local mode's row: its only backup is the copy someone sent off the phone,
- * so the row names the last one, and says plainly when there has been none.
+ * Local mode's card and row: its only backup is the one in its Google Drive, so
+ * the line says plainly when that is off.
  */
-export function localExportLine(
+export function localBackupLine(
     status: BackupStatusData,
     now: number = Date.now(),
     t: Translate = english,
 ): string {
+    if (status.offsite.reauthorizationRequiredSince) return t('Google Drive needs a new sign-in');
+    if (!status.offsite.configured) return t('Backups are off');
     const days = status.lastSuccessAt ? ageInDays(status.lastSuccessAt, now) : null;
-    if (days === null) return t('Not exported yet · only this phone has it');
-    const last = t('Last export {age}', { age: formatAge(days, t) });
-    return status.stale ? t('{last} · export again', { last }) : last;
+    if (days === null) return t('No backup yet');
+    return t('Last backup {age}', { age: formatAge(days, t) });
+}
+
+export type LocalBackupWarning = 'off' | 'signedOut' | 'behind';
+
+/** What the warning over the day and the settings index has to say, if anything. */
+export function localBackupWarning(status: BackupStatusData): LocalBackupWarning | null {
+    if (status.offsite.reauthorizationRequiredSince) return 'signedOut';
+    if (!status.offsite.configured) return 'off';
+    return status.stale ? 'behind' : null;
 }
 
 export function backupView(

@@ -1,10 +1,11 @@
 /**
  * Moves a clinic that ran on one phone onto this server:
  *
- *   bun cli import-local <clinic-file.json>                  from a checkout
- *   lustre import-local /app/backups/<clinic-file.json>      the compiled binary
+ *   bun cli import-local <clinic-file.db.gz>                  from a checkout
+ *   lustre import-local /app/backups/<clinic-file.db.gz>      the compiled binary
  *
- * The file is the one the phone exports from Settings → Export clinic. The
+ * The file is a gzipped SQLite snapshot of the phone's clinic. The app has no way
+ * to save one any more, so this waits on one being built (infra/README.md). The
  * server's database must be migrated (start the server once) and must hold no
  * patients or appointments; see `src/modules/migration/localImport.ts`.
  *
@@ -19,13 +20,13 @@ import { importLocalClinic, parseLocalClinicFile } from '../src/modules/migratio
 const [path] = Bun.argv.slice(2);
 
 if (!path) {
-    logger.error('usage: import-local <clinic-file.json>');
+    logger.error('usage: import-local <clinic-file.db.gz>');
     process.exitCode = 1;
 } else {
     try {
         const file = Bun.file(path);
         if (!(await file.exists())) throw new Error(`no file at ${path}`);
-        const summary = await importLocalClinic(parseLocalClinicFile(await file.text()));
+        const summary = await importLocalClinic(parseLocalClinicFile(await file.bytes()));
         logger.info(summary, 'clinic imported');
     } catch (err) {
         if (isAppError(err) || !pgErrorCode(err)) {

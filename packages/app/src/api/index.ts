@@ -15,20 +15,30 @@ export {
     retryProvisioning,
     useCredential,
 } from './credential';
-export { dataGeneration, subscribeToDataReset } from './dataReset';
+export { clinicGeneration, dataGeneration, subscribeToDataReset } from './dataReset';
 export {
+    BACKUPS_KEPT,
+    backUpIfDue,
+    backUpToDrive,
     becomeInDemo,
+    DRIVE_SCOPE,
+    type DriveBackup,
+    DriveError,
+    deleteDriveBackups,
     disableLocalMode,
+    driveClientId,
     enableDemoMode,
-    exportLocal,
+    fetchDriveBackup,
     isDemoMode,
     isLocalMode,
     LocalStoreError,
+    linkDrive,
+    listDriveBackups,
     type PickedClinic,
-    pickClinicFile,
     resetDemoData,
     startLocalMode,
     startLocalModeFrom,
+    unlinkDrive,
     useDemoMode,
     useDeviceBackend,
 } from './demo';

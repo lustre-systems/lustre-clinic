@@ -8,7 +8,7 @@ listed.
 
 ## [Unreleased]
 
-- A clinic kept on one phone can now be copied off it. Settings → Export clinic opens Android's share sheet with the whole clinic as one file, which can go to Google Drive, WhatsApp, email or the phone's Files. The row says when the last export was, says "Not exported yet" until there has been one, and asks for another once the last is a week old. On a new phone, or after reinstalling, "Open a clinic file" on the "Connect to the clinic" screen opens that file and carries on where it left off. If the phone already holds a clinic with patients in it, the app asks before replacing it. The same file can move the clinic onto a clinic server when one is set up later (`lustre import-local`, see infra/README.md). This needs the new APK.
+- A clinic kept on one phone backs itself up to Google Drive. Settings → Backups links the phone's Google account; a copy then goes to a hidden folder in it once a day when the clinic has changed, and the last 14 are kept. The same screen has Back up now, restores any backup, deletes them all, and unlinks. The card at the top of Settings shows the backup status, and a warning over the day and in Settings says when backups are off, need a new sign-in, or are behind. On a new phone or after reinstalling, "Restore from Google Drive" on the "Connect to the clinic" screen brings the newest one back. The backups do not show in Drive and can only be restored from the app. This needs the new APK.
 
 - A clinic kept on one phone now saves into a database on the phone instead of rewriting one big file on every change, so saving stays quick as the clinic grows. A phone already using it moves over by itself the next time the app opens, with nothing to do.
 

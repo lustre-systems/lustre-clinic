@@ -1,6 +1,6 @@
 /**
  * A clinic that ran on one phone (the app's local mode), moved onto this
- * server: the file the phone exports, written into an empty clinic in one
+ * server: a snapshot of it, written into an empty clinic in one
  * transaction. Reachable from `scripts/import-local.ts` and nowhere else — it
  * replaces the clinic's setup wholesale, which is an operator's act on the
  * server and not something a phone should be able to send.
@@ -11,7 +11,16 @@
  * server's and stay: the phone's credential means nothing here, so whoever
  * moved the clinic issues the first admin with `lustre grant admin` as usual.
  */
-import { ERROR_CODE, type LocalClinicFile, localClinicFileSchema } from '@lustre/shared';
+import { Database } from 'bun:sqlite';
+import {
+    assembleLocalClinicFile,
+    ERROR_CODE,
+    isAcceptableGzip,
+    LOCAL_CLINIC_META_SQL,
+    LOCAL_CLINIC_ROWS_SQL,
+    type LocalClinicFile,
+    localClinicFileSchema,
+} from '@lustre/shared';
 import { sql } from 'drizzle-orm';
 import type { PgTable } from 'drizzle-orm/pg-core';
 import { db, type Executor } from '../../db/index.ts';
@@ -45,14 +54,24 @@ export interface LocalImportSummary {
     payments: number;
 }
 
-export function parseLocalClinicFile(raw: string): LocalClinicFile {
-    let json: unknown;
+/** The phone's gzipped SQLite snapshot, every row checked against the shared schema. */
+export function parseLocalClinicFile(gzipped: Uint8Array): LocalClinicFile {
+    let assembled: unknown;
     try {
-        json = JSON.parse(raw);
+        if (!isAcceptableGzip(gzipped)) throw new Error('not gzip');
+        const snapshot = Database.deserialize(Bun.gunzipSync(new Uint8Array(gzipped)), { readonly: true });
+        try {
+            assembled = assembleLocalClinicFile(
+                snapshot.query<{ tbl: string; json: string }, []>(LOCAL_CLINIC_ROWS_SQL).all(),
+                snapshot.query<{ key: string; value: string }, []>(LOCAL_CLINIC_META_SQL).all(),
+            );
+        } finally {
+            snapshot.close();
+        }
     } catch {
-        throw new AppError(ERROR_CODE.VALIDATION, 'the clinic file is not JSON');
+        throw new AppError(ERROR_CODE.VALIDATION, 'the clinic file is not a clinic snapshot');
     }
-    const parsed = localClinicFileSchema.safeParse(json);
+    const parsed = localClinicFileSchema.safeParse(assembled);
     if (!parsed.success) {
         const where = parsed.error.issues[0]?.path.join('.') || 'the file';
         throw new AppError(

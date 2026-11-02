@@ -1372,7 +1372,6 @@ export const COPY_AR = {
     'This phone could not open its clinic. Nothing was changed.':
         'تعذّر على هذا الهاتف فتح عيادته. لم يتغير شيء.',
     'THIS PHONE ONLY': 'هذا الهاتف فقط',
-    'This phone only': 'هذا الهاتف فقط',
     'Connect to a server': 'الاتصال بخادم',
     'Disconnect from server': 'قطع الاتصال بالخادم',
     'Disconnect from this server?': 'قطع الاتصال بهذا الخادم؟',
@@ -1382,16 +1381,47 @@ export const COPY_AR = {
     'The clinic on this phone stays here for when you come back':
         'تبقى العيادة على هذا الهاتف حتى تعود إليها',
     'This phone': 'هذا الهاتف',
-    'Export clinic': 'تصدير العيادة',
-    'Save the clinic file': 'حفظ ملف العيادة',
-    'Could not export the clinic': 'تعذّر تصدير العيادة',
-    'Not exported yet · only this phone has it': 'لم تُصدَّر بعد · هذا الهاتف وحده يحملها',
-    'Last export {age}': 'آخر تصدير {age}',
-    '{last} · export again': '{last} · صدّرها مرة أخرى',
-    'Open a clinic file': 'فتح ملف عيادة',
+    'Not linked': 'غير مرتبط',
+    'Backups are off': 'النسخ الاحتياطي متوقف',
+    'Backups are off. If this phone is lost, the clinic is lost with it.':
+        'النسخ الاحتياطي متوقف. إذا فُقد هذا الهاتف، ضاعت العيادة معه.',
+    'Backups stopped. Google Drive needs a new sign-in.':
+        'توقف النسخ الاحتياطي. يحتاج Google Drive إلى تسجيل دخول جديد.',
+    'Backups are behind. The newest records are only on this phone.':
+        'النسخ الاحتياطي متأخر. أحدث السجلات موجودة على هذا الهاتف فقط.',
+    Open: 'فتح',
+    'Once a day when the clinic has changed, a copy goes to a hidden folder in this Google account. The last {count} are kept. They do not show in Drive, and can only be restored from this app.':
+        'مرة في اليوم إذا تغيّرت العيادة، تُحفظ نسخة في مجلد مخفي بحساب Google هذا. يُحتفظ بآخر {count} نسخة. لا تظهر في Drive، ولا يمكن استعادتها إلا من هذا التطبيق.',
+    'Back up now': 'نسخ احتياطي الآن',
+    'Backed up to Google Drive.': 'تم النسخ الاحتياطي إلى Google Drive.',
+    'Could not back up to Google Drive. Nothing was changed.':
+        'تعذّر النسخ الاحتياطي إلى Google Drive. لم يتغيّر شيء.',
+    'Could not sign in to Google Drive.': 'تعذّر تسجيل الدخول إلى Google Drive.',
+    BACKUPS: 'النسخ الاحتياطية',
+    'Could not read the backups from Google Drive.': 'تعذّرت قراءة النسخ الاحتياطية من Google Drive.',
+    'Could not read the backup from Google Drive.': 'تعذّرت قراءة النسخة الاحتياطية من Google Drive.',
+    'No backups yet': 'لا توجد نسخ احتياطية بعد',
+    '{size} KB': '{size} كيلوبايت',
+    Restore: 'استعادة',
+    'Restore this backup?': 'استعادة هذه النسخة؟',
+    'The clinic on this phone is replaced by this backup. Anything saved since then is set aside on the phone, not kept in the clinic.':
+        'ستحل هذه النسخة محل العيادة على هذا الهاتف. ما حُفظ بعدها يُنحّى جانبًا على الهاتف ولا يبقى في العيادة.',
+    'Delete backups from Drive': 'حذف النسخ من Drive',
+    'Delete every backup from Drive?': 'حذف كل النسخ من Drive؟',
+    'This cannot be undone. The clinic on this phone is not touched, but this phone will then hold the only copy.':
+        'لا يمكن التراجع عن هذا. لن تتأثر العيادة على هذا الهاتف، لكنه سيحمل النسخة الوحيدة.',
+    'Delete backups': 'حذف النسخ',
+    'The backups were deleted from Google Drive.': 'حُذفت النسخ من Google Drive.',
+    'Could not delete every backup. Try again.': 'تعذّر حذف كل النسخ. حاول مرة أخرى.',
+    'Unlink Google Drive': 'إلغاء ربط Google Drive',
+    'Unlink Google Drive?': 'إلغاء ربط Google Drive؟',
+    'Backups stop. The ones already in Drive stay there, hidden, and this app can reach them only after signing in again. To remove them, delete them first.':
+        'سيتوقف النسخ الاحتياطي. تبقى النسخ الموجودة مخفية في Drive، ولا يصل إليها التطبيق إلا بعد تسجيل الدخول مرة أخرى. لإزالتها، احذفها أولًا.',
+    Unlink: 'إلغاء الربط',
+    'Restore from Google Drive': 'استعادة من Google Drive',
+    'This Google account has no Lustre backups.': 'لا توجد نسخ Lustre احتياطية في حساب Google هذا.',
     'That file is not a Lustre clinic, or this version of the app cannot read it.':
         'هذا الملف ليس عيادة Lustre، أو أن هذا الإصدار من التطبيق لا يستطيع قراءته.',
-    'The file could not be read.': 'تعذّرت قراءة الملف.',
     'This phone could not open the clinic in that file.':
         'تعذّر على هذا الهاتف فتح العيادة الموجودة في هذا الملف.',
     'Replace the clinic on this phone?': 'استبدال العيادة على هذا الهاتف؟',

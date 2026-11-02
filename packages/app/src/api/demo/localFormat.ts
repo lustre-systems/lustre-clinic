@@ -1,7 +1,9 @@
 /**
- * Local mode's clinic as a file, the format an export is and an old phone's
- * clinic was: what a new one starts as, and how a stored one is read back. No file system in here, so `bun test` reaches
- * it; `./local` does the reading and writing.
+ * Local mode's clinic as a file: what a new one starts as, how a stored one is
+ * read back, and the checks an export is held to on its way in. An export is a
+ * gzipped SQLite snapshot and an old phone's own clinic was JSON; both reach
+ * `readLocalFile` as the same object. No file system in here, so `bun test`
+ * reaches it; `./local` does the reading and writing.
  *
  * Unlike the demo's store (`./db`), a stored clinic is never dropped and
  * reseeded. It is somebody's patients. A file this build cannot read is refused
@@ -10,10 +12,12 @@
  */
 import {
     DEFAULT_CLINIC_NAME,
+    isAcceptableGzip,
     LOCAL_CLINIC_FORMAT,
     LOCAL_CLINIC_VERSION,
     localClinicFileSchema,
 } from '@lustre/shared';
+import { gunzipSync } from 'fflate';
 import { type DemoDb, revive } from './db';
 import { uuidv7 } from './rules';
 import { emptyDb } from './seed';
@@ -55,6 +59,25 @@ export function parseLocal(raw: string): DemoDb {
     return parseLocalFile(raw).db;
 }
 
+function parseLocalFile(raw: string): { db: DemoDb; exportedAt: Date | null } {
+    let parsed: unknown;
+    try {
+        parsed = JSON.parse(raw);
+    } catch {
+        throw new LocalStoreError('the clinic file is not readable');
+    }
+    return readLocalFile(parsed, false);
+}
+
+export function inflateSnapshot(gzipped: Uint8Array): Uint8Array {
+    if (!isAcceptableGzip(gzipped)) throw new LocalStoreError('the clinic file is not readable');
+    try {
+        return gunzipSync(gzipped);
+    } catch {
+        throw new LocalStoreError('the clinic file is not readable');
+    }
+}
+
 /**
  * Throws rather than returning nothing: the caller must not take a bad read for an empty clinic.
  *
@@ -63,13 +86,13 @@ export function parseLocal(raw: string): DemoDb {
  * a server would take too. The phone's own file is not: a row the schema
  * disagrees with must not lock the clinic out of its own records.
  */
-export function parseLocalFile(raw: string, checkRows = false): { db: DemoDb; exportedAt: Date | null } {
-    let parsed: { format?: unknown; version?: unknown; exportedAt?: unknown; db?: DemoDb };
-    try {
-        parsed = JSON.parse(raw) as typeof parsed;
-    } catch {
-        throw new LocalStoreError('the clinic file is not readable');
-    }
+export function readLocalFile(file: unknown, checkRows: boolean): { db: DemoDb; exportedAt: Date | null } {
+    const parsed = (file ?? {}) as {
+        format?: unknown;
+        version?: unknown;
+        exportedAt?: unknown;
+        db?: DemoDb;
+    };
     if (parsed.format !== LOCAL_CLINIC_FORMAT || !parsed.db || typeof parsed.db !== 'object') {
         throw new LocalStoreError('the clinic file is not a clinic');
     }

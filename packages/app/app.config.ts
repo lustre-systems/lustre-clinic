@@ -116,6 +116,10 @@ export default function appConfig({ config }: ConfigContext): ExpoConfig {
             ...(track === 'development' ? { server: { lan: null, tailscale: updatesUrl || null } } : {}),
             glitchtipDsn: glitchtipDsn(process.env.LUSTRE_GLITCHTIP_DSN, demo || track === 'development'),
             devServer: track === 'development' ? null : devServer(process.env.LUSTRE_DEV_SERVER),
+            // An Android OAuth client is tied to one package and signing key, so a
+            // dev build and a release each bake in their own. Public: Google issues
+            // no secret for one, and PKCE stands in.
+            driveClientId: process.env.LUSTRE_DRIVE_CLIENT_ID?.trim() || null,
         },
     };
 }

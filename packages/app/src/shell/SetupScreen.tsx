@@ -5,13 +5,15 @@ import {
     allowsDemo,
     allowsLan,
     BUILD_VARIANT,
+    driveClientId,
     enableDemoMode,
+    fetchDriveBackup,
     getConnectionState,
     isTailnetAddress,
     LocalStoreError,
     lastProbeRefused,
+    listDriveBackups,
     type PickedClinic,
-    pickClinicFile,
     reprobe,
     serverAddresses,
     startLocalMode,
@@ -22,6 +24,7 @@ import { Button, ConfirmSheet, Dot, TextField } from '../components/ui';
 import { useT } from '../i18n';
 import { color, radius, space, Text } from '../theme';
 import { NOT_DEV_SERVER, NOT_ON_TAILNET, noAnswer, nothingEntered, toCandidate } from './address';
+import { signInToDrive } from './driveSignIn';
 import { usePendingJoin } from './joinLink';
 import { applyAddresses, learnTailnetAddress, saveServerAddresses } from './serverStore';
 
@@ -69,6 +72,7 @@ export function SetupScreen() {
     const [startingLocal, setStartingLocal] = useState(false);
     const [localFailed, setLocalFailed] = useState(false);
     const [openingFile, setOpeningFile] = useState(false);
+    const [restoringDrive, setRestoringDrive] = useState(false);
     const [fileProblem, setFileProblem] = useState<string | null>(null);
     const [replacing, setReplacing] = useState<PickedClinic | null>(null);
 
@@ -85,22 +89,34 @@ export function SetupScreen() {
         }
     }
 
-    // Another phone's export, or this one's from before a reinstall. A file
-    // that would put a clinic with records in it aside asks first.
-    async function pickFile() {
+    // A new phone or a reinstall: sign in, and the newest backup comes back,
+    // held to every row check, and asking first if it would replace a clinic.
+    async function restoreFromDrive() {
         setFileProblem(null);
         setLocalFailed(false);
+        setRestoringDrive(true);
         try {
-            const picked = await pickClinicFile();
-            if (!picked) return;
+            const signedIn = await signInToDrive();
+            if (signedIn !== 'linked') {
+                if (signedIn === 'failed') setFileProblem('Could not sign in to Google Drive.');
+                return;
+            }
+            const [newest] = await listDriveBackups();
+            if (!newest) {
+                setFileProblem('This Google account has no Lustre backups.');
+                return;
+            }
+            const picked = await fetchDriveBackup(newest.id);
             if (picked.replaces) setReplacing(picked);
             else await openFile(picked);
         } catch (error) {
             setFileProblem(
                 error instanceof LocalStoreError
                     ? 'That file is not a Lustre clinic, or this version of the app cannot read it.'
-                    : 'The file could not be read.',
+                    : 'Could not read the backup from Google Drive.',
             );
+        } finally {
+            setRestoringDrive(false);
         }
     }
 
@@ -232,8 +248,8 @@ export function SetupScreen() {
                     </View>
 
                     {/* A clinic with no PC to run the server on. Its records
-                        live on this phone, and leave it only as the file
-                        Settings → Export clinic sends somewhere else. */}
+                        live on this phone, and leave it only as a backup to
+                        the phone's own Google Drive. */}
                     <Button
                         label="Use on this phone only"
                         onPress={() => void runLocally()}
@@ -250,16 +266,18 @@ export function SetupScreen() {
                         </Text>
                     ) : null}
 
-                    <Button
-                        label="Open a clinic file"
-                        onPress={() => void pickFile()}
-                        variant="ghost"
-                        size="md"
-                        block
-                        loading={openingFile && replacing === null}
-                        disabled={testing || startingLocal}
-                        testID="setup-open-file"
-                    />
+                    {driveClientId() ? (
+                        <Button
+                            label="Restore from Google Drive"
+                            onPress={() => void restoreFromDrive()}
+                            variant="ghost"
+                            size="md"
+                            block
+                            loading={restoringDrive}
+                            disabled={testing || startingLocal || openingFile}
+                            testID="setup-restore-drive"
+                        />
+                    ) : null}
                     {fileProblem ? (
                         <Text variant="footnote" tone="danger" style={styles.localNote}>
                             {t(fileProblem)}

@@ -128,12 +128,15 @@ describe('appConfig', () => {
     test('bakes the GlitchTip DSN from LUSTRE_GLITCHTIP_DSN, and never into a demo', () => {
         const previous = process.env.LUSTRE_GLITCHTIP_DSN;
         const previousDevServer = process.env.LUSTRE_DEV_SERVER;
+        const previousDrive = process.env.LUSTRE_DRIVE_CLIENT_ID;
         process.env.LUSTRE_GLITCHTIP_DSN = ' http://key@clinic.tail.ts.net:8000/1 ';
         delete process.env.LUSTRE_DEV_SERVER;
+        delete process.env.LUSTRE_DRIVE_CLIENT_ID;
 
         expect(appConfig(context(false)).extra).toEqual({
             demo: false,
             devServer: DEV_SERVER,
+            driveClientId: null,
             glitchtipDsn: 'http://key@clinic.tail.ts.net:8000/1',
         });
         expect(appConfig(context(true)).extra?.glitchtipDsn).toBeNull();
@@ -141,6 +144,17 @@ describe('appConfig', () => {
         if (previous === undefined) delete process.env.LUSTRE_GLITCHTIP_DSN;
         else process.env.LUSTRE_GLITCHTIP_DSN = previous;
         if (previousDevServer !== undefined) process.env.LUSTRE_DEV_SERVER = previousDevServer;
+        if (previousDrive !== undefined) process.env.LUSTRE_DRIVE_CLIENT_ID = previousDrive;
+    });
+
+    test('bakes the Google client from LUSTRE_DRIVE_CLIENT_ID, trimmed', () => {
+        const previous = process.env.LUSTRE_DRIVE_CLIENT_ID;
+        process.env.LUSTRE_DRIVE_CLIENT_ID = ' 1-abc.apps.googleusercontent.com ';
+
+        expect(appConfig(context(false)).extra?.driveClientId).toBe('1-abc.apps.googleusercontent.com');
+
+        if (previous === undefined) delete process.env.LUSTRE_DRIVE_CLIENT_ID;
+        else process.env.LUSTRE_DRIVE_CLIENT_ID = previous;
     });
 
     test('bakes the dev server the device scripts pass in, into every build', () => {

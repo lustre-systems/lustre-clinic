@@ -1,8 +1,10 @@
+import { Database } from 'bun:sqlite';
 import { beforeAll, beforeEach, describe, expect, test } from 'bun:test';
 import {
     DEFAULT_REMINDER_TEMPLATE,
     ERROR_CODE,
     LOCAL_CLINIC_FORMAT,
+    LOCAL_CLINIC_TABLES_SQL,
     LOCAL_CLINIC_VERSION,
 } from '@lustre/shared';
 import { balanceService } from '../src/modules/balance/balance.service.ts';
@@ -156,8 +158,21 @@ function phoneClinic() {
     return { patientId, db };
 }
 
-function fileOf(db: unknown): string {
-    return JSON.stringify({ format: LOCAL_CLINIC_FORMAT, version: LOCAL_CLINIC_VERSION, db });
+/** The file as the phone writes it: gzipped SQLite, a row per record. */
+function fileOf(db: object, version: number = LOCAL_CLINIC_VERSION): Uint8Array {
+    const snapshot = new Database(':memory:');
+    snapshot.exec(LOCAL_CLINIC_TABLES_SQL);
+    const insert = snapshot.query('INSERT INTO clinic_rows (tbl, id, json) VALUES (?, ?, ?)');
+    for (const [table, value] of Object.entries(db)) {
+        const rows: unknown[] = Array.isArray(value) ? value : [value];
+        rows.forEach((row, index) => {
+            insert.run(table, String(index), JSON.stringify(row));
+        });
+    }
+    const meta = snapshot.query('INSERT INTO clinic_meta (key, value) VALUES (?, ?)');
+    meta.run('format', LOCAL_CLINIC_FORMAT);
+    meta.run('version', String(version));
+    return Bun.gzipSync(new Uint8Array(snapshot.serialize()));
 }
 
 async function count(table: 'patients' | 'appointments' | 'payments'): Promise<number> {
@@ -217,12 +232,15 @@ describe('importing a clinic kept on one phone', () => {
 
     test('refuses a file that is not a clinic this server reads', async () => {
         const { db } = phoneClinic();
-        const { branches: _, ...missingBranches } = db;
+        const { settings: _, ...missingSettings } = db;
 
         for (const raw of [
-            '{not json',
-            JSON.stringify({ format: LOCAL_CLINIC_FORMAT, version: 99, db }),
-            fileOf(missingBranches),
+            new TextEncoder().encode(JSON.stringify({ format: LOCAL_CLINIC_FORMAT, version: 1, db })),
+            Bun.gzipSync(new TextEncoder().encode('not a database')),
+            fileOf(db).slice(0, 40),
+            fileOf(db, 99),
+            fileOf(missingSettings),
+            fileOf({ ...db, invoices: [{}] }),
             fileOf({ ...db, payments: [{ ...db.payments[0], amount: 12.5 }] }),
         ]) {
             await expectAppError(ERROR_CODE.VALIDATION, async () => parseLocalClinicFile(raw));

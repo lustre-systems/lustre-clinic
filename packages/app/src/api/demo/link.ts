@@ -40,6 +40,7 @@ import { getDb, isOpen, loadStored, setDb, takeDirty } from './db';
 import { type DeviceBackend, deviceBackend } from './flag';
 import { hasHandler, resolve } from './handlers';
 import { commitLocal, openLocalDb, rollbackLocal } from './local';
+import { hydrateDriveLink } from './localDrive';
 import { DemoError } from './rules';
 import { seedDemoDb } from './seed';
 
@@ -83,7 +84,10 @@ let opening: Promise<void> | null = null;
  */
 export function openDeviceDb(backend: DeviceBackend = deviceBackend() ?? 'demo'): Promise<void> {
     if (backend === 'local') {
-        if (!isOpen('local')) openLocalDb();
+        if (!isOpen('local')) {
+            openLocalDb();
+            hydrateDriveLink();
+        }
         return Promise.resolve();
     }
     if (isOpen('demo')) return Promise.resolve();

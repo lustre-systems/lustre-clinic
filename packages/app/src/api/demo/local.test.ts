@@ -11,13 +11,13 @@
 
 import { Database } from 'bun:sqlite';
 import { afterEach, beforeEach, describe, expect, it, mock } from 'bun:test';
+import { gunzipSync, gzipSync } from 'fflate';
 
 const stored = new Map<string, string>();
-const files = new Map<string, string>();
+const files = new Map<string, string | Uint8Array>();
 let writesFail = false;
-/** What the next system file picker hands back; null is the picker closed. */
-let pickable: string | null = null;
-const shared: string[] = [];
+/** The backup the next `pickClinicFile` reads, as Drive would hand it back. */
+let pickable: string | Uint8Array = '';
 
 mock.module('@react-native-async-storage/async-storage', () => ({
     default: {
@@ -27,7 +27,9 @@ mock.module('@react-native-async-storage/async-storage', () => ({
     },
 }));
 
-mock.module('expo-constants', () => ({ default: { expoConfig: { extra: { demo: false } } } }));
+mock.module('expo-constants', () => ({
+    default: { expoConfig: { extra: { demo: false, driveClientId: 'client' } } },
+}));
 
 // A clinic's own build: local mode must not depend on the demo being allowed.
 mock.module('../config', () => ({ BUILD_VARIANT: 'prod' }));
@@ -45,10 +47,16 @@ class MemoryFile {
     textSync(): string {
         const text = files.get(this.name);
         if (text === undefined) throw new Error('missing');
-        return text;
+        return typeof text === 'string' ? text : new TextDecoder().decode(text);
     }
 
-    write(content: string): void {
+    bytes(): Promise<Uint8Array> {
+        const content = files.get(this.name);
+        if (content === undefined) throw new Error('missing');
+        return Promise.resolve(typeof content === 'string' ? new TextEncoder().encode(content) : content);
+    }
+
+    write(content: string | Uint8Array): void {
         if (writesFail) throw new Error('disk full');
         files.set(this.name, content);
     }
@@ -57,27 +65,17 @@ class MemoryFile {
         return `file:///${this.name}`;
     }
 
-    text(): Promise<string> {
-        return Promise.resolve(this.textSync());
-    }
-
     moveSync(target: MemoryFile): void {
-        files.set(target.name, this.textSync());
+        files.set(target.name, files.get(this.name) ?? '');
         files.delete(this.name);
     }
 
     copySync(target: MemoryFile): void {
-        files.set(target.name, this.textSync());
+        files.set(target.name, files.get(this.name) ?? '');
     }
 
     delete(): void {
         files.delete(this.name);
-    }
-
-    static pickFileAsync() {
-        if (pickable === null) return Promise.resolve({ canceled: true, result: null });
-        files.set('picked.json', pickable);
-        return Promise.resolve({ canceled: false, result: new MemoryFile('downloads', 'picked.json') });
     }
 }
 
@@ -89,17 +87,24 @@ mock.module('expo-file-system', () => ({
 /** Real SQLite, in memory: the transaction is what these tests are about. */
 const sqlite = new Database(':memory:');
 
-mock.module('expo-sqlite', () => ({
-    openDatabaseSync: () => ({
-        execSync: (source: string) => sqlite.exec(source),
+function opened(database: Database) {
+    return {
+        execSync: (source: string) => database.exec(source),
         runSync: (source: string, params: string[] = []) => {
             if (writesFail && !source.startsWith('DELETE')) throw new Error('disk full');
-            return sqlite.query(source).run(...params);
+            return database.query(source).run(...params);
         },
-        getAllSync: (source: string) => sqlite.query(source).all(),
-        getFirstSync: (source: string, params: string[]) => sqlite.query(source).get(...params),
-        withTransactionSync: (task: () => void) => sqlite.transaction(task)(),
-    }),
+        getAllSync: (source: string) => database.query(source).all(),
+        getFirstSync: (source: string, params: string[]) => database.query(source).get(...params),
+        withTransactionSync: (task: () => void) => database.transaction(task)(),
+        serializeSync: () => database.serialize(),
+        closeSync: () => database.close(),
+    };
+}
+
+mock.module('expo-sqlite', () => ({
+    openDatabaseSync: (name: string) => opened(name === ':memory:' ? new Database(':memory:') : sqlite),
+    deserializeDatabaseSync: (bytes: Uint8Array) => opened(Database.deserialize(bytes)),
 }));
 
 function resetStore(): void {
@@ -119,25 +124,106 @@ function storedRows<T>(table: string): T[] {
         .map((row) => JSON.parse((row as { json: string }).json) as T);
 }
 
-mock.module('expo-sharing', () => ({
-    shareAsync: (uri: string) => Promise.resolve(void shared.push(uri)),
+const secure = new Map<string, string>();
+mock.module('expo-secure-store', () => ({
+    getItem: (key: string) => secure.get(key) ?? null,
+    setItemAsync: (key: string, value: string) => Promise.resolve(void secure.set(key, value)),
+    deleteItemAsync: (key: string) => Promise.resolve(void secure.delete(key)),
+}));
+
+/** Google, as much of it as the backups talk to. */
+const drive = {
+    files: [] as { id: string; name: string; createdTime: string; size: string; bytes: Uint8Array }[],
+    uploads: 0,
+    down: false,
+    offline: false,
+    grantRevoked: false,
+    revoked: [] as string[],
+};
+
+function reply(status: number, body: unknown = {}, bytes?: Uint8Array) {
+    return Promise.resolve({
+        ok: status < 400,
+        status,
+        json: () => Promise.resolve(body),
+        arrayBuffer: () => Promise.resolve((bytes ?? new Uint8Array()).slice().buffer),
+    });
+}
+
+function indexOfBytes(haystack: Uint8Array, needle: Uint8Array): number {
+    return Buffer.from(haystack).indexOf(Buffer.from(needle));
+}
+
+mock.module('expo/fetch', () => ({
+    fetch: (url: string, init?: { method?: string; body?: Uint8Array | string }) => {
+        if (drive.offline) return Promise.reject(new Error('no network'));
+        if (url.endsWith('/token')) {
+            if (drive.grantRevoked) return reply(400, { error: 'invalid_grant' });
+            return reply(200, { access_token: 'access', expires_in: 3600 });
+        }
+        if (url.endsWith('/revoke')) {
+            drive.revoked.push(String(init?.body));
+            return reply(200);
+        }
+        if (drive.down) return reply(503);
+        if (url.includes('/about')) return reply(200, { user: { emailAddress: 'clinic@example.com' } });
+        if (url.includes('/upload/')) {
+            const body = init?.body as Uint8Array;
+            const start = indexOfBytes(body, new Uint8Array([0x1f, 0x8b]));
+            const bytes = body.slice(start, body.length - '\r\n--lustre-clinic-backup--'.length);
+            drive.uploads += 1;
+            const name = /"name":"([^"]+)"/.exec(new TextDecoder().decode(body.slice(0, start)))?.[1] ?? '';
+            drive.files.push({
+                id: `file-${drive.uploads}`,
+                name,
+                createdTime: new Date(Date.UTC(2026, 0, drive.uploads)).toISOString(),
+                size: String(bytes.length),
+                bytes,
+            });
+            return reply(200, { id: `file-${drive.uploads}` });
+        }
+        const id = /files\/([^?]+)/.exec(url)?.[1];
+        if (id && init?.method === 'DELETE') {
+            drive.files = drive.files.filter((file) => file.id !== id);
+            return reply(204);
+        }
+        if (id) return reply(200, {}, drive.files.find((file) => file.id === id)?.bytes);
+        return reply(200, {
+            files: [...drive.files].sort((a, b) => b.createdTime.localeCompare(a.createdTime)),
+        });
+    },
 }));
 
 const { createTRPCClient } = await import('@trpc/client');
 const { demoLink } = await import('./link');
-const { exportLocal, pickClinicFile, startLocalMode, startLocalModeFrom } = await import('./index');
+const { startLocalMode, startLocalModeFrom } = await import('./index');
+const { clinicSnapshot, pickedFromSnapshot } = await import('./local');
+const {
+    backUpIfDue,
+    backUpToDrive,
+    deleteDriveBackups,
+    fetchDriveBackup,
+    hydrateDriveLink,
+    linkDrive,
+    listDriveBackups,
+    unlinkDrive,
+} = await import('./localDrive');
 const { disableLocalMode, isLocalMode } = await import('./flag');
 const { setDb } = await import('./db');
-const { freshLocalDb, LocalStoreError, parseLocal, parseLocalFile, serializeLocal } = await import(
-    './localFormat'
-);
+const { freshLocalDb, LocalStoreError, parseLocal, serializeLocal } = await import('./localFormat');
 const { seedDemoDb } = await import('./seed');
-const { localClinicFileSchema } = await import('@lustre/shared');
+const { LOCAL_CLINIC_TABLES_SQL, localClinicFileSchema } = await import('@lustre/shared');
 const { credentialToken } = await import('../credential');
+const { clinicGeneration } = await import('../dataReset');
+const { noteDriveLink, noteLastDriveBackupAt } = await import('./exported');
 
 import type { AppRouter } from '@lustre/server/src/trpc/router.ts';
 
 const client = createTRPCClient<AppRouter>({ links: [demoLink] });
+
+async function pickClinicFile() {
+    return pickedFromSnapshot(typeof pickable === 'string' ? new TextEncoder().encode(pickable) : pickable);
+}
 
 const LEGACY = 'lustre-local.json';
 const STORED = 'SELECT count(*) AS n FROM clinic_rows';
@@ -153,8 +239,14 @@ beforeEach(async () => {
     files.clear();
     writesFail = false;
     resetStore();
-    pickable = null;
-    shared.length = 0;
+    pickable = '';
+    secure.clear();
+    drive.files = [];
+    drive.uploads = 0;
+    drive.down = false;
+    drive.offline = false;
+    drive.grantRevoked = false;
+    drive.revoked = [];
     relaunch();
 });
 
@@ -278,7 +370,7 @@ describe('local mode', () => {
 });
 
 describe('a phone from before the store', () => {
-    it('moves its clinic in, export time and all, and never reads the old file again', async () => {
+    it('moves its clinic in and never reads the old file again', async () => {
         const db = freshLocalDb();
         db.settings.clinicName = 'Old Phone';
         const old = serializeLocal(db);
@@ -288,7 +380,6 @@ describe('a phone from before the store', () => {
         await startLocalMode();
 
         expect((await client.settings.get.query()).clinicName).toBe('Old Phone');
-        expect((await client.backup.status.query()).lastSuccessAt).toBe('2026-09-28T08:00:00.000Z');
         expect(files.has(LEGACY)).toBe(false);
         expect(files.has('lustre-local.exported')).toBe(false);
         expect(files.get('lustre-local.moved-to-sqlite.json')).toBe(old);
@@ -311,8 +402,8 @@ describe('a phone from before the store', () => {
     });
 });
 
-/** Another phone's clinic, as its export arrives: one branch of its own and a patient. */
-function anotherPhonesExport(exportedAt = new Date('2026-09-28T08:00:00.000Z')): string {
+/** Another phone's clinic, before it is exported: one branch of its own and a patient. */
+function anotherPhonesClinic() {
     const db = freshLocalDb();
     db.branches[0] = { ...db.branches[0], name: 'Dokki' } as (typeof db.branches)[number];
     db.patients.push({
@@ -328,7 +419,24 @@ function anotherPhonesExport(exportedAt = new Date('2026-09-28T08:00:00.000Z')):
         legacyRef: null,
         createdAt: new Date('2026-09-01T09:00:00.000Z'),
     });
-    return serializeLocal(db, exportedAt);
+    return db;
+}
+
+const EXPORTED_AT = new Date('2026-09-28T08:00:00.000Z');
+
+function anotherPhonesExport(): Uint8Array {
+    return clinicSnapshot(anotherPhonesClinic(), EXPORTED_AT);
+}
+
+/** A snapshot with whatever the test wants in it, rather than what the app would write. */
+function handMadeSnapshot(rows: [string, string, string][], meta: [string, string][]): Uint8Array {
+    const snapshot = new Database(':memory:');
+    snapshot.exec(LOCAL_CLINIC_TABLES_SQL);
+    for (const row of rows) {
+        snapshot.query('INSERT INTO clinic_rows (tbl, id, json) VALUES (?, ?, ?)').run(...row);
+    }
+    for (const row of meta) snapshot.query('INSERT INTO clinic_meta (key, value) VALUES (?, ?)').run(...row);
+    return gzipSync(snapshot.serialize());
 }
 
 describe('the clinic leaving the phone', () => {
@@ -339,21 +447,6 @@ describe('the clinic leaving the phone', () => {
 
         expect(status.lastSuccessAt).toBeNull();
         expect(status.stale).toBe(true);
-    });
-
-    it('hands the share sheet the whole clinic, stamped, and reports it as the last backup', async () => {
-        await startLocalMode();
-        await client.branch.create.mutate({ name: 'Second' });
-
-        const at = await exportLocal('Save the clinic file');
-
-        expect(shared).toHaveLength(1);
-        const copy = parseLocalFile(files.get(shared[0]?.replace('file:///', '') ?? '') ?? '');
-        expect(copy.exportedAt?.toISOString()).toBe(at.toISOString());
-        expect(copy.db.branches.map((branch) => branch.name).sort()).toEqual(['Main', 'Second']);
-        const status = await client.backup.status.query();
-        expect(status.lastSuccessAt).toBe(at.toISOString());
-        expect(status.stale).toBe(false);
     });
 
     it('writes what the server will read: every table, in the shared format', () => {
@@ -385,6 +478,206 @@ describe('the clinic leaving the phone', () => {
     });
 });
 
+describe('backups to Google Drive', () => {
+    async function linkedClinicWithAPatient() {
+        await startLocalModeFrom(
+            await pickedFromSnapshot(clinicSnapshot(anotherPhonesClinic(), EXPORTED_AT)),
+        );
+        await linkDrive('refresh', 'access');
+        hydrateDriveLink();
+    }
+
+    function ageLastBackup(hours: number) {
+        sqlite
+            .query("UPDATE clinic_meta SET value = ? WHERE key = 'driveBackupAt'")
+            .run(new Date(Date.now() - hours * 3_600_000).toISOString());
+    }
+
+    it('reports the account and the last backup once linked', async () => {
+        await linkedClinicWithAPatient();
+        const at = await backUpToDrive();
+
+        const status = await client.backup.status.query();
+
+        expect(status.offsite.configured).toBe(true);
+        expect(status.offsite.account).toBe('clinic@example.com');
+        expect(status.lastSuccessAt).toBe(at.toISOString());
+        expect(status.staleAfterHours).toBe(48);
+    });
+
+    // A cold launch of a phone already in local mode never calls `startLocalMode`.
+    it('still knows it is linked after a cold launch', async () => {
+        await linkedClinicWithAPatient();
+        const at = await backUpToDrive();
+
+        relaunch();
+        noteDriveLink(null);
+        noteLastDriveBackupAt(null);
+
+        const status = await client.backup.status.query();
+        expect(status.offsite.configured).toBe(true);
+        expect(status.offsite.account).toBe('clinic@example.com');
+        expect(status.lastSuccessAt).toBe(at.toISOString());
+    });
+
+    it('backs up into the hidden folder, and that backup opens as the clinic', async () => {
+        await linkedClinicWithAPatient();
+
+        await backUpToDrive();
+        const [backup] = await listDriveBackups();
+        expect(backup?.name).toMatch(/^lustre-clinic-\d{4}-\d{2}-\d{2}\.db\.gz$/);
+
+        const picked = await fetchDriveBackup(backup?.id ?? '');
+        expect(picked.db.patients.map((row) => row.ref)).toEqual(['1']);
+        expect(picked.replaces).toBe(true);
+    });
+
+    it('tells the shell the clinic was swapped, so no page stays open on the old one', async () => {
+        await linkedClinicWithAPatient();
+        await backUpToDrive();
+        const [backup] = await listDriveBackups();
+        const before = clinicGeneration();
+
+        await startLocalModeFrom(await fetchDriveBackup(backup?.id ?? ''));
+
+        expect(clinicGeneration()).toBe(before + 1);
+    });
+
+    it('does not upload a clinic straight back after restoring it', async () => {
+        await linkedClinicWithAPatient();
+
+        expect(await backUpIfDue()).toBe(false);
+        expect(drive.uploads).toBe(0);
+    });
+
+    it('calls an unchanged clinic up to date, however old its backup', async () => {
+        await linkedClinicWithAPatient();
+        await backUpToDrive();
+        ageLastBackup(24 * 30);
+        relaunch();
+
+        expect((await client.backup.status.query()).stale).toBe(false);
+
+        await client.branch.create.mutate({ name: 'Second' });
+        expect((await client.backup.status.query()).stale).toBe(true);
+    });
+
+    it('calls a clinic with no Google account behind', async () => {
+        await startLocalMode();
+
+        expect((await client.backup.status.query()).stale).toBe(true);
+    });
+
+    it('keeps the last fourteen and deletes the oldest', async () => {
+        await linkedClinicWithAPatient();
+
+        for (let run = 0; run < 16; run += 1) await backUpToDrive();
+
+        expect(drive.files.map((file) => file.id)).toEqual(
+            Array.from({ length: 14 }, (_, index) => `file-${index + 3}`),
+        );
+    });
+
+    it('is due the first time, then only after a day with something new', async () => {
+        await linkedClinicWithAPatient();
+        sqlite.exec("DELETE FROM clinic_meta WHERE key = 'driveBackupAt'");
+
+        expect(await backUpIfDue()).toBe(true);
+        expect(await backUpIfDue()).toBe(false);
+
+        ageLastBackup(25);
+        expect(await backUpIfDue()).toBe(false);
+
+        await client.branch.create.mutate({ name: 'Second' });
+        ageLastBackup(23);
+        expect(await backUpIfDue()).toBe(false);
+        ageLastBackup(25);
+        expect(await backUpIfDue()).toBe(true);
+        expect(drive.uploads).toBe(2);
+    });
+
+    it('still owes the backup after an upload that failed', async () => {
+        await linkedClinicWithAPatient();
+        await backUpToDrive();
+        await client.branch.create.mutate({ name: 'Second' });
+        ageLastBackup(25);
+        drive.down = true;
+
+        await expect(backUpIfDue()).rejects.toThrow();
+
+        drive.down = false;
+        expect(await backUpIfDue()).toBe(true);
+    });
+
+    it('does not put an empty clinic over the backups, but will if asked', async () => {
+        await startLocalMode();
+        await linkDrive('refresh', 'access');
+
+        expect(await backUpIfDue()).toBe(false);
+        expect(drive.uploads).toBe(0);
+
+        await backUpToDrive();
+        expect(drive.uploads).toBe(1);
+    });
+
+    it('asks for a new sign-in when Google has dropped the grant, and stops trying', async () => {
+        await linkedClinicWithAPatient();
+        drive.grantRevoked = true;
+
+        await expect(backUpToDrive()).rejects.toThrow();
+
+        const status = await client.backup.status.query();
+        expect(status.offsite.reauthorizationRequiredSince).not.toBeNull();
+        expect(await backUpIfDue()).toBe(false);
+    });
+
+    it('deletes every backup and stays linked', async () => {
+        await linkedClinicWithAPatient();
+        await backUpToDrive();
+        await backUpToDrive();
+
+        await deleteDriveBackups();
+
+        expect(drive.files).toEqual([]);
+        expect((await client.backup.status.query()).offsite.configured).toBe(true);
+    });
+
+    it('unlinks: forgets the grant, revokes it, leaves the backups, and stops', async () => {
+        await linkedClinicWithAPatient();
+        await backUpToDrive();
+
+        await unlinkDrive();
+
+        expect(secure.size).toBe(0);
+        expect(drive.revoked).toEqual(['token=refresh']);
+        expect(drive.files).toHaveLength(1);
+        expect((await client.backup.status.query()).offsite.configured).toBe(false);
+        expect(await backUpIfDue()).toBe(false);
+        await expect(backUpToDrive()).rejects.toThrow();
+    });
+
+    it('unlinks even when Google cannot be reached', async () => {
+        await linkedClinicWithAPatient();
+        drive.offline = true;
+
+        await unlinkDrive();
+
+        expect(secure.size).toBe(0);
+        expect(await backUpIfDue()).toBe(false);
+    });
+
+    it('never writes the refresh token into the clinic or a backup', async () => {
+        await linkedClinicWithAPatient();
+        await backUpToDrive();
+
+        const stored = JSON.stringify(sqlite.query('SELECT * FROM clinic_meta').all());
+        const raw = new TextDecoder().decode(gunzipSync(drive.files[0]?.bytes ?? new Uint8Array()));
+
+        expect(stored).not.toContain('refresh');
+        expect(raw).not.toContain('refresh');
+    });
+});
+
 describe('a clinic file brought back', () => {
     it('opens on a new phone, which becomes its admin', async () => {
         pickable = anotherPhonesExport();
@@ -402,11 +695,6 @@ describe('a clinic file brought back', () => {
         expect((await client.backup.status.query()).lastSuccessAt).toBe('2026-09-28T08:00:00.000Z');
     });
 
-    it('does nothing when the picker is closed', async () => {
-        expect(await pickClinicFile()).toBeNull();
-        expect(sqlite.query(STORED).get()).toEqual({ n: 0 });
-    });
-
     it('refuses a file that is not a clinic, and changes nothing', async () => {
         await startLocalMode();
         const before = sqlite.query('SELECT * FROM clinic_rows').all();
@@ -418,9 +706,60 @@ describe('a clinic file brought back', () => {
     });
 
     it('refuses a file whose rows would not survive the trip, rather than storing them broken', async () => {
-        const file = JSON.parse(anotherPhonesExport());
-        file.db.patients[0].createdAt = 'not-a-date';
-        pickable = JSON.stringify(file);
+        const db = anotherPhonesClinic();
+        (db.patients[0] as { createdAt: unknown }).createdAt = 'not-a-date';
+        pickable = clinicSnapshot(db, EXPORTED_AT);
+
+        await expect(pickClinicFile()).rejects.toThrow(LocalStoreError);
+    });
+
+    it('refuses a JSON file, a cut-off file and a snapshot of something else', async () => {
+        const whole = anotherPhonesExport();
+        const refused = [
+            serializeLocal(anotherPhonesClinic(), EXPORTED_AT),
+            whole.slice(0, whole.length / 2),
+            gzipSync(new TextEncoder().encode('not a database')),
+            handMadeSnapshot([], [['format', 'something-else']]),
+        ];
+        for (const file of refused) {
+            pickable = file;
+            await expect(pickClinicFile()).rejects.toThrow(LocalStoreError);
+        }
+    });
+
+    it('refuses a newer version and a row in a table it does not know', async () => {
+        const settings = JSON.stringify(anotherPhonesClinic().settings);
+        const meta: [string, string][] = [
+            ['format', 'lustre-local'],
+            ['version', '1'],
+        ];
+        pickable = handMadeSnapshot(
+            [['settings', 'settings', settings]],
+            [
+                ['format', 'lustre-local'],
+                ['version', '2'],
+            ],
+        );
+        await expect(pickClinicFile()).rejects.toThrow(LocalStoreError);
+
+        pickable = handMadeSnapshot(
+            [
+                ['settings', 'settings', settings],
+                ['invoices', 'a', '{}'],
+            ],
+            meta,
+        );
+        await expect(pickClinicFile()).rejects.toThrow(LocalStoreError);
+    });
+
+    it('refuses a snapshot without settings rather than opening on the defaults', async () => {
+        pickable = handMadeSnapshot(
+            [],
+            [
+                ['format', 'lustre-local'],
+                ['version', '1'],
+            ],
+        );
 
         await expect(pickClinicFile()).rejects.toThrow(LocalStoreError);
     });
@@ -431,7 +770,7 @@ describe('a clinic file brought back', () => {
         if (first) await startLocalModeFrom(first);
         await disableLocalMode();
 
-        pickable = serializeLocal(freshLocalDb(), new Date());
+        pickable = clinicSnapshot(freshLocalDb(), new Date());
         const second = await pickClinicFile();
         writesFail = true;
         await expect(second ? startLocalModeFrom(second) : Promise.resolve()).rejects.toThrow();
@@ -462,12 +801,12 @@ describe('a clinic file brought back', () => {
         if (first) await startLocalModeFrom(first);
         await disableLocalMode();
 
-        pickable = serializeLocal(freshLocalDb(), new Date());
+        pickable = clinicSnapshot(freshLocalDb(), new Date());
         const second = await pickClinicFile();
         expect(second?.replaces).toBe(true);
         if (second) await startLocalModeFrom(second);
 
         expect(storedRows('patients')).toEqual([]);
-        expect(parseLocal(files.get('lustre-local.replaced.json') ?? '').patients).toHaveLength(1);
+        expect(parseLocal(String(files.get('lustre-local.replaced.json'))).patients).toHaveLength(1);
     });
 });

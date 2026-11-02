@@ -58,6 +58,7 @@ These are read from the root `.env`:
 
 - `LUSTRE_UPDATES_URL`: the prod stack, `http://<clinic>:3000`.
 - `LUSTRE_GLITCHTIP_DSN`: required for production builds, same host.
+- `LUSTRE_DRIVE_CLIENT_ID`: required for production builds. The Android OAuth client for `com.lustre.clinic`, the same value as the server's `BACKUP_DRIVE_ANDROID_CLIENT_ID`.
 - `LUSTRE_DEV_UPDATES_URL`: the dev stack, `http://<clinic>:3001`, for `bun ship:dev`.
 - `LUSTRE_SUDO_PASSWORD_FILE` (optional): a mode-0600 file with the sudo password, so the play doesn't prompt.
 - `LUSTRE_SSH` (optional): `user@address` of the clinic server for the transfer scripts. Unset, they take the one clinic in `infra/ansible/inventory.yml`.
