@@ -35,6 +35,23 @@ export function subscribeToDataReset(listener: () => void): () => void {
     };
 }
 
+let clinic = 0;
+
+/**
+ * Changes when the clinic itself was swapped for another. The shell remounts on
+ * this: clearing the cache does not close a page already open on a patient the
+ * new clinic does not have. Apart from the generation above, which also moves
+ * for a new role code, where nobody should lose their place.
+ */
+export function clinicGeneration(): number {
+    return clinic;
+}
+
+export function noteClinicReplaced(): void {
+    clinic += 1;
+    noteDataReset();
+}
+
 export function noteDataReset(): void {
     generation += 1;
     for (const listener of listeners) listener();

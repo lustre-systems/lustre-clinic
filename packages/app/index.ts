@@ -7,6 +7,7 @@ import { AppRegistry } from 'react-native';
 
 import App from './App';
 import { LISTENER_TASK } from './modules/lustre-listener';
+import './src/shell/driveBackupTask';
 import { CRASH_REPORTS_ON, startCrashReports } from './src/reporting';
 
 // The desk phone's foreground service holds this task open for as long as it

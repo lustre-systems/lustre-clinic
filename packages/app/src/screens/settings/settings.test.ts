@@ -1,6 +1,14 @@
 import { describe, expect, test } from 'bun:test';
 import { instantAt } from '@lustre/shared';
-import { ageInDays, backupDetails, backupView, driveSignInError, formatAge } from './data/backups';
+import {
+    ageInDays,
+    backupDetails,
+    backupView,
+    driveSignInError,
+    formatAge,
+    localBackupLine,
+    localBackupWarning,
+} from './data/backups';
 import { patientNumberDigits, patientNumberError } from './data/clinic';
 import { minutesFromTime, TEMPLATE_MAX, templateDraft, timeFromMinutes } from './data/reminders';
 
@@ -343,5 +351,38 @@ describe('the Backups pane', () => {
                 now,
             ).linked,
         ).toBe(false);
+    });
+});
+
+describe('the backups of a phone-only clinic', () => {
+    const now = Date.parse('2026-09-20T09:00:00Z');
+    const off = {
+        lastSuccessAt: null,
+        stale: true,
+        staleAfterHours: 48,
+        offsite: { configured: false, reauthorizationRequiredSince: null, account: null, canSignIn: false },
+    };
+    const on = { ...off, stale: false, offsite: { ...off.offsite, configured: true, account: 'a@b.c' } };
+
+    test('says plainly when backups are off, and warns', () => {
+        expect(localBackupLine(off, now)).toBe('Backups are off');
+        expect(localBackupWarning(off)).toBe('off');
+    });
+
+    test('names the last backup, and says nothing is wrong', () => {
+        const line = localBackupLine({ ...on, lastSuccessAt: '2026-09-19T20:00:00Z' }, now);
+        expect(line).toBe('Last backup today');
+        expect(localBackupWarning(on)).toBeNull();
+    });
+
+    test('warns when behind, and asks for a sign-in over anything else', () => {
+        expect(localBackupWarning({ ...on, stale: true })).toBe('behind');
+        const out = {
+            ...on,
+            stale: true,
+            offsite: { ...on.offsite, reauthorizationRequiredSince: '2026-09-19T20:00:00Z' },
+        };
+        expect(localBackupWarning(out)).toBe('signedOut');
+        expect(localBackupLine(out, now)).toBe('Google Drive needs a new sign-in');
     });
 });

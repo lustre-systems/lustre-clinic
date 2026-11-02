@@ -8,6 +8,12 @@ listed.
 
 ## [Unreleased]
 
+- A clinic kept on one phone backs itself up to Google Drive. Settings → Backups links the phone's Google account; a copy then goes to a hidden folder in it once a day when the clinic has changed, and the last 14 are kept. The same screen has Back up now, restores any backup, deletes them all, and unlinks. The card at the top of Settings shows the backup status, and a warning over the day and in Settings says when backups are off, need a new sign-in, or are behind. On a new phone or after reinstalling, "Restore from Google Drive" on the "Connect to the clinic" screen brings the newest one back. The backups do not show in Drive and can only be restored from the app. This needs the new APK.
+
+- A clinic kept on one phone now saves into a database on the phone instead of rewriting one big file on every change, so saving stays quick as the clinic grows. A phone already using it moves over by itself the next time the app opens, with nothing to do.
+
+- A booking made after the clocks go back, for the last hour of the day they changed, now gets a reference with that day's date instead of the next day's.
+
 ## [1.10.2] - 2026-10-31
 
 - The WhatsApp button on a patient's record now asks whether to open WhatsApp or WhatsApp Business, instead of choosing from the branch. If the one you pick can't open, the app says so.

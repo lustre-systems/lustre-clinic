@@ -145,6 +145,25 @@ in Settings → Phones & role codes. Phones that have not scanned a code keep
 working until the admin turns on "Every phone needs a role code" there. From a
 checkout, `bun cli grant admin` does the same against `.env`'s database.
 
+### Moving a phone-only clinic onto the server
+
+`import-local` reads a `.db.gz` snapshot of a phone-only clinic, but the app no
+longer has a way to save one: it backs up to a hidden Google Drive folder only,
+which nothing outside the app can read. Moving such a clinic needs that way out
+built first.
+
+### Backups of a phone-only clinic
+
+These are not the server's backups below: the phone uploads to the hidden app
+folder of its own Google account, with no server involved. Create an Android
+OAuth client in Google Cloud for each build (package `com.lustre.clinic` or
+`com.lustre.clinic.dev`, and that build's signing SHA-1), enable its custom URI
+scheme under Advanced settings, add the `drive.appdata` scope to the consent
+screen, and build with `LUSTRE_DRIVE_CLIENT_ID` set. Without it the feature is
+hidden, and such a clinic has no backup at all. Only clients in the same Google
+Cloud project can read existing backups, so keep every build's client in one
+project.
+
 ## Google Drive backups
 
 The production stack can push each verified, encrypted dump into a folder in

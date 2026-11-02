@@ -96,6 +96,31 @@ function lastLine(lastSuccessAt: string | null, now: number, t: Translate): stri
     return t('Last backup {age}', { age: formatAge(days, t) });
 }
 
+/**
+ * Local mode's card and row: its only backup is the one in its Google Drive, so
+ * the line says plainly when that is off.
+ */
+export function localBackupLine(
+    status: BackupStatusData,
+    now: number = Date.now(),
+    t: Translate = english,
+): string {
+    if (status.offsite.reauthorizationRequiredSince) return t('Google Drive needs a new sign-in');
+    if (!status.offsite.configured) return t('Backups are off');
+    const days = status.lastSuccessAt ? ageInDays(status.lastSuccessAt, now) : null;
+    if (days === null) return t('No backup yet');
+    return t('Last backup {age}', { age: formatAge(days, t) });
+}
+
+export type LocalBackupWarning = 'off' | 'signedOut' | 'behind';
+
+/** What the warning over the day and the settings index has to say, if anything. */
+export function localBackupWarning(status: BackupStatusData): LocalBackupWarning | null {
+    if (status.offsite.reauthorizationRequiredSince) return 'signedOut';
+    if (!status.offsite.configured) return 'off';
+    return status.stale ? 'behind' : null;
+}
+
 export function backupView(
     status: BackupStatusData,
     now: number = serverNow(),

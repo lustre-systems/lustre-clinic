@@ -10,7 +10,8 @@
  * never a switch. It is still not a login: the phone is the account.
  *
  * A clinic on one phone (`solo`) has neither: no role to have been given and no
- * server to see. The card is then just the clinic.
+ * server to see. The card is then the clinic and whether it is backed up, which
+ * for that clinic is what is most likely to be wrong, and it opens the backups.
  */
 import { Pressable, StyleSheet, View } from 'react-native';
 import { Dot } from '../../../components/ui';
@@ -28,6 +29,9 @@ export type IdentityCardProps = {
     connection: ConnectionView;
     onScanCode: () => void;
     solo?: boolean;
+    /** Under the clinic's name on a `solo` card. */
+    soloLine?: string;
+    onOpenBackups?: () => void;
     testID?: string;
 };
 
@@ -38,6 +42,8 @@ export function IdentityCard({
     connection,
     onScanCode,
     solo = false,
+    soloLine = '',
+    onOpenBackups,
     testID,
 }: IdentityCardProps) {
     const t = useT();
@@ -45,22 +51,29 @@ export function IdentityCard({
     const initial = solo ? (clinicName.trim()[0] ?? 'C').toUpperCase() : roleInitial;
     return (
         <View style={styles.card} testID={testID}>
-            <View style={styles.identity}>
-                <View style={styles.avatar}>
-                    <Text variant="headline" tone="inverse">
-                        {initial}
-                    </Text>
-                </View>
+            <Pressable
+                onPress={onOpenBackups}
+                disabled={!solo || !onOpenBackups}
+                accessibilityRole={solo && onOpenBackups ? 'button' : undefined}
+                testID="settings-identity-backups"
+            >
+                <View style={styles.identity}>
+                    <View style={styles.avatar}>
+                        <Text variant="headline" tone="inverse">
+                            {initial}
+                        </Text>
+                    </View>
 
-                <View style={styles.who}>
-                    <Text variant="title3" tone="inverse" numberOfLines={1}>
-                        {title}
-                    </Text>
-                    <Text variant="subhead" tone="inverse" numberOfLines={1} style={styles.branch}>
-                        {solo ? t('This phone only') : clinicName}
-                    </Text>
+                    <View style={styles.who}>
+                        <Text variant="title3" tone="inverse" numberOfLines={1}>
+                            {title}
+                        </Text>
+                        <Text variant="subhead" tone="inverse" numberOfLines={1} style={styles.branch}>
+                            {solo ? soloLine : clinicName}
+                        </Text>
+                    </View>
                 </View>
-            </View>
+            </Pressable>
 
             {solo ? null : (
                 <>

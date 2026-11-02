@@ -26,6 +26,8 @@
         },
         "plugins": [
             "expo-font",
+            "expo-background-task",
+            "expo-secure-store",
             "./plugins/withBuildTuning",
             "./plugins/withCleartextTraffic",
             "./plugins/withDevIdentity",
