@@ -14,5 +14,6 @@ export * from './enums.ts';
 export * from './errors.ts';
 export * from './grant.ts';
 export * from './labels.ts';
+export * from './localClinic.ts';
 export * from './locale.ts';
 export * from './reminder.ts';

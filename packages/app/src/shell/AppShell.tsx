@@ -18,6 +18,7 @@ import { SettingsScreen } from '../screens/settings';
 import { StatsScreen } from '../screens/stats';
 import { color } from '../theme';
 import { ApkUpdateBanner } from './ApkUpdateBanner';
+import { BackupsNudge } from './BackupsNudge';
 import { type BackStack, type BackStacks, backFromRoot, createBackStacks } from './backStack';
 import { JoinSheet } from './JoinSheet';
 import { NotificationsBanner } from './NotificationsBanner';
@@ -37,6 +38,7 @@ import {
 } from './routes';
 import { BackStackContext } from './useBackHandler';
 import { useClinicClock } from './useClinicClock';
+import { useDailyDriveBackup } from './useDailyDriveBackup';
 import { useRole } from './useRole';
 
 // The app shell (SPEC §18 F3): four clusters under one `domain/BottomTabBar`,
@@ -136,6 +138,7 @@ export function AppShell() {
     // Only on the desk's phone, and not before the role is known. A clinic on
     // this phone alone has no other phone to be the desk, so its admin is.
     const local = useDeviceBackend().backend === 'local';
+    useDailyDriveBackup(local);
     useReminderNudges(roleReady && role === 'secretary' && (granted !== 'admin' || local));
     // The doctor finishing (`visit:completed`), on the desk's phone only.
     useVisitCompletedNotices(roleReady ? role : null);
@@ -331,6 +334,7 @@ export function AppShell() {
                         where a clinic phone spends its day, so it is where a
                         new build gets noticed. */}
                     <NotificationsBanner />
+                    {local ? <BackupsNudge onOpen={() => setTab('settings')} snoozable /> : null}
                     <ApkUpdateBanner />
                     {role === 'doctor' ? (
                         <DoctorDayScreen

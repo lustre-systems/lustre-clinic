@@ -50,12 +50,22 @@ export const PG_ERROR = {
     DEADLOCK_DETECTED: '40P01',
 } as const;
 
-export function pgErrorCode(err: unknown): string | undefined {
+function driverField(err: unknown, field: 'code' | 'constraint_name'): string | undefined {
     let current: unknown = err;
 
     for (let depth = 0; depth < 5 && current && typeof current === 'object'; depth += 1) {
-        if ('code' in current && typeof current.code === 'string') return current.code;
+        const value = (current as Record<string, unknown>)[field];
+        if (typeof value === 'string') return value;
         current = (current as { cause?: unknown }).cause;
     }
     return undefined;
+}
+
+export function pgErrorCode(err: unknown): string | undefined {
+    return driverField(err, 'code');
+}
+
+/** The constraint a refused row broke, for a log line that must not quote the row. */
+export function pgConstraint(err: unknown): string | undefined {
+    return driverField(err, 'constraint_name');
 }

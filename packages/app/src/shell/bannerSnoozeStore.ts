@@ -66,6 +66,7 @@ export function createSnoozeStore(key: string, now: () => number = Date.now) {
 export type SnoozeStore = ReturnType<typeof createSnoozeStore>;
 
 export const notificationsBannerSnooze = createSnoozeStore('lustre.notificationsBannerSnoozedUntil');
+export const backupsBannerSnooze = createSnoozeStore('lustre.backupsBannerSnoozedUntil');
 
 export function useSnooze(store: SnoozeStore): SnoozeState {
     return useSyncExternalStore(store.subscribe, store.getSnapshot);

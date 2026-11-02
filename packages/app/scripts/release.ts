@@ -163,6 +163,22 @@ async function glitchtipDsn(updates: string): Promise<string | null> {
     return dsn;
 }
 
+/**
+ * The Google client a production APK backs a phone-only clinic up with, from
+ * `LUSTRE_DRIVE_CLIENT_ID`. Unset, the app hides backups altogether and such a
+ * clinic has no copy anywhere, which nothing on the phone would say.
+ */
+async function driveClientId(): Promise<void> {
+    if (DEV || (await isDemoBuild())) return;
+
+    const id = process.env.LUSTRE_DRIVE_CLIENT_ID?.trim();
+    if (!id || !/^\d+-[a-z0-9]+\.apps\.googleusercontent\.com$/.test(id)) {
+        fail(
+            "set LUSTRE_DRIVE_CLIENT_ID to the Android OAuth client for com.lustre.clinic, e.g. 1234-abcd.apps.googleusercontent.com (the server's BACKUP_DRIVE_ANDROID_CLIENT_ID). It is baked in at build time, so an APK built without it has no backups for a clinic kept on one phone.",
+        );
+    }
+}
+
 /** The environment first, then `~/.gradle/gradle.properties`, the same places Gradle reads the keystore from. */
 async function gradleProperty(name: string): Promise<string | undefined> {
     const fromEnv = process.env[name] ?? process.env[`ORG_GRADLE_PROJECT_${name}`];
@@ -405,6 +421,7 @@ async function nextUpdate(minor: boolean): Promise<{ next: Version; runtimeVersi
 async function releaseApk(major: boolean): Promise<void> {
     const url = updatesUrl();
     const dsn = await glitchtipDsn(url);
+    await driveClientId();
     await assertCleanTree();
 
     const next = await nextApk(major);
@@ -427,6 +444,7 @@ async function publishUpdate(minor: boolean, screen: boolean, withApk: boolean):
     // an update published without the one the APK was built with resolves a runtime
     // no phone is on.
     await glitchtipDsn(url);
+    await driveClientId();
     const keyPath = await gradleProperty('LUSTRE_UPDATES_PRIVATE_KEY');
     if (!keyPath) {
         fail(

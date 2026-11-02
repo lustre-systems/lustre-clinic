@@ -10,6 +10,7 @@
  *   lustre restore <file> [--into <db>] [--key <k>]
  *   lustre seed                                     refuses a production database
  *   lustre grant <role> [label]                     print a one-time role QR (the first admin)
+ *   lustre import-local <file>                      a clinic kept on one phone, into an empty server
  *
  * Each script reads its own arguments from argv[2] onward, so the command word
  * is taken out before the script is imported. `Bun.argv` is the same array.
@@ -24,6 +25,7 @@ const COMMANDS = {
     restore: () => import('../scripts/restore.ts'),
     seed: () => import('../scripts/seed.ts'),
     grant: () => import('../scripts/grant.ts'),
+    'import-local': () => import('../scripts/import-local.ts'),
 };
 
 type Command = keyof typeof COMMANDS;

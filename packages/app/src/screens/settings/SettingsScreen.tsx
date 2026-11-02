@@ -21,6 +21,7 @@ import {
     allowsDemo,
     BUILD_VARIANT,
     disableLocalMode,
+    driveClientId,
     type RouterOutput,
     resetDemoData,
     serverNow,
@@ -45,6 +46,7 @@ import {
 import { setLocale, useLocale, useT } from '../../i18n';
 import { isOpen, rendered, useRouteStack } from '../../navigation';
 import { CRASH_REPORTS_ON, reportProblem } from '../../reporting';
+import { BackupsNudge } from '../../shell/BackupsNudge';
 import { setAdminView } from '../../shell/roleStore';
 import { useRole } from '../../shell/useRole';
 import { color, size, space, Text } from '../../theme';
@@ -67,9 +69,10 @@ import {
 import { LanguageBlock } from './components/LanguageBlock';
 import { ErrorState, SkeletonRows } from './components/QueryStates';
 import { SettingsRow } from './components/SettingsRow';
+import { DriveBackupsScreen } from './DriveBackupsScreen';
 import { installedVersion, useApkUpdate } from './data/appUpdate';
 import { versionLine } from './data/appVersion';
-import { type BackupView, backupView, driveSignInError } from './data/backups';
+import { type BackupView, backupView, driveSignInError, localBackupLine } from './data/backups';
 import { useConnectionView } from './data/connection';
 import { useDriveSignIn } from './data/driveSignIn';
 import { errorText } from './data/errors';
@@ -87,6 +90,7 @@ type Route =
     | 'app'
     | 'appointments'
     | 'backups'
+    | 'driveBackups'
     | 'reminders'
     | 'clinic'
     | 'branches'
@@ -145,6 +149,8 @@ function SettingsScreenView({ goHome = 0 }: SettingsScreenProps) {
     const connection = useConnectionView();
     const apkUpdate = useApkUpdate();
     const backups = useBackups();
+    const localBackups = useLocalBackupLine(local);
+
     const driveSignIn = useDriveSignIn();
     const [linkingDrive, setLinkingDrive] = useState(false);
 
@@ -250,10 +256,13 @@ function SettingsScreenView({ goHome = 0 }: SettingsScreenProps) {
                 connection={connection}
                 onScanCode={() => routes.push('scan')}
                 solo={local}
+                soloLine={localBackups}
+                onOpenBackups={driveClientId() ? () => routes.push('driveBackups') : undefined}
                 testID="settings-identity"
             />
 
             <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
+                {local ? <BackupsNudge onOpen={() => routes.push('driveBackups')} /> : null}
                 {/* A card in Settings, never a modal over the day: installing
                     leaves the app, and that is the doctor's call to make
                     between patients. The browser downloads it over the
@@ -394,7 +403,22 @@ function SettingsScreenView({ goHome = 0 }: SettingsScreenProps) {
                                     onPress={() => routes.push('hours')}
                                     testID="settings-hours"
                                 />
-                                {local ? null : (
+                                {/* A clinic on this phone has no backup job on a server:
+                                    its backups go to its own Google Drive. */}
+                                {local ? (
+                                    driveClientId() ? (
+                                        <>
+                                            <CardDivider />
+                                            <SettingsRow
+                                                icon={<SettingsIcon glyph="backups" />}
+                                                label="Backups"
+                                                sub={localBackups}
+                                                onPress={() => routes.push('driveBackups')}
+                                                testID="settings-drive-backups"
+                                            />
+                                        </>
+                                    ) : null
+                                ) : (
                                     <>
                                         <CardDivider />
                                         <SettingsRow
@@ -571,6 +595,7 @@ function SettingsScreenView({ goHome = 0 }: SettingsScreenProps) {
                             onChangeAccount={backups?.canSignIn ? () => setLinkingDrive(true) : undefined}
                         />
                     ) : null}
+                    {pane === 'driveBackups' ? <DriveBackupsScreen onBack={back} /> : null}
                     {pane === 'reminders' ? <RemindersScreen onBack={back} /> : null}
                     {pane === 'clinic' ? <ClinicScreen onBack={back} /> : null}
                     {pane === 'branches' ? <BranchesScreen onBack={back} /> : null}
@@ -635,6 +660,14 @@ function useBackups(): BackupView | null {
     const t = useT();
     const status = useQuery(trpc.backup.status.queryOptions(undefined, { refetchInterval: 5 * 60_000 }));
     return status.data ? backupView(status.data, serverNow(), t) : null;
+}
+
+/** The status the card and the Backups row read, on a clinic kept on this phone. */
+function useLocalBackupLine(local: boolean): string {
+    const trpc = useTRPC();
+    const t = useT();
+    const status = useQuery(trpc.backup.status.queryOptions(undefined, { enabled: local }));
+    return status.data ? localBackupLine(status.data, Date.now(), t) : t('Checking…');
 }
 
 function useSummary() {
