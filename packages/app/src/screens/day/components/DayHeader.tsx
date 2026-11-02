@@ -47,7 +47,7 @@ export type DayHeaderProps = {
     branchId: string | null;
     onPickBranch: (branchId: string) => void;
     onOpenCalendar: () => void;
-    /** The "Last done" button, in the space between the two pills (`DayLastDone`). */
+    /** The "Last done" button, in the space between the two pills, against the date (`DayLastDone`). */
     history?: ReactNode;
 };
 

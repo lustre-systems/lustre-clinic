@@ -1,5 +1,5 @@
 /**
- * The history button at the centre of the day view's header: a small round
+ * The history button beside the date in the day view's header: a small round
  * icon that opens the "Last done" sheet.
  *
  * When it plays it widens to say what was done last — "↺ Arrived Nour" — spinning the icon backwards as it goes, holds, and folds back,
@@ -10,9 +10,9 @@
  * after fifty tab switches a day it would otherwise be noise. Reduced motion
  * skips it altogether.
  *
- * It fills the room the header gives it and sits at the middle of it, so it
- * opens out evenly both ways and never past that room: a label longer than the
- * space is cut, never drawn over what is beside it.
+ * It fills the room the header gives it and sits at the end of it, against the
+ * date, so it opens out away from the date and never past that room: a label
+ * longer than the space is cut, never drawn over what is beside it.
  */
 // biome-ignore lint/style/noRestrictedImports: starts the expand animation, which runs on the UI thread, when the day is opened or a save lands
 import { useEffect, useState, useSyncExternalStore } from 'react';
@@ -177,7 +177,7 @@ export function LastDoneButton({ active, onPress }: LastDoneButtonProps) {
 }
 
 const styles = StyleSheet.create({
-    room: { alignSelf: 'stretch', alignItems: 'center' },
+    room: { alignSelf: 'stretch', alignItems: 'flex-end' },
     slot: { height: SLOT },
     pressed: { opacity: 0.72 },
     pill: {

@@ -8,6 +8,8 @@ listed.
 
 ## [Unreleased]
 
+- The "Last done" button moved from the top centre of the day view to just before the date.
+
 ## [1.10.2] - 2026-10-31
 
 - The WhatsApp button on a patient's record now asks whether to open WhatsApp or WhatsApp Business, instead of choosing from the branch. If the one you pick can't open, the app says so.

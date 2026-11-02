@@ -1,7 +1,7 @@
 /**
- * "Last done" on the day view, for every role: the history button for the
- * centre of `DayHeader`, and the layer it opens — the sheet, and the booking or
- * visit a line is about.
+ * "Last done" on the day view, for every role: the history button for
+ * `DayHeader`, beside the date, and the layer it opens — the sheet, and the
+ * booking or visit a line is about.
  *
  * A line knows ids and nothing more, so it opens the two pages that are built
  * to start from ids (`VisitPage`, `ReschedulePage`) on a stack of its own over
