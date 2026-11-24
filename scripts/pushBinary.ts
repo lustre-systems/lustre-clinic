@@ -1,23 +1,3 @@
-/**
- * Puts `dist/lustre` and `dist/migrations` in a stack's directory, where the
- * deploy's `docker compose build` takes them from. `bun ship` runs it before
- * the play, and the play's `app` tag runs it too.
- *
- *   bun scripts/pushBinary.ts --stack=prod|dev [--host=user@address]
- *
- * A binary the server already has (same sha256) is not sent. Otherwise only a
- * `zstd --patch-from` delta against the binary on the server goes: the Bun
- * runtime is most of the 76 MB and never changes between builds, so a week of
- * server changes is a few hundred KB. Making the delta needs the server's
- * binary here too. Every binary pushed is kept in ~/.cache/lustre/server by its
- * sha256, and one that is not is fetched from the server once, compressed:
- * downloading runs about five times faster than uploading.
- *
- * The server checks the sha256 of what it rebuilt and renames it into place
- * only if it matches. Anything wrong with the delta sends the whole binary
- * instead, compressed with zstd -19 (28 MB rather than 76). The running
- * container never reads this file; the image build copies it.
- */
 import { mkdir, readdir, rename, rm, stat } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join, relative } from 'node:path';
@@ -42,7 +22,6 @@ const DIR = stackDir(stack);
 const BINARY = join(ROOT, 'dist/lustre');
 const MIGRATIONS = join(ROOT, 'dist/migrations');
 const CACHE = join(process.env.XDG_CACHE_HOME ?? join(homedir(), '.cache'), 'lustre/server');
-/** Enough for the binary on prod, the one on dev, and the ones about to replace them. */
 const KEEP = 4;
 
 if (!(await stat(BINARY).catch(() => null)))
@@ -53,11 +32,6 @@ cd ${DIR}/dist 2>/dev/null || exit 0
 if [ -f lustre ]; then echo "binary $(sha256sum < lustre | cut -d' ' -f1)"; fi
 if [ -d migrations ]; then cd migrations && find . -type f -exec sha256sum {} + | sed 's/^/migration /'; fi`;
 
-/**
- * Held by one SSH session from before the inspection to after the last upload,
- * and released when this script exits, so two pushes never mix one's binary
- * with the other's migrations.
- */
 const LOCK = `set -eu
 [ -d ${DIR} ] || { echo "${DIR} does not exist. Set the stack up first: bun play app --stack=${stack}" >&2; exit 3; }
 mkdir -p ${DIR}/dist
@@ -69,7 +43,6 @@ cat > /dev/null`;
 const LOCKED = `set -eu
 cd ${DIR}/dist`;
 
-/** Resolves once the lock is held. Ending its stdin, or this process, releases it. */
 async function lockStack(): Promise<{ release(): Promise<void> }> {
     const holder = Bun.spawn(['ssh', ...sshOptions(), host, LOCK], {
         stdin: 'pipe',
@@ -104,7 +77,6 @@ chmod 755 lustre.incoming
 mv -f lustre.incoming lustre`;
 }
 
-/** Swapped in with one rename, so there is never a moment without a migrations directory. */
 const APPLY_MIGRATIONS = `${LOCKED}
 umask 022
 rm -rf migrations.incoming
@@ -138,7 +110,6 @@ async function cached(sha256: string): Promise<string | null> {
     return (await stat(path).catch(() => null)) ? path : null;
 }
 
-/** Downloads the server's binary into the cache. Null when that fails or comes out different. */
 async function fetchFromServer(sha256: string): Promise<string | null> {
     await mkdir(CACHE, { recursive: true });
     const path = join(CACHE, sha256);

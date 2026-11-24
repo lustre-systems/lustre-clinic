@@ -1,12 +1,3 @@
-/**
- * How the deploy scripts (`pushBinary.ts`, `pushReleases.ts`) reach a stack on
- * the clinic server: `--stack=prod|dev`, and the SSH address from `--host`,
- * `LUSTRE_SSH`, or the one clinic in infra/ansible/inventory.yml.
- *
- * Every call shares one SSH connection (ControlMaster), so a deploy pays the
- * handshake once instead of per step. The upload is the slow part of a deploy
- * (about 145 KB/s), so the scripts send as little as they can, compressed.
- */
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { $ } from 'bun';
@@ -47,7 +38,6 @@ async function clinics(): Promise<Clinics | undefined> {
     return inventory.all?.children?.clinics;
 }
 
-/** `user@address` of the clinic server. */
 export async function sshHost(script: string): Promise<string> {
     const given = option('host') ?? process.env.LUSTRE_SSH;
     if (given) return given;
@@ -61,17 +51,12 @@ export async function sshHost(script: string): Promise<string> {
     return `${user}@${address}`;
 }
 
-/** The stack's health check over Tailscale, the address phones use. */
 export async function healthUrl(stack: Stack, host: string): Promise<string | null> {
     const port = (await clinics())?.vars?.lustre_stacks?.find((entry) => entry.name === stack)?.api_port;
     const address = host.split('@').pop();
     return port && address ? `http://${address}:${port}/trpc/health.check` : null;
 }
 
-/**
- * Polls `url` four times a second until stopped, and adds up how long it did
- * not answer: how long phones could not reach the server during a deploy.
- */
 export function watchHealth(url: string): () => Promise<{ answered: boolean; downSeconds: number }> {
     let running = true;
     let answered = false;
@@ -102,7 +87,6 @@ export function watchHealth(url: string): () => Promise<{ answered: boolean; dow
     };
 }
 
-/** Shared by every call in a deploy, and kept 60 s after the last so the next script reuses it. */
 export function sshOptions(): string[] {
     const sockets = process.env.XDG_RUNTIME_DIR ?? tmpdir();
     return [
@@ -117,7 +101,6 @@ export function sshOptions(): string[] {
     ];
 }
 
-/** Runs `script` with `sh` on the server and returns its output. Throws with its stderr on failure. */
 export async function remote(host: string, script: string): Promise<string> {
     const result = await $`ssh ${sshOptions()} ${host} ${script}`.quiet().nothrow();
     if (result.exitCode !== 0) {
@@ -127,17 +110,11 @@ export async function remote(host: string, script: string): Promise<string> {
 }
 
 export interface Upload {
-    /** The remote script's exit code, or the local command's when only that failed. */
     code: number;
     bytes: number;
     seconds: number;
 }
 
-/**
- * Pipes what `command` writes (already compressed) into `script` on the server,
- * counting the bytes. On a terminal it shows how much has gone so far, since a
- * large upload on this line takes minutes.
- */
 export async function upload(
     host: string,
     script: string,
@@ -166,8 +143,6 @@ export async function upload(
             }
         }
     } catch {
-        // The server end closed early, and its exit code says why. Nothing reads
-        // the producer any more, so stop it before it blocks on a full pipe.
         producer.kill();
     }
     await Promise.resolve(ssh.stdin.end()).catch(() => undefined);
@@ -184,7 +159,6 @@ export function rate({ bytes, seconds }: Upload): string {
     return `${megabytes(bytes)} in ${seconds.toFixed(1)} s`;
 }
 
-/** Single-quoted for the remote shell. */
 export function shellQuote(text: string): string {
     return `'${text.replaceAll("'", `'\\''`)}'`;
 }

@@ -1,19 +1,3 @@
-/**
- * The history button beside the date in the day view's header: a small round
- * icon that opens the "Last done" sheet.
- *
- * When it plays it widens to say what was done last — "↺ Arrived Nour" — spinning the icon backwards as it goes, holds, and folds back,
- * spinning forward again. So the movement answers the question the button is
- * for without a tap. It plays when the day is opened and something has been
- * done since the sheet was last looked at, right after each save while the day
- * is on screen, and on a tap as the sheet opens. Nothing new, no movement:
- * after fifty tab switches a day it would otherwise be noise. Reduced motion
- * skips it altogether.
- *
- * It fills the room the header gives it and sits at the end of it, against the
- * date, so it opens out away from the date and never past that room: a label
- * longer than the space is cut, never drawn over what is beside it.
- */
 // biome-ignore lint/style/noRestrictedImports: starts the expand animation, which runs on the UI thread, when the day is opened or a save lands
 import { useEffect, useState, useSyncExternalStore } from 'react';
 import { type LayoutChangeEvent, Pressable, StyleSheet, View } from 'react-native';
@@ -36,37 +20,18 @@ import { hasUnseen, lastDone } from './store';
 
 const HistoryIcon = icon(GLYPH.lastDone, { width: 2.2 });
 
-/** The height of the header's pills. */
 const SLOT = space[8];
-/** Long enough to read a name. */
 const HOLD_MS = 3000;
-// Two full turns each way: back as it opens, forward again as it closes, so it
-// winds back to where it started. Longer than `ui/motion`'s promote and
-// collapse, which spin a turn and a half too fast to read.
 const TURNS = 2;
 const OPEN_MS = 700;
 const CLOSE_MS = 600;
-// `ui/motion`'s promote and standard curves, as worklets: the UI thread cannot
-// run React Native's own `Easing`.
 const PROMOTE = Easing.bezier(0.22, 0.9, 0.3, 1);
 const SETTLE = Easing.out(Easing.quad);
-/**
- * Played unasked, it waits this long after the day is clear: long enough for a
- * toast that has just been dismissed to slide out of the header it sat over.
- */
 const SETTLE_MS = 300;
-/** How far the words tuck in towards the icon, which has room to spare either side. */
 const TUCK = space[1];
-/** Room after the words, before the pill's open edge. */
 const LEAD = space[2.5];
 
 export type LastDoneButtonProps = {
-    /**
-     * The day is what is on screen, header and all: the tab is up, nothing is
-     * pushed over it, and no toast or prompt sits on the header. Turning true is
-     * what "opening the day" means — and it is also how a save made in a page
-     * over the day is played once that page, and the toast after it, are gone.
-     */
     active: boolean;
     onPress: () => void;
 };
@@ -154,8 +119,6 @@ export function LastDoneButton({ active, onPress }: LastDoneButtonProps) {
                         <Animated.View style={[styles.glyph, glyph]}>
                             <HistoryIcon size={16} stroke={color.ink} />
                         </Animated.View>
-                        {/* One line, cut at its tail: the word always shows
-                            whole and a name too long for the room ends in "…". */}
                         <Animated.View
                             style={[styles.words, label, { maxWidth: maxLabel }]}
                             onLayout={measure}
@@ -189,9 +152,6 @@ const styles = StyleSheet.create({
         boxShadow: shadow.pill,
         overflow: 'hidden',
     },
-    // Wider than the pill will ever be and pinned to its start, so the words
-    // are laid out at their own width — which is what `measure` reads — and
-    // the pill only uncovers them.
     track: {
         position: 'absolute',
         top: 0,

@@ -1,9 +1,3 @@
-/**
- * The LANGUAGE block on the settings index: the language's name and a compact
- * EN / ع pill beside it. On the index rather than in a pane so it takes one
- * tap, and drawn whether or not the server answers — the language is this
- * phone's, not the clinic's.
- */
 import type { Locale } from '@lustre/shared';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { Card, SectionLabel } from '../../../components/ui';
@@ -79,12 +73,6 @@ const styles = StyleSheet.create({
     },
     name: { flex: 1, minWidth: 0 },
 
-    /**
-     * Two buttons sized to their labels, not `ui/SegmentedControl`: that one is
-     * a full-width control — `alignSelf: 'stretch'` over `flex: 1` segments —
-     * and inside this row it stretches to the card's height and collapses its
-     * labels. This is the mockup's compact pill, which is a different control.
-     */
     track: {
         flexDirection: 'row',
         flex: 0,

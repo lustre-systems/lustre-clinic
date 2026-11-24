@@ -4,24 +4,6 @@ import { useSyncExternalStore } from 'react';
 import { noteDataReset, subscribeToDataReset } from './dataReset';
 import { type DeviceBackend, deviceBackend } from './demo/flag';
 
-// This phone's role credential: what an admin's QR code was redeemed for. The
-// token goes out on every request and on `/ws`, and the server reads the role
-// off it — the copy of the role kept here is only for drawing the right
-// screens, never for deciding what the phone may do.
-//
-// A slot per backend, because demo mode and local mode are servers of their own:
-// a credential one handed out means nothing to the others, and the clinic's
-// must survive either being entered and left. Each is persisted under its own key.
-//
-// A refusal is the server saying this phone may not in: `revoked` when an admin
-// withdrew its role (persisted, so a relaunch does not quietly fall back to the
-// access a phone with no role still has), `unprovisioned` when the clinic
-// requires a role and this phone has none (not persisted: turning the
-// requirement off again has to be enough), and `new` for a phone installed
-// since roles existed, which opens on the scanner rather than on the access a
-// phone with no role otherwise keeps (persisted until a code is redeemed).
-// Only the phones that predate roles skip that, which is the upgrade path.
-
 export interface Credential {
     token: string;
     deviceId: string;
@@ -81,10 +63,6 @@ function parseSlot(stored: string | null): Slot {
     }
 }
 
-/**
- * The two refusal codes in a tRPC response body, batched or not. The body is
- * read for `appCode` only — the client switches on codes, never on messages.
- */
 export function refusalIn(body: unknown): 'revoked' | 'unprovisioned' | null {
     const entries = Array.isArray(body) ? body : [body];
     let found: 'revoked' | 'unprovisioned' | null = null;
@@ -96,7 +74,6 @@ export function refusalIn(body: unknown): 'revoked' | 'unprovisioned' | null {
     return found;
 }
 
-/** Exported for the tests, which need a store that has never read storage. */
 export function createCredentialStore(backend: () => DeviceBackend | null = deviceBackend) {
     const slots: Record<SlotName, Slot> = { live: EMPTY, demo: EMPTY, local: EMPTY };
     let hydrated = false;
@@ -125,7 +102,6 @@ export function createCredentialStore(backend: () => DeviceBackend | null = devi
         for (const listener of listeners) listener();
     }
 
-    // Written before the read lands wins over it, as `roleStore` does.
     const touched = new Set<SlotName>();
 
     function write(name: SlotName, slot: Slot): void {
@@ -156,8 +132,6 @@ export function createCredentialStore(backend: () => DeviceBackend | null = devi
         return hydrating;
     }
 
-    // Entering or leaving demo or local mode is reported as a data reset, and it
-    // is also what changes which slot is current.
     subscribeToDataReset(emit);
 
     return {
@@ -174,11 +148,6 @@ export function createCredentialStore(backend: () => DeviceBackend | null = devi
         grant(credential: Credential): void {
             write(current(), { credential, revoked: false, unprovisioned: false, fresh: false });
         },
-        /**
-         * `sentWith` is the token the refused request carried. A refusal for a
-         * credential this phone has since replaced is about the old one, and
-         * must not throw the new one away.
-         */
         refuse(kind: 'revoked' | 'unprovisioned', sentWith: string | null): void {
             const name = current();
             const slot = slots[name];
@@ -191,7 +160,6 @@ export function createCredentialStore(backend: () => DeviceBackend | null = devi
             slots[name] = { ...slot, unprovisioned: true };
             emit();
         },
-        /** "Try again" on the unprovisioned screen: the next request finds out whether it still applies. */
         retry(): void {
             const name = current();
             slots[name] = { ...slots[name], unprovisioned: false };
@@ -200,11 +168,9 @@ export function createCredentialStore(backend: () => DeviceBackend | null = devi
         forgetDemo(): void {
             write('demo', EMPTY);
         },
-        /** Fresh rather than empty: the next server it reaches asks for a code. */
         forgetLive(): void {
             write('live', { ...EMPTY, fresh: true });
         },
-        /** Waits for storage, so a credential already on the phone is never mistaken for none. */
         async markFresh(): Promise<void> {
             await hydrate();
             const slot = slots.live;
@@ -220,17 +186,14 @@ export function useCredential(): CredentialState {
     return useSyncExternalStore(store.subscribe, store.getSnapshot);
 }
 
-/** The token for the server the next request goes to, or null. Read per request. */
 export function credentialToken(): string | null {
     return store.token();
 }
 
-/** Before the first request goes out: a provisioned phone must not send one bare. */
 export function hydrateCredential(): Promise<void> {
     return store.hydrate();
 }
 
-/** A code was redeemed. Everything cached was fetched as the phone's old self, so it goes. */
 export function grantCredential(credential: Credential): void {
     store.grant(credential);
     noteDataReset();
@@ -242,30 +205,20 @@ export function noteRefusal(kind: 'revoked' | 'unprovisioned', sentWith: string 
     if (store.getSnapshot().credential !== before.credential) noteDataReset();
 }
 
-/** Everything behind the refusal failed; clearing it is what makes the screens ask again. */
 export function retryProvisioning(): void {
     store.retry();
     noteDataReset();
 }
 
-/**
- * This install has never known a clinic server (`shell/serverStore`): it was
- * installed since roles existed, so it asks for a code before anything else.
- */
 export function markFreshInstall(): Promise<void> {
     return store.markFresh();
 }
 
-/**
- * The phone left its clinic server. The role was that server's to give, so it
- * goes too: a phone pointed at another clinic must not arrive holding one.
- */
 export function forgetServerCredential(): void {
     store.forgetLive();
     noteDataReset();
 }
 
-/** A reseeded demo has no devices, so the demo's credential goes with it. */
 export function forgetDemoCredential(): void {
     store.forgetDemo();
 }

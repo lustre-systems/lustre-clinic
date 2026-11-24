@@ -10,36 +10,9 @@ import { statsService } from '../src/modules/stats/stats.service.ts';
 import { setupDatabase, sql, truncateAll } from './helpers/db.ts';
 import { type Clinic, expectAppError, clinic as fixtures } from './helpers/factories.ts';
 
-/**
- * Registering someone the clinic already had. There is one registration screen
- * and one procedure behind it — `patient.create` with its `old` block — and
- * two things about it are worth asserting; the rest is `patient.create` under
- * another name.
- *
- * 1. The number on the paper file is the number the record carries. Entering
- *    710 and finding 909 on the record is the bug this whole path exists to
- *    fix, and nothing about it is visible from inside the service: it is the
- *    `ref` column and what search can find.
- * 2. An opening balance is owed but was never billed here, so it has to land in
- *    `outstanding` and stay out of `summary`, `stats` and the day view. Get it
- *    wrong in either direction and either the doctor sees a fortune billed on a
- *    day the clinic was shut, or a patient is told they owe nothing when they
- *    owe 800.
- *
- * Atomicity is asserted through the failures rather than the successes: a
- * refused ref, a refused answer, a failed write. Each has to leave the
- * register exactly as it found it, patient included.
- */
-
-/** Where the server dates an old patient's balance: the clinic's today. */
 const TODAY = new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Cairo' }).format(new Date());
 const OWED = 80_000;
 
-/**
- * The clinic, set up the way Settings → Clinic sets it before a migration: a
- * next patient number above every number the old system used.
- * `PATIENT_REF_RESERVED` below is what happens without it.
- */
 const NEXT_REF = 900;
 
 async function migrating(): Promise<Clinic> {
@@ -69,9 +42,6 @@ describe('registering an old patient', () => {
         expect(entered.legacyRef).toBe('710');
     });
 
-    // The report, exactly as it came in: an existing patient entered with old
-    // ref 710 was created as 909, because the old flow allocated a number for
-    // them on top of the one they already had.
     test('old ref 710 does not become 909', async () => {
         await migrating();
         await settingsService.update({ patientRefNext: 909 });
@@ -87,7 +57,6 @@ describe('registering an old patient', () => {
         expect(entered.ref).toBe('710');
         expect(entered.ref).not.toBe('909');
 
-        // And the number nobody has had yet is still nobody's.
         expect((await settingsService.get()).patientRefNext).toBe(909);
     });
 
@@ -134,9 +103,6 @@ describe('registering an old patient', () => {
         expect(found.map((row) => row.name)).toEqual(['Rania Fahmy']);
     });
 
-    // The old system's format is its own, and refusing a real number for not
-    // looking like a `ref` would be refusing the only thing that matches a
-    // paper file to a record.
     test('takes a number that is not a number at all', async () => {
         await migrating();
 
@@ -178,9 +144,6 @@ describe('registering an old patient', () => {
         expect(await patientService.byPhone({ phone: '01000000602' })).toHaveLength(0);
     });
 
-    // 9100 for 910 is the mis-key this refuses. Left alone it is a record that
-    // cannot be kept: the sequence reaches 9100 eventually and refuses the *new*
-    // patient, months later, for something typed today.
     test('refuses a number the new-patient sequence has still to reach', async () => {
         await migrating();
         await settingsService.update({ patientRefNext: 910 });
@@ -243,8 +206,6 @@ describe('what an old patient brings with them', () => {
         expect(history).toHaveLength(0);
     });
 
-    // Settings → Clinic no longer asks for a cutoff: what they owe is owed from
-    // the day it is entered.
     test('a balance needs no cutoff, and is dated the day it is entered', async () => {
         await fixtures();
         await settingsService.update({ patientRefNext: NEXT_REF });
@@ -274,19 +235,16 @@ describe('what an old patient brings with them', () => {
             old: { ref: '311', openingBalance: OWED },
         });
 
-        // Owed: the desk has to be able to ask for it.
         const outstanding = await balanceService.outstanding();
         expect(outstanding.total).toBe(OWED);
         expect(outstanding.patients.map((p) => p.patientId)).toContain(entered.id);
 
-        // Not charged: nothing was billed on the day it was entered.
         const summary = await balanceService.summary({ from: TODAY, to: TODAY, offsetMinutes: 0 });
         expect(summary.charged).toBe(0);
 
         const stats = await statsService.summary({ from: TODAY, to: TODAY, offsetMinutes: 0 });
         expect(stats.appointments.total).toBe(0);
         expect(stats.visits.charged).toBe(0);
-        // The one figure that does count it — it is still owed today.
         expect(stats.visits.outstanding).toBe(OWED);
     });
 
@@ -342,8 +300,6 @@ describe('what an old patient brings with them', () => {
     test('a whole session lands on one date without tripping the overlap constraint', async () => {
         await migrating();
 
-        // Same cutoff, same instant, same branch — which is what the migration
-        // actually looks like, and what `booked` would refuse outright.
         for (let i = 0; i < 25; i += 1) {
             await patientService.create({
                 name: `Patient ${i}`,
@@ -357,16 +313,10 @@ describe('what an old patient brings with them', () => {
         const progress = await migrationService.progress();
         expect(progress.openingBalances).toBe(25);
         expect(progress.oldPatients).toBe(25);
-        // The fixture patient is on file too, and did not come across.
         expect(progress.patients).toBe(26);
     });
 });
 
-/**
- * The half-written record is the outcome this whole path is shaped to prevent:
- * a patient on file owing nothing they actually owe is a wrong figure read out
- * at the desk months later, with no visit to check it against.
- */
 describe('an old-patient registration is all or nothing', () => {
     beforeAll(setupDatabase);
     beforeEach(truncateAll);
@@ -382,12 +332,6 @@ describe('an old-patient registration is all or nothing', () => {
         return counted;
     }
 
-    /**
-     * The failure is injected at the database rather than mocked, because what
-     * is being asserted is the transaction and not the code around it: the
-     * patient row and its number are already written when the opening balance
-     * is refused, and only a real `ROLLBACK` takes them back.
-     */
     async function failNextInsertInto(table: 'patients' | 'visits'): Promise<void> {
         await sql.unsafe(`
             CREATE OR REPLACE FUNCTION test_refuse() RETURNS trigger AS $$
@@ -422,14 +366,9 @@ describe('an old-patient registration is all or nothing', () => {
 
         expect(await rowCounts()).toEqual(before);
         expect(await patientService.byPhone({ phone: '01555555555' })).toHaveLength(0);
-        // Nothing was allocated, because an old patient allocates nothing — and
-        // the number a new patient is owed is still theirs.
         expect((await settingsService.get()).patientRefNext).toBe(NEXT_REF);
     });
 
-    // A *new* patient, with no `old` block: the number is taken off the counter
-    // first and the row inserted after, in one transaction. The insert failing
-    // has to give the number back, or the next registration skips one.
     test('a failed write of a *new* patient hands their number back', async () => {
         await migrating();
 
@@ -545,16 +484,10 @@ describe('patient.byPhone', () => {
     });
 });
 
-/**
- * The records written before an old patient's ref was their own number: 710 on
- * the paper file, 909 on the screen. `bun db:repair-refs` is the way to run it;
- * the reasoning is in `src/modules/migration/repair.ts`.
- */
 describe('repairing the records the old flow wrote', () => {
     beforeAll(setupDatabase);
     beforeEach(truncateAll);
 
-    /** Exactly what `migration.enter` used to write: the old number stored, a fresh one on the record. */
     async function asTheOldFlowWrote(ref: string, oldRef: string, phone: string): Promise<string> {
         const id = Bun.randomUUIDv7();
         await sql`INSERT INTO patients (id, ref, name, phone, birth_date, legacy_ref)
@@ -568,7 +501,6 @@ describe('repairing the records the old flow wrote', () => {
 
         const dry = await repairPatientRefs({ apply: false });
         expect(dry.repairable).toBe(1);
-        // A dry run is a report and writes nothing.
         expect((await patientService.byId(id)).patient.ref).toBe('909');
 
         const done = await repairPatientRefs({ apply: true });
@@ -578,8 +510,6 @@ describe('repairing the records the old flow wrote', () => {
         expect((await patientService.search({ q: '710', limit: 25 })).map((r) => r.id)).toEqual([id]);
     });
 
-    // Two paper files carrying one number. Only the desk knows which record is
-    // which patient, so neither is touched and both are reported.
     test('leaves a record alone when its old number is another patient’s ref', async () => {
         await settingsService.update({ patientRefNext: 910 });
         await sql`INSERT INTO patients (id, ref, name, phone, birth_date)
@@ -592,9 +522,6 @@ describe('repairing the records the old flow wrote', () => {
         expect((await patientService.byId(clashing)).patient.ref).toBe('909');
     });
 
-    // The first record giving up 909 is what frees it for the second. Repairing
-    // one at a time and re-reading would miss that; the set is carried through
-    // the pass for exactly this.
     test('repairs a chain, where one record’s old number is another’s current ref', async () => {
         await settingsService.update({ patientRefNext: 910 });
         const first = await asTheOldFlowWrote('909', '710', '+201000000710');

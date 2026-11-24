@@ -13,13 +13,6 @@ import { visitService } from '../src/modules/visit/visit.service.ts';
 import { setupDatabase, sql, truncateAll } from './helpers/db.ts';
 import { type Clinic, clinic, EXTRACTION_PRICE, ROOT_CANAL_PRICE, todaySlot } from './helpers/factories.ts';
 
-/**
- * SPEC §7 — a price quoted at the desk. A booking line carries `quotedPrice`
- * only when the desk promised one; without it, check-in bills the catalogue on
- * the day, which is how every booking made before the column behaves. A quote
- * survives a reschedule and is what check-in seeds the visit line at.
- */
-
 beforeAll(async () => {
     await setupDatabase();
 });
@@ -30,7 +23,6 @@ beforeEach(async () => {
 
 type Planned = NonNullable<Parameters<typeof appointmentService.create>[0]['procedures']>;
 
-/** Books today, planning whatever `plan` picks out of the clinic's catalogue. */
 async function book(plan: (fixtures: Clinic) => Planned = () => []) {
     const fixtures = await clinic();
     const appointment = await appointmentService.create({
@@ -57,9 +49,6 @@ describe('migration 0016', () => {
         expect(column).toEqual({ nullable: 'YES', type: 'integer' });
     });
 
-    // 0017, 0018 and 0020 merged before this one, and drizzle skips a
-    // migration older than the last one a database applied. A clinic already
-    // on 0020 must still get the column.
     test('applies to a database already migrated past it', async () => {
         const migrationsFolder = new URL('../src/db/migrations', import.meta.url).pathname;
         const before = await mkdtemp(join(tmpdir(), 'lustre-before-0016-'));
@@ -70,8 +59,6 @@ describe('migration 0016', () => {
             const journal = JSON.parse(await readFile(journalPath, 'utf8')) as {
                 entries: { tag: string; when: number }[];
             };
-            // The database as it stood on 0020: without 0016, and without
-            // anything that shipped after 0016 did.
             const shipped = journal.entries.find((entry) => entry.tag === '0016_appointment_quoted_price');
             journal.entries = journal.entries.filter((entry) => shipped && entry.when < shipped.when);
             await writeFile(journalPath, JSON.stringify(journal));
@@ -111,7 +98,6 @@ describe('migration 0016', () => {
     test('refuses a negative quote', async () => {
         const { appointment, rootCanal } = await book();
 
-        // A postgres.js query is a lazy thenable, which `expect().rejects` never runs.
         let refused: unknown;
         try {
             await sql`
@@ -156,7 +142,6 @@ describe('booking with a quoted price', () => {
         });
         expect(await plannedOf(appointment.id)).toEqual([['Root canal', 250_000]]);
 
-        // A reschedule that leaves the plan out leaves the quote where it is.
         await appointmentService.update({ id: appointment.id, note: 'moved rooms' });
         expect(await plannedOf(appointment.id)).toEqual([['Root canal', 250_000]]);
 
@@ -190,8 +175,6 @@ describe('check-in', () => {
             { procedureId: extraction.id, quantity: 1, tooth: 'UL6' },
         ]);
 
-        // Both prices move before the patient arrives: the quote holds, the
-        // unquoted line follows the catalogue.
         await procedureService.update({ id: rootCanal.id, defaultPrice: ROOT_CANAL_PRICE + 10_000 });
         await procedureService.update({ id: extraction.id, defaultPrice: EXTRACTION_PRICE + 5_000 });
 

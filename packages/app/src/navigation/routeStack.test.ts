@@ -23,7 +23,6 @@ function stackOf(...open: Route[]): RouteStack<Route> {
     return open.reduce<RouteStack<Route>>(push, emptyStack<Route>());
 }
 
-/** The routes with a pane on screen, without the ids a caller keys on. */
 function drawn(stack: RouteStack<Route>): Route[] {
     return rendered(stack).map((entry) => entry.route);
 }
@@ -55,8 +54,6 @@ describe('routeStack', () => {
         const popped = pop(stackOf('record', 'edit'));
 
         expect(top(popped)).toBe('record');
-        // Still rendered, and no longer open: this is the entry mid-slide, and
-        // dropping it here is what blanks the pane halfway out.
         expect(drawn(popped)).toEqual(['record', 'edit']);
         expect(isOpen(popped, 0)).toBe(true);
         expect(isOpen(popped, 1)).toBe(false);
@@ -65,8 +62,6 @@ describe('routeStack', () => {
     });
 
     it('draws a leaving route above the one it was stacked on', () => {
-        // Popped in the order they were opened, so the deeper of the two must
-        // still come first — it is underneath.
         const twice = pop(pop(stackOf('record', 'edit', 'visit')));
 
         expect(twice.open.map((entry) => entry.route)).toEqual(['record']);
@@ -80,7 +75,6 @@ describe('routeStack', () => {
         expect(drawn(twice)).toEqual(['record', 'edit']);
         expect(drawn(settled(twice))).toEqual(['record']);
         expect(drawn(settled(settled(twice)))).toEqual([]);
-        // A third report has nothing left to answer for.
         expect(drawn(settled(settled(settled(twice))))).toEqual([]);
     });
 
@@ -100,17 +94,12 @@ describe('routeStack', () => {
     });
 
     it('clears anything mid-slide when a new route is pushed', () => {
-        // Otherwise the arriving pane slides in over one still sliding out, and
-        // the two transitions draw across each other.
         const reopened = push(pop(stackOf('record')), 'edit');
 
         expect(drawn(reopened)).toEqual(['edit']);
     });
 
     it('refuses the second of two taps on the same opener', () => {
-        // AddButton and the cards carry no press lock, so both taps run and
-        // each is its own updater — the editor used to open twice, and closing
-        // it once left the second copy standing.
         const twice = push(stackOf('record', 'edit'), 'edit');
 
         expect(drawn(twice)).toEqual(['record', 'edit']);
@@ -122,10 +111,8 @@ describe('routeStack', () => {
         const second = push(first, { kind: 'new' });
 
         expect(rendered(second)).toHaveLength(1);
-        // A different row is a different pane and still opens.
         expect(rendered(push(first, { kind: 'edit', id: 'p1' }))).toHaveLength(2);
 
-        // Same kind, another row: still its own pane, and both stay open.
         const one = push(emptyStack<Editor>(), { kind: 'edit', id: 'p1' });
         const two = push(one, { kind: 'edit', id: 'p2' });
         expect(rendered(two)).toHaveLength(2);
@@ -143,8 +130,6 @@ describe('routeStack', () => {
     });
 
     it('stacks the same route reached from itself', () => {
-        // A patient opened from a patient is a real place to be; only the tap
-        // that repeats the top is refused.
         const deeper = push(push(stackOf('record'), 'edit'), 'record');
 
         expect(drawn(deeper)).toEqual(['record', 'edit', 'record']);
@@ -182,9 +167,6 @@ describe('routeStack', () => {
             expect(ids(pop(stack))).toEqual(before);
         });
 
-        // The one that matters. Booking for one patient, backing out and
-        // booking for another puts both at the same depth: a pane keyed by
-        // depth would hand the second one the first one's half-typed form.
         it('gives a replacement at the same depth a new id', () => {
             const first = stackOf('edit');
             const second = resetTo(first, 'edit');
@@ -207,9 +189,6 @@ describe('routeStack', () => {
         });
     });
 
-    // What a save landing after its editor has gone asks before it moves
-    // anything. It is only worth asking because every change to the stack goes
-    // through the top: an id still on top means nothing has moved under it.
     describe('isTop', () => {
         it('matches nothing at the root', () => {
             expect(isTop(emptyStack<Route>(), 0)).toBe(false);
@@ -229,9 +208,6 @@ describe('routeStack', () => {
             expect(isTop(popped, stack.open[1]?.id ?? -1)).toBe(false);
         });
 
-        // The one the guard rests on. Whichever way the stack is moved, the id
-        // that was on top is not on top afterwards — so a caller holding it can
-        // tell that the stack it decided from is gone.
         it('stops matching however the stack is moved', () => {
             const stack = stackOf('record', 'edit');
             const was = stack.open[1]?.id ?? -1;

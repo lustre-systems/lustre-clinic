@@ -1,7 +1,3 @@
-// The calendar sheet is keyed on `seq`, so these two transitions decide whether
-// a tap remounts a presented sheet. That is not something `bun test` can see —
-// there is no renderer — but the rule that prevents it is arithmetic, and this
-// is it.
 import { describe, expect, it } from 'bun:test';
 import { CALENDAR_CLOSED, closeCalendar, openCalendar } from './calendar';
 
@@ -20,9 +16,6 @@ describe('opening the calendar', () => {
     it('spends a tap that lands while the sheet is already up', () => {
         const open = openCalendar(CALENDAR_CLOSED);
 
-        // Identity, not equality: React bails out of the render on `Object.is`,
-        // which is what keeps a tap during the entrance from remounting a
-        // presented sheet and playing the entrance a second time.
         expect(openCalendar(open)).toBe(open);
     });
 });
@@ -38,8 +31,6 @@ describe('closing the calendar', () => {
 });
 
 describe('calendar cell edges', () => {
-    // There is no React Native renderer in this test suite, so keep the two
-    // Android-sensitive rendering invariants pinned at their JSX boundary.
     async function cellSource() {
         const source = await Bun.file(new URL('./components/CalendarSheet.tsx', import.meta.url)).text();
         return source.slice(

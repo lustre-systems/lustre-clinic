@@ -1,12 +1,3 @@
-/**
- * The day as a list of rows, replacing a duration-sized timeline that spread
- * the day over screens of empty grid. The swipe works either way because the
- * list mirrors in Arabic — the distance commits, not the side. The checked-in
- * pill reads "Waiting" (the card says "In the chair" for exactly one patient),
- * stays legible when the chair is busy rather than disabled, and opens the
- * visit once checked in instead of going inert. An unknown procedure renders
- * `undefined` so the row falls back to the duration alone.
- */
 import type { AppointmentStatus } from '@lustre/shared';
 // biome-ignore lint/style/noRestrictedImports: the collapse drives an `Animated.timing` imperatively — the tween chases `open` and has to be stopped on cleanup or it outlives the section
 import { useEffect, useRef, useState } from 'react';
@@ -42,16 +33,9 @@ export type AgendaRowProps = {
     onPress: () => void;
     procedure?: string;
     dim?: boolean;
-    /** The one seated patient — blue, where the queue behind them is orange. */
     inChair?: boolean;
     trailing?: React.ReactNode;
     onNoShow?: () => void;
-    /**
-     * Minutes-from-midnight this row is realistically going to start, when the
-     * day is running behind. Drawn under the booked time, never instead of it:
-     * the booked time is what the patient was told on the phone, and the day
-     * usually catches up.
-     */
     projectedMinutes?: number | null;
 };
 
@@ -115,12 +99,6 @@ export function AgendaRow({
     );
 }
 
-/**
- * Where the patient is, as the row's own fill — the button says what to do next
- * and keeps one colour, so the state has to live somewhere else. Waiting is due
- * — orange, a queue building — and the one seated patient is accent, so the
- * chair reads as apart from the people waiting on it.
- */
 const CHAIR_TINT = color.accentSoft;
 
 const TINT: Partial<Record<AppointmentStatus, string>> = {
@@ -140,10 +118,6 @@ function RowBody({
     const t = useT();
     const { time, meridiem } = time12(appointment.startsAt);
     const slipped = projectedMinutes !== null && projectedMinutes > minutesOfDay(appointment.startsAt);
-    // The day has moved, so the row shows where it moved to. The booked time is
-    // still what the appointment holds and what the detail sheet reads back —
-    // the list is answering "when is this patient seen", and the honest answer
-    // on a late day is the later one.
     const shown = slipped ? clock12(projectedMinutes) : { time, meridiem };
     const tint = dim ? undefined : inChair ? CHAIR_TINT : TINT[appointment.status];
 
@@ -214,18 +188,10 @@ function RowBody({
 type CheckInControlProps = {
     appointment: Appointment;
     loading: boolean;
-    /** `checked_in` is arrived, not seated — only the queue's head reads as IN. */
     inChair: boolean;
     onCheckIn: (appointment: Appointment) => void;
 };
 
-/**
- * Check in is the only thing to press out here — once the patient is inside,
- * the row itself opens the visit, so the trailing slot drops to a chip that
- * only says where they are. A button that repeats the row's own tap reads as a
- * second, different action; the chip takes the button's width so the states
- * still line up down the column.
- */
 function CheckInControl({ appointment, loading, inChair, onCheckIn }: CheckInControlProps) {
     const t = useT();
     if (appointment.status === 'booked') {
@@ -260,7 +226,6 @@ function CheckInControl({ appointment, loading, inChair, onCheckIn }: CheckInCon
 export type UpNextProps = {
     appointments: readonly Appointment[];
     chairId: string | null;
-    /** How far behind the day is, so each row can say what its time now means. */
     delay?: DayDelay;
     nowMinutes?: number | null;
     relativeToNow: boolean;
@@ -284,10 +249,6 @@ export function UpNext({
     const t = useT();
     if (appointments.length === 0) return null;
 
-    // Off today this is the whole day rather than what is left of it, so the
-    // rows are history: nobody checks in to a Tuesday that has been and gone,
-    // and swiping one to no-show writes to a day nobody is working. The row
-    // says where it ended up instead.
     const live = relativeToNow;
 
     return (
@@ -341,9 +302,6 @@ export type BeforeThisProps = {
 export function BeforeThis({ appointments, onSelect }: BeforeThisProps) {
     const t = useT();
     const [open, setOpen] = useState(false);
-    // What the rows measure when laid out. Zero until the first pass, which is
-    // why the closed state animates from a real number the first time it opens
-    // rather than snapping.
     const [contentHeight, setContentHeight] = useState(0);
     const reducedMotion = useReducedMotion();
     const progress = useRef(new Animated.Value(0)).current;
@@ -358,9 +316,6 @@ export function BeforeThis({ appointments, onSelect }: BeforeThisProps) {
             toValue: to,
             duration: motionDuration.fadeup,
             easing: easing.promote,
-            // `height` is a layout property, so nothing here can go native —
-            // and nothing else may be animated on these nodes with the native
-            // driver, or the height tween loses the node to it.
             useNativeDriver: false,
         });
         tween.start();
@@ -369,9 +324,6 @@ export function BeforeThis({ appointments, onSelect }: BeforeThisProps) {
 
     if (appointments.length === 0) return null;
 
-    // The rows fade a little ahead of the height so the list is legible before
-    // the section has finished opening, rather than arriving all at once at the
-    // end. They also rise the last few pixels into place.
     const height = progress.interpolate({ inputRange: [0, 1], outputRange: [0, contentHeight] });
     const opacity = progress.interpolate({ inputRange: [0, 0.6, 1], outputRange: [0, 0.85, 1] });
     const translateY = progress.interpolate({ inputRange: [0, 1], outputRange: [-space[2], 0] });
@@ -391,27 +343,11 @@ export function BeforeThis({ appointments, onSelect }: BeforeThisProps) {
                     {t('BEFORE THIS · {count}', { count: appointments.length })}
                 </Text>
                 <View style={styles.spacer} />
-                {/* Half a turn rather than swapping `direction`: 'down' rotated
-                    180° is 'up' in both scripts, so the chevron's own RTL
-                    mirroring is left alone. */}
                 <Animated.View style={{ transform: [{ rotate: spin }] }}>
                     <Chevron direction="down" size={7} />
                 </Animated.View>
             </Pressable>
 
-            {/* The rows stay mounted and clipped. Something has to lay them out
-                for `contentHeight` to exist, and a section that measured itself
-                only on the way open would animate from zero to zero the first
-                time. `pointerEvents` is what stops a collapsed list swallowing
-                taps meant for the day underneath.
-
-                It does not stop TalkBack reaching them, though: clipping is a
-                visual matter and a row at zero height is still in the
-                accessibility tree, so a collapsed section read out every
-                appointment it was hiding. The two flags below are the same
-                statement for the two platforms — `accessibilityElementsHidden`
-                is iOS, `importantForAccessibility` is Android, and only the
-                latter runs today. */}
             <Animated.View
                 style={[styles.collapse, { height, opacity }]}
                 pointerEvents={open ? 'auto' : 'none'}
@@ -441,8 +377,6 @@ export function BeforeThis({ appointments, onSelect }: BeforeThisProps) {
 const styles = StyleSheet.create({
     section: { paddingHorizontal: size.gutter },
     collapse: { overflow: 'hidden' },
-    // Absolute so the wrapper's animated height cannot squash it: the body has
-    // to report the height it *wants*, not the one it is being given.
     collapseBody: { position: 'absolute', start: 0, end: 0, top: 0 },
     upNext: { marginTop: space[2] },
     sectionLabel: {
@@ -482,8 +416,6 @@ const styles = StyleSheet.create({
     },
     front: { backgroundColor: color.canvas },
     pressed: { backgroundColor: color.surface2 },
-    // Never wraps: 62px fitted "9:40 PM" and broke "10:00 PM" onto two lines,
-    // so the column jumped between one shape and the other down the list.
     clock: {
         width: 74,
         flexShrink: 0,
@@ -495,7 +427,6 @@ const styles = StyleSheet.create({
     name: { flexShrink: 1 },
     meta: { flexDirection: 'row', alignItems: 'center', gap: space[1.5] },
     nameLine: { flexDirection: 'row', alignItems: 'center', gap: space[2] },
-    /** One width for every state, so the column of controls reads as a column. */
     pill: { borderRadius: radius.full, paddingHorizontal: space[3], minWidth: 118 },
     chip: {
         flexDirection: 'row',

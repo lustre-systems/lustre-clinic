@@ -1,13 +1,3 @@
-/**
- * `server/src/modules/patient/patient.service.ts`. Phone is normalized on
- * write; age is derived at read time and never stored.
- *
- * `byId` is driven from appointments rather than visits, because a cancellation
- * and a no-show never produce a visit and a record read to answer "has this
- * patient turned up before" has to show them. Procedures come from the visit
- * when the patient reached the chair — those carry the price actually billed —
- * and from the booking when they did not.
- */
 import { ERROR_CODE, PATIENT_REF_PATTERN, WS_EVENT } from '@lustre/shared';
 import type { RouterInput, RouterOutput } from '../../types';
 import { getDb, type PatientRow, save } from '../db';
@@ -47,7 +37,6 @@ function answersOf(row: PatientRow): Answers {
     return row.custom ?? {};
 }
 
-/** `createPatientInput` less the questionnaire — what a booking knows. */
 type MinimalPatientInput = Omit<RouterInput['patient']['create'], 'custom'>;
 
 export function createMinimalPatient(input: MinimalPatientInput): PatientRow {
@@ -72,7 +61,6 @@ export function createMinimalPatient(input: MinimalPatientInput): PatientRow {
     return row;
 }
 
-/** The server's order: newest first, the id breaking ties so a page boundary is stable. */
 function newestFirst(a: PatientRow, b: PatientRow): number {
     return b.createdAt.getTime() - a.createdAt.getTime() || (b.id < a.id ? -1 : b.id > a.id ? 1 : 0);
 }
@@ -91,8 +79,6 @@ export const patientHandlers = {
         const term = input.q.trim();
         if (!term) return [];
 
-        // `0101…` has to find a stored `+20101…`, and so does a `010123` still
-        // being typed — which is why this is not `normalizePhone`.
         const phoneTerm = phoneSearchTerm(term);
 
         const needle = term.toLowerCase();
@@ -110,11 +96,6 @@ export const patientHandlers = {
             .map(toPatient);
     },
 
-    /**
-     * Everyone on file under this number, oldest first. `phone` is not unique
-     * on purpose — two siblings share a mother's number — so this answers with
-     * a list and lets the desk decide.
-     */
     byPhone(input: RouterInput['patient']['byPhone']): Patient[] {
         let phone: string;
         try {
@@ -198,18 +179,7 @@ export const patientHandlers = {
         };
     },
 
-    /**
-     * Registering someone, new or old. `old` is what the **Old patient** switch
-     * reveals; its absence is the whole of what makes this a new registration.
-     *
-     * An old patient keeps the number on their paper file as their `ref` — the
-     * desk was given one number for them and must not be handed a second — and
-     * `legacyRef` carries the same string, which is what marks the record as
-     * having come across. It refuses what the server refuses: the number twice,
-     * and a plain number the new-patient sequence has still to reach.
-     */
     create(input: RouterInput['patient']['create']): Patient {
-        // Before the questionnaire, the order the server refuses them in.
         assertRegistrable(input, getDb().settings);
         const custom = customQuestionHandlers.validateIntake(input.custom ?? {});
 
@@ -225,8 +195,6 @@ export const patientHandlers = {
             throw new DemoError(ERROR_CODE.PATIENT_REF_TAKEN, 'another patient already has that number', 409);
         }
 
-        // A plain number the sequence has still to hand out — the server's
-        // rule, so the demo refuses what the clinic would refuse.
         const next = getDb().settings.patientRefNext;
         if (/^\d+$/.test(old.ref) && Number(old.ref) >= next) {
             throw new DemoError(
@@ -265,13 +233,6 @@ export const patientHandlers = {
         return toPatient(current);
     },
 
-    /**
-     * `patientService.updateRef`. Same three gates in the same order: the shape
-     * a patient ref takes — both of them, the plain number and the code a
-     * patient from before numbering carries — then a number the sequence has
-     * still to hand out, then a ref another patient already has. Re-typing the
-     * ref a record already has changes nothing and is not audited.
-     */
     updateRef(input: RouterInput['patient']['updateRef']): Patient {
         const next = input.ref.trim().toUpperCase();
         if (!PATIENT_REF_PATTERN.test(next)) {
@@ -314,7 +275,6 @@ export const patientHandlers = {
         return toPatient(current);
     },
 
-    /** Every correction made to this patient's ref, newest first. */
     refHistory(input: RouterInput['patient']['refHistory']): RefEdit[] {
         return [...getDb().refEdits]
             .filter((row) => row.entity === 'patient' && row.entityId === input.id)

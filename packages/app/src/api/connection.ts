@@ -4,21 +4,6 @@ import { BUILD_VARIANT, serverAddresses, timing, trpcUrl } from './config';
 import { deviceBackend } from './demo';
 import { acceptsServer } from './variant';
 
-// Connection state is a record of real traffic, not a poller: every request
-// reports its outcome back here through the tRPC link (markOnline/markOffline).
-// It is a plain store rather than React state because the link is not a
-// component; `useConnection` subscribes.
-//
-// The base URL is cached for the session and dropped on failure so the next
-// call probes again — that is how a dev phone moves between the LAN and the
-// tailnet with no network-change listener. Probes run sequentially, LAN first
-// (§14), and a prod build has no LAN address to probe (`config.ts`), so there
-// it is the tailnet alone. A bare GET on `health.check` counts as "online"
-// without reading the body, except on a dev build, which reads the server's
-// `environment` and treats anything but development as no answer at all
-// (`acceptsServer`). Every request and the `/ws` socket take their address from
-// here, so a refused server is never sent a single call. Staleness is scheduled rather than computed on read because
-// `getSnapshot` must return the same object until something changes.
 export type ConnectionStatus = 'unknown' | 'probing' | 'online' | 'offline';
 
 export type AddressKind = 'lan' | 'tailscale';
@@ -72,11 +57,6 @@ function armStaleTimer(): void {
 
 const onDevice = (): boolean => deviceBackend() !== null;
 
-// Demo and local mode have no clinic server to be reachable, and the shell's disconnected route
-// is entered on this state alone — so it is answered rather than probed. A
-// frozen object, not one built per call: `useConnection` reads it through
-// `useSyncExternalStore`, which requires the same snapshot until something
-// changes, and in demo mode nothing ever does.
 const DEMO_STATE: ConnectionState = {
     status: 'online',
     baseUrl: null,
@@ -123,7 +103,6 @@ async function fetchWithTimeout(url: string, timeoutMs: number, init?: RequestIn
     }
 }
 
-/** Whether the last probe reached a server this build refuses, for the setup screen to say so. */
 let refused = false;
 
 export function lastProbeRefused(): boolean {
@@ -176,9 +155,6 @@ async function probeBoth(): Promise<string> {
 }
 
 export function resolveBaseUrl(): Promise<string> {
-    // Nothing should ask in demo mode — the demo link terminates before
-    // `serverFetch`, and `live.ts` opens no socket — so this is the assertion
-    // rather than a fallback address.
     if (onDevice()) {
         return Promise.reject(
             new ServerUnreachableError('the app answers from this phone; there is no server'),
@@ -205,18 +181,6 @@ export async function reprobe(): Promise<boolean> {
     }
 }
 
-/**
- * The `/ws` socket dropped (`live.ts`). Nothing else notices the clinic PC
- * going off until somebody makes a request, which is what left the shell on a
- * live-looking screen until whichever query she happened to run next timed out.
- * The socket is the app's earliest evidence and it is checked rather than
- * believed: this probes, and only the probe decides — a server that came back
- * within its own reconnect never reaches the disconnected route at all.
- *
- * Ignored unless the app is in front. Android closes the socket when the phone
- * is pocketed, and marking that offline would have her come back to a dead end
- * she never hit; the foreground watch below re-probes on the way in anyway.
- */
 export function noteLinkDropped(): void {
     if (onDevice()) return;
     if (AppState.currentState !== 'active') return;

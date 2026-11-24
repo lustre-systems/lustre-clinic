@@ -14,7 +14,6 @@ import {
     YEARS,
 } from './stats';
 
-// A Wednesday.
 const TODAY = '2026-10-14';
 
 describe('the points each pill draws', () => {
@@ -58,7 +57,6 @@ describe('the points each pill draws', () => {
     });
 
     it('carries the offset of each end’s own day, as the server wants', () => {
-        // Egypt keeps DST: January is +02:00 and October 14 still +03:00.
         const year = trendSlots('year', TODAY).at(-1)?.range;
         expect(year?.fromOffsetMinutes).toBe(120);
         expect(year?.offsetMinutes).toBe(180);
@@ -208,7 +206,6 @@ describe('how people pay', () => {
 
 describe('what the branch bars say', () => {
     it('compares the branches per working day, not in total', () => {
-        // Maadi opens three days to Nasr City's two: more profit, a worse day.
         const point = {
             branches: [
                 { name: 'Maadi', profit: 900_000, workingDays: 3 },

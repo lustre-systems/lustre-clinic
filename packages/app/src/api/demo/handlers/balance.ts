@@ -1,19 +1,3 @@
-/**
- * `server/src/modules/balance/balance.service.ts`:
- *
- *     balance = chargedTotal - Σ payments
- *
- * Derived, never stored. There is no unpaid status — a payment is a row, not a
- * state transition — so every figure here is computed at read time.
- *
- * In `summary`, charged is attributed to the visit's appointment date while
- * collected is attributed to the day the money arrived, which is why the two
- * are counted separately rather than differenced per visit.
- *
- * `outstanding` and `byPatient` count opening balances — money carried over
- * from the old system is still owed. `summary` and `stats` do not: nobody
- * billed it on the day the row is dated.
- */
 import { ERROR_CODE, WS_EVENT } from '@lustre/shared';
 import type { RouterInput, RouterOutput } from '../../types';
 import { getDb, save } from '../db';
@@ -34,11 +18,6 @@ function paidFor(visitId: string): number {
         .reduce((sum, payment) => sum + payment.amount, 0);
 }
 
-/**
- * Each end of a range is expanded with the offset in force on *its own* day: a
- * range crossing a DST changeover has two, and using one for both opens the
- * window an hour off at the far end.
- */
 export function rangeOf(input: {
     from: string;
     to: string;
@@ -54,14 +33,6 @@ export function rangeOf(input: {
     return { from, to };
 }
 
-/**
- * A patient's visits that still owe something, oldest first. One list behind
- * both `byPatient` — what the record draws — and `settle`'s allocation, so the
- * list a payment is spread over cannot mean something different from the list
- * that was shown. The `ref` tiebreak makes the order total: two visits can
- * share a `startsAt`, and the partial would otherwise land on a different visit
- * between two runs of the same payment.
- */
 function unsettledVisits(patientId: string): VisitBalance[] {
     const db = getDb();
 
@@ -104,10 +75,6 @@ export const balanceHandlers = {
 
             entry.balance += balance;
 
-            // Only an unpaid visit can be the oldest unpaid one. Dating the
-            // debt from every visit puts it at a January that was settled, and
-            // the money screen then presents it as older than it is —
-            // `unsettledVisits` filters on the same rule before it orders.
             if (balance > 0 && (!entry.oldestUnpaidAt || appointment.startsAt < entry.oldestUnpaidAt)) {
                 entry.oldestUnpaidAt = appointment.startsAt;
             }
@@ -126,8 +93,6 @@ export const balanceHandlers = {
                     age: ageFromBirthDate(patient?.birthDate ?? null),
                     gender: patient?.gender ?? null,
                     balance: entry.balance,
-                    // A positive total cannot be reached without at least one
-                    // unpaid visit, so the filter above has already settled this.
                     oldestUnpaidAt: entry.oldestUnpaidAt ?? new Date(),
                 };
             })
@@ -140,16 +105,6 @@ export const balanceHandlers = {
         return unsettledVisits(input.patientId);
     },
 
-    /**
-     * One payment against a patient, spread over their unsettled visits
-     * oldest-first, each slice written as an ordinary payment row. That is what
-     * a desk means by paying off a balance, and it is arithmetic the server can
-     * do instead of asking someone to pick a visit and do it in their head.
-     *
-     * More than is owed is refused rather than parked: a credit balance is a
-     * concept §10 does not have, and inventing one here would make a balance
-     * something other than charges minus payments.
-     */
     settle(input: RouterInput['balance']['settle']): SettleReport {
         const unsettled = unsettledVisits(input.patientId);
         const outstandingBefore = unsettled.reduce((total, visit) => total + visit.balance, 0);
@@ -158,11 +113,6 @@ export const balanceHandlers = {
             throw new DemoError(ERROR_CODE.NOTHING_OUTSTANDING, 'this patient has nothing outstanding', 422);
         }
 
-        // The demo link hands the handler its input without the router's schema
-        // in front of it, so the bounds the server would have enforced are this
-        // handler's to enforce. A zero or negative amount otherwise breaks the
-        // allocation loop on its first pass, writes no payment row, and still
-        // reports an `outstandingAfter` the stored rows do not produce.
         assertAmount(input.amount, 'payment');
         if (input.amount <= 0) {
             throw new DemoError(ERROR_CODE.VALIDATION, 'a payment must be more than nothing', 422);
@@ -236,16 +186,12 @@ export const balanceHandlers = {
             .filter((payment) => payment.paidAt >= from && payment.paidAt < to)
             .reduce((sum, payment) => sum + payment.amount, 0);
 
-        // One patient with three unpaid visits is one patient.
         const duePatients = new Set(
             inRange
                 .filter((pair) => pair.visit.chargedTotal - paidFor(pair.visit.id) > 0)
                 .map((pair) => pair.appointment?.patientId),
         ).size;
 
-        // Money that arrived in the range against a visit dated before it. A
-        // real join of payment date against visit date — emphatically not
-        // `collected - charged`, which is only the period's net position.
         const older = db.payments.filter((payment) => {
             if (payment.paidAt < from || payment.paidAt >= to) return false;
             const visit = db.visits.find((row) => row.id === payment.visitId);
@@ -263,11 +209,6 @@ export const balanceHandlers = {
         };
     },
 
-    /**
-     * A method nobody used is absent rather than a zero row. Refunds are
-     * negative payments, so a method's total can come out below zero — and that
-     * is the honest figure.
-     */
     takings(input: RouterInput['balance']['takings']): TakingsReport {
         const { from, to } = rangeOf(input);
         const totals = new Map<

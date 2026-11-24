@@ -13,20 +13,6 @@ import { settingsService } from '../src/modules/settings/settings.service.ts';
 import { setupDatabase, truncateAll } from './helpers/db.ts';
 import { clinic as fixtures, slot } from './helpers/factories.ts';
 
-/**
- * §11 — the settings pane offered token chips in single braces while both
- * senders only ever substituted double, so a template built by tapping the
- * chips was sent to a patient with `{name}` still in it. The chips, the
- * preview and the senders now share one list and one render, and this file is
- * what holds them to it: a token the pane can insert that the sender does not
- * substitute is a message a clinic sends with braces in it.
- *
- * The time token gets its own assertions in both `message` and the decoded
- * `whatsAppUrl`, because the device report that reopened this was about
- * `{time}` reaching WhatsApp unsubstituted, and the URL is the half a server
- * test would otherwise never look at.
- */
-
 const VALUES: Record<string, string> = {
     name: 'Nadia Hassan',
     date: '2026-06-12',
@@ -68,9 +54,6 @@ describe('the reminder token syntax', () => {
         );
     });
 
-    // Templates built from the old chips are already saved in clinic
-    // databases. Substituting them is what stops a deploy turning a message
-    // that read correctly into one with braces in it.
     test('still substitutes a template saved from the old single-brace chips', () => {
         expect(renderReminderTemplate('Hello {name}, at {time} on {date}.', VALUES)).toBe(
             'Hello Nadia Hassan, at 11:35 on 2026-06-12.',
@@ -115,13 +98,9 @@ describe('the sender, against what the pane can build', () => {
         expect(text).toBe(reminder.message);
         expect(text).toContain(reminder.startsAt.toISOString().slice(11, 16));
         expect(text).not.toMatch(/[{}]/);
-        // Encoded braces would decode back into the composer as braces.
         expect(reminder.whatsAppUrl).not.toContain('%7B');
     });
 
-    // `&`, `#` and `+` would each cut the text short or turn into a space if
-    // the message were put in the query unencoded, and the Arabic text and the
-    // line break are what a clinic here actually writes.
     test('the WhatsApp link carries the whole message, whatever it is written in', async () => {
         await settingsService.update({
             clinicName: 'Smile & Co #1 + Kids',
@@ -156,7 +135,6 @@ describe('the sender, against what the pane can build', () => {
             offsetMinutes: clinicOffsetNow(),
         });
 
-        // 09:00 UTC is 12:00 in a Cairo summer and 11:00 in its winter.
         const clock = `${9 + offsetAt(startsAt) / 60}:00`;
         expect(reminder?.message).toBe(clock);
         expect(new URL(reminder?.whatsAppUrl ?? '').searchParams.get('text')).toBe(clock);

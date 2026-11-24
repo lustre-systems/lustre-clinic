@@ -1,16 +1,3 @@
-/**
- * SPEC §17 — the app reporting its own failures: backup failed, database error,
- * unhandled exception. One POST to a Discord webhook; there is no bot to
- * register and no second service to keep running.
- *
- * Alerts carry IDs and error codes only, never patient data (§17). The context
- * scrub mirrors the pino redaction list in `logger.ts` — an alert is a log line
- * that leaves the machine, so it gets at least the same treatment. Delivery is
- * deduplicated and rate-limited because the failures worth alerting on repeat
- * (a database that is down is down for every query), and a delivery failure is
- * only logged — the alert channel is the escalation, nothing is left to escalate
- * to. `report` never throws, so alerting can never break the caller.
- */
 import { logger } from '../logger.ts';
 
 export type AlertValue = string | number | boolean | null;
@@ -75,11 +62,8 @@ export function createAlerter(options: AlerterOptions): Alerter {
         now = Date.now,
     } = options;
 
-    /** Last send time per code, for dedupe. */
     const lastSent = new Map<string, number>();
-    /** Send timestamps inside the current rate-limit window. */
     let sentAt: number[] = [];
-    /** Set while suppressing, so the ceiling notice is announced exactly once. */
     let ceilingAnnounced = false;
 
     async function deliver(alert: Alert): Promise<void> {
@@ -92,9 +76,6 @@ export function createAlerter(options: AlerterOptions): Alerter {
     }
 
     return {
-        // The catch is load-bearing, not defensive habit: `unhandledRejection`
-        // in monitoring/index.ts calls this, so a throw here re-enters through
-        // that handler and loops until the host dies. Log, never re-alert.
         async report(alert: Alert): Promise<void> {
             try {
                 const at = now();

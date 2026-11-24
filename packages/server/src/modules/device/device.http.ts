@@ -1,18 +1,6 @@
-/**
- * The page a role QR opens in a phone's browser (`JOIN_PATH`). It is how a phone
- * that does not have the app yet gets it and its role from one scan: download
- * the APK this server already hosts, install it, come back, and "Open in
- * Lustre" hands the app the code and this server's address.
- *
- * The code is in the address's fragment, which the browser never sends, so the
- * page reads it in script and the server never sees or logs it. The page is
- * the same for everyone and carries nothing of the clinic's.
- */
 import { APK_PATH, GRANT_TTL_MINUTES, JOIN_APP_PATH } from '@lustre/shared';
 import { serverEnvironment } from '../../config.ts';
 
-// The app's scheme per stack, as `app.json` registers them: a dev stack's page
-// opens the dev build, which is the one that talks to it.
 const APP_SCHEME = serverEnvironment === 'development' ? 'com.lustre.clinic.dev' : 'com.lustre.clinic';
 
 const PAGE = `<!doctype html>

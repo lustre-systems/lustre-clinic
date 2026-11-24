@@ -6,7 +6,6 @@ export const issueGrantInput = z.object({
     label: z.string().trim().min(1).max(MAX_DEVICE_LABEL),
 });
 
-/** The code out of the QR, not the QR's whole text: the phone strips the prefix (`grantCodeOf`). */
 export const redeemGrantInput = z.object({ code: z.string().min(16).max(128) });
 
 export const devRoleInput = z.object({ role: roleSchema });

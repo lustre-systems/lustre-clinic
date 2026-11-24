@@ -1,28 +1,3 @@
-/**
- * SPEC §5, §12. The clinic defines its own intake questions; answers live in
- * `patients.custom`, keyed by `key`.
- *
- * Validating those answers is the reason this module is a dependency of
- * `patient`, and it has two entry points because a questionnaire is edited over
- * years while the records filled in against it are kept forever:
- *
- * - `validateIntake` is the whole form, answered in one sitting. Every active
- *   required question must come back with an answer — a required question that
- *   is never enforced is a form the clinic only thinks it has.
- * - `validatePatch` is an edit to one existing record. Only the keys the caller
- *   actually sent are checked; everything already stored passes through exactly
- *   as it is.
- *
- * The asymmetry is the whole point. If a patient picked a `select` option in
- * 2024 and the doctor removed that option in 2026, correcting that patient's
- * phone number must not fail on an answer nobody touched.
- *
- * A submitted blank drops the answer (or clears it on patch), and a key with no
- * question behind it is refused — nothing would ever validate it again.
- * `coerce` is the single definition of an acceptable answer, shared by
- * validation, patching, and auditing. Error messages name the question key,
- * never the answer, which is patient data.
- */
 import { ERROR_CODE, WS_EVENT } from '@lustre/shared';
 import { asc, eq, inArray } from 'drizzle-orm';
 import { db } from '../../db/index.ts';
@@ -105,12 +80,6 @@ export const customQuestionService = {
         return row;
     },
 
-    /**
-     * The whole order of the questionnaire, in one transaction. The client
-     * sends the list it wants and every row is stamped with its index, so a
-     * connection that drops mid-write leaves the previous order intact rather
-     * than half of each.
-     */
     async reorder({ ids }: ReorderCustomQuestionsInput): Promise<void> {
         if (new Set(ids).size !== ids.length) {
             throw new AppError(ERROR_CODE.VALIDATION, 'the same question appears twice in the order', 422);

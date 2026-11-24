@@ -1,8 +1,3 @@
-/**
- * `server/src/modules/device/device.service.ts`, over the arrays in `../db`.
- * Who is asking arrives as the `caller` the link resolved from this phone's
- * demo credential, the way the server resolves it from the request header.
- */
 import { ERROR_CODE, GRANT_TTL_MINUTES, grantPayload, type Role, WS_EVENT } from '@lustre/shared';
 import type { RouterInput, RouterOutput } from '../../types';
 import { type DeviceRow, getDb, type RoleGrantRow, save } from '../db';
@@ -16,14 +11,12 @@ export interface DemoCaller {
     role: Role | null;
 }
 
-/** A code and the phone it made, gone (`deleteGrant` in the service). */
 function deleteGrant(grantId: string): void {
     const db = getDb();
     db.devices = db.devices.filter((device) => device.grantId !== grantId);
     db.roleGrants = db.roleGrants.filter((grant) => grant.id !== grantId);
 }
 
-/** Unused codes past their expiry (`purge` in the service). */
 function purge(now: Date): void {
     const db = getDb();
     db.roleGrants = db.roleGrants.filter((grant) => grant.redeemedAt !== null || grant.expiresAt > now);
@@ -35,7 +28,6 @@ function liveDevice(token: string | null): DeviceRow | null {
     return device && !device.revokedAt ? device : null;
 }
 
-/** `deviceService.authorize`: the caller behind a token, or the refusal the server would send. */
 export function authorizeDemo(token: string | null): DemoCaller {
     if (token === null) {
         if (getDb().settings.requireProvisioning) {
@@ -67,7 +59,6 @@ function issue(role: Role, label: string, issuedBy: string | null) {
     return { row, code };
 }
 
-/** `previous`: the credential the phone had, which a new code retires (`deviceService.redeem`). */
 function redeem(code: string, previous: string | null = null) {
     const db = getDb();
     const now = new Date();
@@ -100,12 +91,6 @@ function redeem(code: string, previous: string | null = null) {
     return { token: device.token, deviceId: device.id, role: device.role, label: device.label };
 }
 
-/**
- * The demo's stand-in for being handed a code: there is no second phone to
- * scan this one's screen, so the code is issued and redeemed in one step. The
- * rules after it are the same — the role lives on a device row, and the link
- * reads it back from the token on every request.
- */
 export function provisionDemo(
     role: Role,
     previous: string | null,
@@ -128,7 +113,6 @@ export const deviceHandlers = {
         return redeem(input.code, caller.token);
     },
 
-    /** The demo is no development server, so it refuses as the clinic's would. */
     devRole(): Dated<RouterOutput['device']['devRole']> {
         throw new DemoError(ERROR_CODE.ROLE_FORBIDDEN, 'this role may not pick a role without a code', 403);
     },

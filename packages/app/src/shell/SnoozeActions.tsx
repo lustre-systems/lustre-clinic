@@ -5,7 +5,6 @@ import { IconButton } from '../components/ui';
 import { color, space } from '../theme';
 import type { SnoozeStore } from './bannerSnoozeStore';
 
-/** A warning banner's own action, then the X that puts the banner away for a while (`bannerSnoozeStore`). */
 export function SnoozeActions({
     store,
     testID,

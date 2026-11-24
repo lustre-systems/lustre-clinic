@@ -1,10 +1,3 @@
-/**
- * "Can't cancel a future booking": what a booking on a later day offers, and
- * that cancelling it gives its time back to the booking grid. The sheet and the
- * booking page both read `bookingActions`, so this is the rule either screen
- * draws; the writes themselves are tested against both backends
- * (`packages/server/tests/modules.test.ts`, `api/demo/demo.test.ts`).
- */
 import { describe, expect, it } from 'bun:test';
 import type { AppointmentStatus } from '@lustre/shared';
 import { bookingActions } from './actions';

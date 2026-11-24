@@ -1,12 +1,3 @@
-/**
- * SPEC §11. Nothing is sent automatically; the user marks each row. Dates are
- * the clinic's local ones: `offsetMinutes` is the client's UTC offset, because
- * the rendered message quotes a date and time to the patient.
- *
- * `dueOnly` counts up to `reminderDueCutoff`: what is due by now before the
- * notify time, the rest of the clinic day from it. `throughToday` asks for the
- * rest of the day at any hour, for arming the day's alarm from the morning.
- */
 import { z } from 'zod';
 
 export const pendingRemindersInput = z

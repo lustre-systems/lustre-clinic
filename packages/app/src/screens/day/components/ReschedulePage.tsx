@@ -1,15 +1,3 @@
-/**
- * A booking opened from outside the day view — a `booked` row in a patient's
- * history. The same idea as `VisitPage`: one id in, a close callback out, and
- * everything `BookingScreen` wants read here so the caller needs nothing from
- * `day/data`. The day screens keep their own reschedule route because they
- * already hold the appointment.
- *
- * Only a booking still to come can be edited — the server refuses a move past
- * check-in — so a row that has stopped being `booked` between the record's
- * read and this one is reported rather than opened. It is also where such a
- * booking is cancelled from: the record has no other way to it.
- */
 import { useRef } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { Banner, Button } from '../../../components/ui';
@@ -25,7 +13,6 @@ import { BookingScreen } from './BookingScreen';
 export type ReschedulePageProps = {
     appointmentId: string;
     onClose: () => void;
-    /** The booking was written, so whatever is underneath is now stale. */
     onChanged?: () => void;
 };
 
@@ -39,8 +26,6 @@ export function ReschedulePage({ appointmentId, onClose, onChanged }: Reschedule
     const branches = useLocalQuery('branches', api.branches);
     const settings = useLocalQuery('settings', api.settings);
 
-    // See `VisitPage.close`: the page stays live through its exit slide, and a
-    // second way out in that window would pop the screen underneath too.
     const closing = useRef(false);
 
     function close(changed = false) {
@@ -105,7 +90,6 @@ export function ReschedulePage({ appointmentId, onClose, onChanged }: Reschedule
                 appointment.refetch();
                 close(true);
             }}
-            // The record lists the booking, so it is re-read either way.
             onCancelled={() => {
                 appointment.refetch();
                 close(true);

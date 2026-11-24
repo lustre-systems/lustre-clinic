@@ -1,6 +1,3 @@
-/**
- * `byId` returns the patient and visit history in one payload (§13).
- */
 import { clinicProcedure, router } from '../../trpc/init.ts';
 import {
     createPatientInput,

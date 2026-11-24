@@ -1,12 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import { type Config, resolveServerEnvironment, resolveTailnetAddress } from '../src/config.ts';
 
-/**
- * `health.check` reports this and every phone stores it (§14), so a wrong
- * answer is not one bad response — it is a handset that cannot reach the clinic
- * from outside it, discovered by a secretary who is already somewhere else.
- */
-
 function env(overrides: Partial<Config>): Config {
     return { PORT: 3000, ...overrides } as Config;
 }
@@ -34,11 +28,8 @@ describe('resolveTailnetAddress', () => {
     });
 
     test('refuses a bind address that is not a tailnet address', () => {
-        // 0.0.0.0 is TAILSCALE_IP's dev default. It binds every interface and
-        // dials none, so advertising it would store a dead address on a phone.
         expect(resolveTailnetAddress(env({ TAILSCALE_IP: '0.0.0.0' }))).toBeNull();
         expect(resolveTailnetAddress(env({ TAILSCALE_IP: '192.168.1.20' }))).toBeNull();
-        // Just outside 100.64.0.0/10, which is public address space.
         expect(resolveTailnetAddress(env({ TAILSCALE_IP: '100.63.255.255' }))).toBeNull();
         expect(resolveTailnetAddress(env({ TAILSCALE_IP: '100.128.0.1' }))).toBeNull();
     });
@@ -49,10 +40,6 @@ describe('resolveTailnetAddress', () => {
     });
 });
 
-/**
- * A dev build refuses any server that does not say development, so a built
- * server that was never told which stack it is must say production.
- */
 describe('resolveServerEnvironment', () => {
     test('a built server is production unless the stack says otherwise', () => {
         expect(resolveServerEnvironment(env({ NODE_ENV: 'production' }))).toBe('production');

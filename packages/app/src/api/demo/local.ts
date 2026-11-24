@@ -1,22 +1,3 @@
-/**
- * Local mode's store: the whole clinic in one SQLite database in the app's own
- * storage, a row per record. The handlers keep working on the arrays they share
- * with the demo (`./db`); this writes down what a request changed, one
- * transaction per commit, so a save costs the rows it touched and a write cut
- * off part way leaves the last commit standing.
- *
- * Rows are stored as JSON under their table and key rather than in columns: the
- * arrays are what gets queried, and a row shape that changes then needs an
- * upgrade step in `./localFormat` and no schema migration on anybody's phone.
- *
- * A phone from before this kept the clinic as one JSON file. The first open
- * moves it in and keeps the file renamed beside the database.
- *
- * Nothing else has a copy, so the clinic leaves the phone as a gzipped SQLite
- * snapshot for `./localDrive` to upload: the same two tables, built in memory so
- * no plain copy of the clinic is left on disk. A backup brought back in has every
- * row checked against the shared schema.
- */
 import {
     assembleLocalClinicFile,
     LOCAL_CLINIC_FORMAT,
@@ -51,7 +32,6 @@ const LEGACY_MAIN = 'lustre-local.json';
 const LEGACY_NEXT = 'lustre-local.next.json';
 const LEGACY_EXPORTED = 'lustre-local.exported';
 const LEGACY_MOVED = 'lustre-local.moved-to-sqlite.json';
-/** The clinic an opened file replaced, kept rather than lost to a wrong tap. */
 const REPLACED = 'lustre-local.replaced.json';
 
 function file(name: string): File {
@@ -60,8 +40,6 @@ function file(name: string): File {
 
 let connection: SQLiteDatabase | null = null;
 
-// Required here rather than imported: it brings react-native with it, and
-// every request path (`./link`) imports this file.
 function sqlite(): typeof import('expo-sqlite') {
     return require('expo-sqlite') as typeof import('expo-sqlite');
 }
@@ -69,7 +47,6 @@ function sqlite(): typeof import('expo-sqlite') {
 function store(): SQLiteDatabase {
     if (connection) return connection;
     const opened = sqlite().openDatabaseSync(DATABASE);
-    // FULL because a write is reported saved once this returns, power cut included.
     opened.execSync(`
         PRAGMA journal_mode = WAL;
         PRAGMA synchronous = FULL;
@@ -85,12 +62,10 @@ interface StoredRow {
     json: string;
 }
 
-/** What the store holds, so a commit writes only what differs. */
 let onFile = new Map<string, StoredRow>();
 
 const rowKey = (tbl: string, id: string) => `${tbl}/${id}`;
 
-/** `settings` is one object, `clinicDays` has its weekday for a key, and the rest an id. */
 function rowsOf(db: DemoDb): Map<string, StoredRow> {
     const rows = new Map<string, StoredRow>();
     for (const [tbl, value] of Object.entries(db)) {
@@ -132,11 +107,6 @@ function setDirty(database: SQLiteDatabase, dirty: boolean): void {
     noteDriveUnsaved(dirty);
 }
 
-/**
- * The whole store swapped for `db` in one transaction: it is one clinic or the
- * other. `backedUpAt` is for a clinic that came out of a backup: that copy is
- * already in Drive, so there is nothing new to send until it changes.
- */
 function replaceStore(db: DemoDb, backedUpAt: Date | null): void {
     const database = store();
     const rows = rowsOf(db);
@@ -169,7 +139,6 @@ function readStore(): DemoDb | null {
     } catch {
         throw new LocalStoreError('the clinic store is not readable');
     }
-    // Refused rather than opened on the defaults: the next write would keep them.
     if (!hasSettings) throw new LocalStoreError('the clinic store is missing part of the clinic');
 
     onFile = new Map(rows.map((row) => [rowKey(row.tbl, row.id), row]));
@@ -193,10 +162,6 @@ function readLegacyFile(): DemoDb | null {
         : new LocalStoreError('the clinic file could not be read');
 }
 
-/**
- * Into the store first and the files moved after, so a phone that dies between
- * the two has both and opens the store. A renamed file is never read again.
- */
 function moveLegacyFile(): DemoDb | null {
     const legacy = readLegacyFile();
     if (!legacy) return null;
@@ -216,7 +181,6 @@ function read(): DemoDb | null {
     return readStore() ?? moveLegacyFile();
 }
 
-/** Writes what is open now. Throws when the phone would not take it, with nothing written. */
 export function commitLocal(): void {
     const database = store();
     const rows = rowsOf(getDb());
@@ -241,7 +205,6 @@ function readInstant(key: string): Date | null {
     return Number.isNaN(at.getTime()) ? null : at;
 }
 
-/** What the daily Drive check goes on. */
 export function readDriveMeta(): { lastBackupAt: Date | null; dirty: boolean } {
     return { lastBackupAt: readInstant(DRIVE_BACKUP_AT), dirty: readMeta(DRIVE_DIRTY) === '1' };
 }
@@ -259,7 +222,6 @@ export function writeDriveBackupAt(at: Date): void {
     noteLastDriveBackupAt(at);
 }
 
-/** The clinic on file, or a new one written down at once so its ids are the ones kept. */
 export function openLocalDb(): void {
     const stored = read();
     noteLastDriveBackupAt(readInstant(DRIVE_BACKUP_AT));
@@ -273,24 +235,14 @@ export function openLocalDb(): void {
     setDb(fresh, 'local');
 }
 
-/**
- * Back to what is on file, after a request that failed: a handler can have
- * changed rows before it refused, and the server's transaction would have
- * thrown those away too.
- */
 export function rollbackLocal(): void {
     setDb(read() ?? freshLocalDb(), 'local');
 }
 
-/** `db` as a backup: the bytes of a gzipped SQLite database, stamped with when it left. */
 export function clinicSnapshot(db: DemoDb, exportedAt: Date): Uint8Array {
     return snapshotOf(rowsOf(db).values(), exportedAt);
 }
 
-/**
- * What is committed, rather than what is open: the background task runs beside
- * whatever a request has half changed, and may be the only thing running.
- */
 export function storeSnapshot(exportedAt: Date): Uint8Array {
     return snapshotOf(store().getAllSync<StoredRow>(LOCAL_CLINIC_ROWS_SQL), exportedAt);
 }
@@ -328,7 +280,6 @@ function snapshotOf(rows: Iterable<StoredRow>, exportedAt: Date): Uint8Array {
     }
 }
 
-/** Throws `LocalStoreError` for anything that is not a clinic this build can read. */
 function readClinicSnapshot(gzipped: Uint8Array): { db: DemoDb; exportedAt: Date | null } {
     const bytes = inflateSnapshot(gzipped);
     let file: unknown;
@@ -348,11 +299,9 @@ function readClinicSnapshot(gzipped: Uint8Array): { db: DemoDb; exportedAt: Date
     return readLocalFile(file, true);
 }
 
-/** A backup read and checked, not yet opened. */
 export interface PickedClinic {
     db: DemoDb;
     exportedAt: Date | null;
-    /** The phone has a clinic with patients or bookings in it that this would replace. */
     replaces: boolean;
 }
 
@@ -361,21 +310,15 @@ function wouldReplace(): boolean {
         const current = read();
         return current !== null && hasRecords(current);
     } catch {
-        // Unreadable is not empty: whatever is in there is kept aside all the same.
         return true;
     }
 }
 
-/** Throws `LocalStoreError` for a backup that is not a clinic this build can read. */
 export function pickedFromSnapshot(gzipped: Uint8Array): PickedClinic {
     const { db, exportedAt } = readClinicSnapshot(gzipped);
     return { db, exportedAt, replaces: wouldReplace() };
 }
 
-/**
- * Makes a backup the phone's clinic, in one transaction: a failure leaves the
- * old one as it was. The old one is kept aside first.
- */
 export function openClinicFile(picked: PickedClinic): void {
     keepAside();
     replaceStore(picked.db, picked.exportedAt);
@@ -388,8 +331,6 @@ function keepAside(): void {
         const current = read();
         if (current) aside.write(serializeLocal(current));
     } catch {
-        // Not readable as a clinic, so not writable as one. A file this phone
-        // never managed to move in is still whole, and goes aside as it is.
         const legacy = file(LEGACY_MAIN);
         if (legacy.exists) legacy.copySync(aside, { overwrite: true });
     }

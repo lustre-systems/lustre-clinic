@@ -89,14 +89,9 @@ describe('the arrival notice', () => {
     });
 });
 
-// The report: the desk checked a patient in and the doctor's phone showed
-// nothing. Its clock ran an hour fast — Cairo is +3 in September, the phone was
-// on +2 and wound forward so the status bar read right — so every check-in
-// looked an hour old the moment it arrived.
 describe('a phone whose clock is wrong', () => {
     const HOUR = 60 * 60_000;
     const arrival = frame(WS_EVENT.APPOINTMENT_CHECKED_IN, NOW);
-    // Both of the phone's clocks moving together: nobody has set its time.
     const at = (wall: number) => ({ wall, mono: wall });
 
     afterEach(() => noteServerClock(0));

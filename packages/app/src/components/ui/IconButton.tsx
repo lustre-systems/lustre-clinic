@@ -1,17 +1,3 @@
-/**
- * Icon-only button. The paint box can be under 44 (the designs draw 30–34px
- * circles), so the touch target is extended past the paint rather than growing
- * it. Box sizes by variant: 34 top-bar/row, 40 WhatsApp/call, 32 calendar nav,
- * 30 kill/del/option dismiss.
- *
- * `pressLockMs` is `ui/Button`'s, at the same default and for the same reason:
- * this is the same class of control drawn without a word on it, and a second
- * tap while the first is still landing is the same second write. It matters
- * more here than on `Button`, not less — an icon button has no room for a
- * spinner, so nothing about it changes mid-flight to say the tap was taken.
- * The one shape it is wrong for is a control meant to be tapped repeatedly,
- * like month nav on a calendar; those pass `pressLockMs={0}`.
- */
 import type { ReactNode } from 'react';
 import type { StyleProp, ViewStyle } from 'react-native';
 import { Pressable, StyleSheet } from 'react-native';

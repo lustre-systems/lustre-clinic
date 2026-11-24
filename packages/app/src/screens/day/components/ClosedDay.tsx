@@ -1,10 +1,3 @@
-/**
- * A closed day is closed, not empty — an empty day invites a booking, a Friday
- * means shut, and the two must be told apart or someone gets booked into a
- * locked clinic. Anything already on a closed day is still shown: booking
- * outside opening hours is the secretary's call and the server allows it, and
- * a day that was open when it was booked can be closed afterwards.
- */
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { Callout, type PullToRefresh, SectionLabel } from '../../../components/ui';
 import { useT } from '../../../i18n';
@@ -17,9 +10,7 @@ export type ClosedDayProps = {
     dateKey: string;
     appointments: readonly Appointment[];
     onSelect: (appointment: Appointment) => void;
-    /** The day screen's pull-to-refresh, so a closed day is pullable too. */
     pull?: PullToRefresh;
-    /** The queue's head today, so a patient checked in anyway reads In the chair or Waiting correctly. */
     chairId?: string | null;
 };
 

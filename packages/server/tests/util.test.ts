@@ -6,8 +6,6 @@ import { normalizePhone, toWhatsAppNumber } from '../src/util/phone.ts';
 import { buildRef, highestNumericRef } from '../src/util/ref.ts';
 import { ageFromBirthDate, dayRange, refDatePart } from '../src/util/time.ts';
 
-/** The pure rules of §5, §9 and §11, away from the database. */
-
 describe('normalizePhone', () => {
     test('expands a local Egyptian number to E.164', () => {
         expect(normalizePhone('01012345678')).toBe('+201012345678');
@@ -42,12 +40,10 @@ describe('computeTotal', () => {
     });
 
     test('any other line waives the checkup', () => {
-        // §9: checkup 300 + root canal 2700 → 2700.
         expect(computeTotal([checkup, { unitPrice: 270_000, quantity: 1, isCheckup: false }])).toBe(270_000);
     });
 
     test('several other lines still waive the checkup', () => {
-        // checkup + crown 4200 + restoration 1500 → 5700.
         expect(
             computeTotal([
                 checkup,
@@ -88,7 +84,6 @@ describe('dayRange', () => {
     });
 
     test('shifts by the client offset, so the clinic day is the clinic day', () => {
-        // Cairo is UTC+3 in summer: the local day starts at 21:00 the day before.
         const { from, to } = dayRange('2026-08-03', 180);
         expect(from.toISOString()).toBe('2026-08-02T21:00:00.000Z');
         expect(to.toISOString()).toBe('2026-08-03T21:00:00.000Z');
@@ -114,11 +109,6 @@ describe('ref', () => {
     });
 });
 
-/**
- * A patient's ref is a plain number carried on from the clinic's count, written
- * at the top of a page in the paper book. Patients registered before numbering
- * keep the four-character code they were given, so both shapes are refs.
- */
 describe('patient ref', () => {
     test('is a number, or a code from before numbering', () => {
         for (const ref of ['1', '42', '100245', 'W5F5', '2345']) {
@@ -134,8 +124,6 @@ describe('patient ref', () => {
         expect(buildRef(new Date())).not.toMatch(PATIENT_REF_PATTERN);
     });
 
-    // An old code that happens to be all digits is a number the counter could
-    // reach, so it counts; one with a letter in it never can.
     test('the highest number taken counts all-digit codes and skips the rest', () => {
         expect(highestNumericRef([])).toBe(0);
         expect(highestNumericRef(['W5F5', 'AB23'])).toBe(0);

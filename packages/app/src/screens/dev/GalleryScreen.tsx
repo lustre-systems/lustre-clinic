@@ -1,11 +1,3 @@
-/**
- * Dev screen: every `ui/` primitive on one scroll, in its states. It imports
- * `ui/` and the theme and nothing else, so it cannot drift into being a real
- * screen by accident. The toast lives at screen level, not in the section
- * that raises it — it positions itself absolutely against its parent. The
- * pending-state demo simulates a 1200ms write, the realistic worst-case round
- * trip over Tailscale.
- */
 import type { ReactNode } from 'react';
 import { useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';

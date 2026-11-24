@@ -1,13 +1,3 @@
-// Wrong numbers on the money screens are worse than missing ones, and `bun
-// test` has no renderer, so what is tested here is everything that decides a
-// figure: the piastre-to-pound conversion, the compact form, the currency
-// rule and the ranges the pills ask for.
-//
-// The derived balances themselves are no longer asserted here. They were, back
-// when `_LocalMoneyApi` derived them from fixtures on the client; the server
-// derives them now, and `packages/server/tests/balance.test.ts` and
-// `modules.test.ts` assert them against real Postgres. Testing a mirrored copy
-// of that arithmetic would only prove the copy agreed with itself.
 import { describe, expect, it } from 'bun:test';
 import { offsetForDate } from '../day/time';
 import { methodLabel, paymentMethodOf } from './format';
@@ -79,12 +69,7 @@ describe('compact form — hero and stat cards only (§7.12)', () => {
     });
 });
 
-// Overpayment and the whole-pounds guard moved to `patients.test.ts` with the
-// payment sheet — this cluster no longer takes money, so it no longer has an
-// amount to clamp.
-
 describe('the period pills, as a range the server can answer', () => {
-    // A Wednesday, so the week start is four days back and not the same day.
     const today = '2026-08-19';
 
     it('ends every period today rather than at the end of the calendar unit', () => {
@@ -130,9 +115,6 @@ describe('the period pills, as a range the server can answer', () => {
         }
     });
 
-    // The Money tab is never unmounted, so the day it measures from has to be
-    // an argument. A screen holding yesterday must produce yesterday's range —
-    // that is what makes the staleness visible instead of silent.
     it('follows the day it is given, so a re-read moves the whole range', () => {
         expect(periodRange('today', '2026-08-19').from).toBe('2026-08-19');
         expect(periodRange('today', '2026-08-20').from).toBe('2026-08-20');
@@ -142,11 +124,6 @@ describe('the period pills, as a range the server can answer', () => {
         expect(newMonth.to).toBe('2026-09-01');
     });
 
-    // Egypt keeps DST, so a range starting in the other regime has two offsets.
-    // The server expands each end with the one it is given, and one offset for
-    // both opened "This year" an hour before local midnight on 1 January.
-    // Asserted as the wiring rather than as a figure: under CI's UTC both
-    // offsets are zero, and it is which day each is read from that was wrong.
     it('carries the offset in force at each end of the range', () => {
         for (const period of PERIODS) {
             const range = periodRange(period, today);
@@ -164,8 +141,6 @@ describe('the period pills, as a range the server can answer', () => {
 });
 
 describe('a refund makes a takings row negative (§10)', () => {
-    // `visit.setPaid` writes the delta, so correcting a paid total downwards
-    // inserts a negative payment. Every case below is reachable from the desk.
     it('takes an ordinary share as before', () => {
         expect(methodShare(50_000, 200_000)).toBe(0.25);
         expect(methodShare(200_000, 200_000)).toBe(1);
@@ -193,8 +168,6 @@ describe('a refund makes a takings row negative (§10)', () => {
 });
 
 describe('a payment method the enum does not know', () => {
-    // `visit.byId` widens the column to `string`, so the narrowing is the
-    // client's and a blank row is the failure it is there to avoid.
     it('keeps every real method', () => {
         expect(paymentMethodOf('cash')).toBe('cash');
         expect(paymentMethodOf('visa')).toBe('visa');

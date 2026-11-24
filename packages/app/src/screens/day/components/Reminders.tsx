@@ -1,28 +1,3 @@
-/**
- * The reminders tab of `day-view-schedule.html` — SPEC §11. Nothing here sends
- * anything: WhatsApp Business cannot be driven from another app, so the button
- * opens a prefilled chat and the row then asks what happened. "Sent" is a claim
- * the user makes rather than a fact the app observes, and skipping is a
- * first-class action next to it. Rows are marked one at a time, optimistically,
- * and outside `useLocalMutation` (which holds one in-flight write and one error
- * for the whole component) — a failure puts the row back and says so. Rows are
- * marked sent on the way out, not the way back: nothing tells whether the
- * message was actually typed, and a row left pending gets sent twice by the
- * next person. The list spans days — a reminder falls due a lead time before
- * its appointment — so each row names its day.
- *
- * A row whose appointment waits on lab work that is not back says so, because
- * this is where the visit is confirmed with the patient. Its main action is
- * Lab's back, after which it is an ordinary reminder again. Sending is never
- * blocked — the lab often promises the work by phone — so WhatsApp stays, as
- * Send anyway. Lab's back is optimistic like the rest, and a failure puts the
- * warning back.
- *
- * Above the list, the daily nudge for today: it rings again every repeat until
- * the list is clear, and Done for today stops it for the rest of the day on both
- * desk phones, as the same button on the ringing alarm does. Turn back on undoes
- * it. Neither touches the list.
- */
 import { FontAwesome } from '@expo/vector-icons';
 import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
@@ -46,13 +21,7 @@ import { CheckIcon, CloseIcon, LabIcon, RetryIcon } from './icons';
 
 export type RemindersProps = {
     query: QueryResult<PendingReminder[]>;
-    /** The day screen's pull-to-refresh, shared so the tab re-reads with it. */
     pull?: PullToRefresh;
-    /**
-     * Open the patient behind a row. The reminder carries the patient embedded,
-     * so the id is already here and the name is a way into the record — which is
-     * what the name is for: "who is this" is the question a reminder raises.
-     */
     onOpenRecord?: (patientId: string) => void;
 };
 
@@ -62,15 +31,10 @@ export function Reminders({ query, pull, onOpenRecord }: RemindersProps) {
     const [labBack, setLabBack] = useState<ReadonlySet<string>>(new Set());
     const t = useT();
 
-    // Every action here moves what the daily nudge should be armed against, and
-    // they all go over the raw tRPC client, which leaves the query cache alone.
     const rearm = useRearmReminderNudges();
 
     const pending = (query.data ?? []).filter((row) => !settled.has(row.id));
 
-    // An optimistic Lab's back has done its job once the list stops saying
-    // `pending`. Kept past that, it would hide the warning if the lab were
-    // switched back on. Cleared during render, as `BookingScreen` settles its day.
     const landed = [...labBack].filter(
         (id) => query.data?.find((row) => row.id === id)?.labStatus !== 'pending',
     );
@@ -191,11 +155,6 @@ export function Reminders({ query, pull, onOpenRecord }: RemindersProps) {
     );
 }
 
-/**
- * Done for today, or Turn back on once it is. The answer is held on screen
- * until the settings read back agree, or the label would flick back for the
- * moment between the write and the refetch.
- */
 function TodayNudge() {
     const off = useRemindersOffToday();
     const rearm = useRearmReminderNudges();
@@ -209,7 +168,6 @@ function TodayNudge() {
         const today = todayKey();
         try {
             if (off) {
-                // This phone's own press would keep today quiet whatever the server says.
                 forgetAlarmDismissal();
                 await api.resumeRemindersToday(today);
             } else {
@@ -247,26 +205,6 @@ function TodayNudge() {
     );
 }
 
-/**
- * The row reads as the patient, not as a strip of anonymous buttons. Opening
- * the record is the patient half's own press, so the name and the time are one
- * target carrying one label — "Sara Elmasry, Fri 21 Aug · 12:00 PM" — and Send
- * and Skip carry theirs. Three nodes, each of which says what it is and whose
- * it is, rather than a bare name followed by an unlabelled ✕.
- *
- * It is deliberately not one node with the other two as custom actions, which
- * is the obvious shape and does not survive Android: `accessible` on the
- * wrapper groups the subtree on iOS only, a `Pressable` puts itself back in the
- * tree underneath it (`accessible={false}` and `no-hide-descendants` both lose
- * that argument — checked with `uiautomator dump`, not assumed), and
- * `ui/Button` takes a closed prop list this cluster cannot widen. A grouping
- * the platform ignores is worse than none: it reads as a duplicate of the row
- * it wraps. The actions stay on the patient node instead, where TalkBack's
- * context menu reaches them, so nothing is only-reachable by hunting.
- *
- * `hitSlop` aside, the touch targets are unchanged, and the patient half is a
- * sibling of the controls rather than a parent, so it cannot swallow a press.
- */
 function ReminderRow({
     reminder,
     labPending,
@@ -405,7 +343,6 @@ const styles = StyleSheet.create({
     labActions: { flexDirection: 'row', gap: space[2] },
     labAction: { flex: 1 },
     body: { flex: 1, gap: space[0.5] },
-    /** Skip and Send, grouped so one prop hides both from the screen reader. */
     controls: { flexDirection: 'row', alignItems: 'center', gap: space[3] },
     skip: { padding: space[1] },
     pressed: { opacity: 0.5 },

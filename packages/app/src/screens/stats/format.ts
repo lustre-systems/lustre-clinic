@@ -1,8 +1,3 @@
-// Dates and error copy for the money cluster. Money itself is not formatted
-// here — `MoneyValue` is the only place (§7.12). `visa` is labelled
-// "Card" because that is what the desk calls it; the stored value is untouched.
-// The client switches on `ERROR_CODE` and never parses the server's message,
-// and this one map is where a localisation scaffold will land.
 import {
     ERROR_CODE,
     type ErrorCode,
@@ -19,13 +14,6 @@ const METHOD_LABEL: Record<PaymentMethod, string> = {
     other: 'Other',
 };
 
-/**
- * `visit.byId` types a payment's method as `string`, not the enum — the column
- * is a real Postgres enum and the widening is in `visit.service.ts`'s own
- * `VisitPayment`. Narrowing here keeps it out of every call site; a value that
- * is not a method at all can only mean the enum has grown, and labelling it
- * "Other" is a better answer than a blank row.
- */
 export function paymentMethodOf(method: string): PaymentMethod {
     return (PAYMENT_METHODS as readonly string[]).includes(method) ? (method as PaymentMethod) : 'other';
 }

@@ -5,16 +5,6 @@ import { sql as dbSql } from '../../src/db/index.ts';
 import { runMigrations } from '../../src/db/migrate.ts';
 import { buildRef } from '../../src/util/ref.ts';
 
-/**
- * Tests run against a real Postgres, because the things worth testing here are
- * enforced by Postgres — the `EXCLUDE` constraint above all. Point
- * `DATABASE_URL` at a scratch database; `docker compose up -d db` is enough.
- *
- * `truncateAll` runs in a `beforeEach` and empties every table, which is not
- * recoverable, so the suite refuses to start unless the database name ends in
- * `_test` — this guard is what stops a plain `bun test` (which would pick up
- * `.env`) from wiping the developer's working database.
- */
 export const sql = dbSql;
 
 const TEST_DATABASE_SUFFIX = '_test';
@@ -37,7 +27,6 @@ let migrated = false;
 export async function setupDatabase(): Promise<void> {
     if (migrated) return;
     assertTestDatabase();
-    // A production database renamed or restored as `*_test` still carries its marker.
     await refuseProduction(sql, 'run the test suite');
     await runMigrations();
     migrated = true;
@@ -76,13 +65,6 @@ export async function insertBranch(name = 'Main'): Promise<string> {
     return id;
 }
 
-/**
- * A patient row straight into the table, for suites that need one to exist and
- * do not care what is on it. The column is NOT NULL, so it gets a ref — a
- * four-character code of the kind patients carried before numbering, with a
- * letter in it, so a row made here never takes a number the counter will hand
- * out.
- */
 export async function insertPatient(name = 'Test Patient'): Promise<string> {
     const id = uuid();
     let ref = '';

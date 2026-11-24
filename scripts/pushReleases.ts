@@ -1,21 +1,3 @@
-/**
- * Copies the staged releases to a stack: `dist/releases` to prod, or
- * `dist/releases-dev` to dev. `bun ship` runs it after the server is up, and
- * the play's `releases` tag runs it too.
- *
- *   bun scripts/pushReleases.ts --stack=prod|dev [--host=user@address] [--dry-run]
- *
- * One listing, then one zstd tar stream with only what the server lacks
- * (`releasePlan.ts`). Most of an update is already there under an earlier
- * update's id: its assets are named by their content, so the server copies
- * them, and its bundle goes as a delta against the previous bundle.
- *
- * Nothing a phone may be downloading is touched until the new files are
- * complete: the stream lands in `.releases-incoming` beside the releases, every
- * rebuilt file is checked against its sha256, and only then is each file
- * renamed into place, the pointers last, so a phone never sees a pointer to
- * files still landing or half a pointer. Nothing is ever deleted.
- */
 import { mkdir, mkdtemp, rm, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
@@ -41,7 +23,6 @@ const host = await sshHost(SCRIPT);
 const LOCAL = resolve(ROOT, option('from') ?? (stack === 'prod' ? 'dist/releases' : 'dist/releases-dev'));
 const DIR = stackDir(stack);
 const REMOTE = `${DIR}/releases`;
-/** The remote script's code for a rebuilt file that did not match: the push is tried again, sending everything. */
 const MISMATCH = 65;
 
 if (!(await stat(LOCAL).catch(() => null))?.isDirectory()) {
@@ -57,7 +38,6 @@ for f in android/* updates/*/latest.json; do
     if [ -f "$f" ]; then printf 'S %s\\n' "$(sha256sum "$f")"; fi
 done`;
 
-/** Reads `.plan` (`copy|patch <sha256> <source> <target>`), then moves everything into place, pointers last. */
 const APPLY = `set -eu
 umask 022
 releases=${REMOTE}
@@ -133,7 +113,6 @@ interface Rebuilt {
     target: string;
 }
 
-/** What the server can make from files it has: copies of identical files, and deltas for bundles. */
 async function plan(): Promise<Rebuilt[]> {
     const onServer = local.filter((path) => present.has(path));
     const rebuilt: Rebuilt[] = [];

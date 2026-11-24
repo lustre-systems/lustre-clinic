@@ -1,13 +1,3 @@
-/**
- * Entrypoint (SPEC §4): migrate → background services → listen.
- *
- * Background services live in `background/`. The reminder job lands here once
- * it exists.
- *
- * Ordering matters: monitoring starts before anything else so a startup
- * failure is reported (§17), and the single settings row is seeded before
- * anything reads it (§5, §12).
- */
 import { startBackupJob } from './background/backup.job.ts';
 import { config } from './config.ts';
 import { runMigrations } from './db/migrate.ts';
@@ -17,12 +7,8 @@ import { settingsService } from './modules/settings/settings.service.ts';
 import { alert, startMonitoring, stopMonitoring } from './monitoring/index.ts';
 import { createServer } from './server.ts';
 
-// The heartbeat reports the same health the phones see, so a server whose
-// database is down goes silent and the monitor alerts (§17).
 startMonitoring({ isHealthy: async () => (await healthService.check()).ok });
 
-// Off in production, where the server's role cannot change the schema and the
-// deploy runs `scripts/migrate.ts` as the owner before starting it.
 if (config.MIGRATE_ON_BOOT) {
     try {
         await runMigrations();

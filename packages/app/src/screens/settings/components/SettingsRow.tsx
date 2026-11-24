@@ -1,13 +1,3 @@
-/**
- * A row on the settings index (Component Inventory §5): 32px icon tile, label
- * and sub, chevron. Settings is the only cluster with an index like this, so it
- * is cluster-local, but a candidate for `domain/` if a second one appears.
- *
- * The sub is not decoration and is never omitted: `settings.html` fills it with
- * the row's current answer — "default 30 min", "2 active · 1 inactive" — so the
- * index reads as a summary of the clinic's settings and most questions are
- * answered without opening anything.
- */
 import type { ReactNode } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { Chevron } from '../../../components/ui';

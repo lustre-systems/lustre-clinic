@@ -1,4 +1,3 @@
-// drizzle-kit runs under Node, not Bun, so this reads process.env directly.
 import { defineConfig } from 'drizzle-kit';
 
 export default defineConfig({

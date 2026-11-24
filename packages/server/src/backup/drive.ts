@@ -1,26 +1,3 @@
-/**
- * SPEC §16 — the off-site destination. Google Drive, reached with an OAuth
- * refresh token the doctor granted once from the operator's machine. The
- * service account it replaced needed no browser step and nothing to
- * re-authorize on an unattended reboot, which is the trade this gave up: a
- * refresh token can be revoked, and a grant on an app left in Google's Testing
- * state expires after seven days. That is why `invalid_grant` is not a generic
- * failure here but `DriveReauthorizationRequiredError`, which the backup job
- * turns into an alert naming the command to run.
- *
- * Written against the REST API with `fetch` and `node:crypto` rather than
- * `googleapis`, which is a very large dependency for three calls (upload, list,
- * delete).
- *
- * The service-account path stays for Workspace deployments only. A service
- * account has no Drive storage of its own: uploading into a folder in someone's
- * My Drive fails with `storageQuotaExceeded`. It needs a shared drive
- * (`BACKUP_DRIVE_FOLDER_ID` inside one) or domain-wide delegation via
- * `BACKUP_DRIVE_SUBJECT`, and a personal Gmail account has neither.
- *
- * Error bodies are read for the log but never include secrets; a 404 on delete
- * means the file is already gone, which is the state pruning wanted.
- */
 import { createSign } from 'node:crypto';
 
 export const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.file';
@@ -38,7 +15,6 @@ interface CommonDriveCredentials {
 export interface OAuthDriveCredentials extends CommonDriveCredentials {
     kind: 'oauth';
     clientId: string;
-    /** Absent when the grant came from the phone's Android client (see §16). */
     clientSecret?: string;
     refreshToken: string;
 }
@@ -72,7 +48,6 @@ export interface OAuthAuthorizationOptions {
     loginHint?: string;
 }
 
-/** What the phone needs to run the consent step itself (§16). */
 export interface DriveSignInConfig {
     clientId: string;
     redirectUri: string;
@@ -81,7 +56,6 @@ export interface DriveSignInConfig {
 
 export interface OAuthCodeExchangeOptions {
     clientId: string;
-    /** Absent for an Android client: Google issues none, and PKCE stands in for it. */
     clientSecret?: string;
     code: string;
     codeVerifier: string;

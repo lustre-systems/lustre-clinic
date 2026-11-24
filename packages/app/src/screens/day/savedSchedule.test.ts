@@ -1,7 +1,3 @@
-/**
- * The copy a power cut leaves on screen has to be the right clinic's, from
- * today on, and never outlast a change of shape that would draw it wrong.
- */
 import { describe, expect, it } from 'bun:test';
 import type { Appointment, Branch } from './data/types';
 import { serverIdentity, takeSchedule, usableSchedule } from './savedSchedule';

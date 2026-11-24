@@ -1,11 +1,3 @@
-/**
- * "What you did — on this phone": the log, newest first, under a label per day.
- *
- * Each line is the kind of action, when, and the patient with one detail. A
- * line opens what it was about — the booking, the visit, the record — once the
- * sheet is off the screen (`useAfterSheet`); a cancellation has nothing left to
- * open and is drawn without a chevron and without a press.
- */
 import { seesPayments } from '@lustre/shared';
 import { useSyncExternalStore } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
@@ -94,7 +86,6 @@ export function LastDoneSheet({ visible, onClose, onOpen }: LastDoneSheetProps) 
     );
 }
 
-/** Today and Yesterday by name, the date before that. `SectionLabel` localizes the names. */
 function dayLabel(key: string): string {
     const today = serverToday();
     if (key === today) return 'Today';

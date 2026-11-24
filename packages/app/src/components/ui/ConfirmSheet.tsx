@@ -1,9 +1,3 @@
-/**
- * Confirm sheet. `loading` makes it non-dismissable: the confirm is a write and
- * every write crosses Tailscale, so a confirm in flight must not be cancellable
- * into an unknown state. Destructive red confirms exist for deactivating and the
- * like, never for saving.
- */
 import type { ReactNode } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { useT } from '../../i18n';

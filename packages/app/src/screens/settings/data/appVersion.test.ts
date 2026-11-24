@@ -1,14 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import { apkLabel, type InstalledVersion, newerApk, updateLabel, versionLine } from './appVersion';
 
-/** The wording, without the isolates `localizeCopy` puts around each value in Arabic. */
 const plain = (text: string) => text.replace(/[\u2068\u2069]/g, '');
-
-/**
- * The banner is the only way a phone hears about a new APK. Offered when the
- * phone is already current, it never goes away; missed when it is not, the
- * clinic runs old native code until someone visits with a cable.
- */
 
 const latest = { versionCode: 525_600, version: '1.1.0', runtimeVersion: 'a1b2c3' };
 

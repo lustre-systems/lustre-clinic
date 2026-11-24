@@ -15,20 +15,6 @@ import {
     updatesHeld,
 } from './updateGate';
 
-// A minor OTA update, or a patch shipped with `--screen`, taken over the whole
-// screen (`updateGate.ts` says which).
-// expo-updates checks on every launch and downloads in the background
-// (`app.config.ts`); this only watches it. While such an update downloads it
-// covers the app with its progress, and once it is on the phone it restarts
-// into it, so nobody has to close and reopen the app until it takes.
-//
-// Any other patch never takes the screen. It downloads quietly (`useQuietUpdates`) and
-// runs the next time the app comes back on screen, from WhatsApp, from the
-// lock screen, or reopened after being swiped away.
-//
-// A failed download gives the app back: the update is retried on the next
-// launch, and a clinic phone on a bad connection is still a working register.
-// Debug and demo builds have updates off, and `useUpdates` stays idle there.
 export function UpdateScreen() {
     const t = useT();
     const {
@@ -73,18 +59,10 @@ export function UpdateScreen() {
     );
 }
 
-/**
- * Set once the root has drawn in this JavaScript context. Swiping the app away
- * does not end its process (the listener service keeps it), so opening it again
- * draws a new root in the same context instead of cold-starting, and the native
- * check on launch never runs. A second mount is that reopen, a return like any other.
- */
 let drawnBefore = false;
 let checking = false;
-/** When the app was last opened or came back on screen. */
 let returnedAt: number | null = null;
 
-/** Looks for an update and downloads it, without a screen. A minor or `--screen` patch then takes the screen above. */
 function fetchQuietly() {
     if (checking) return;
     checking = true;
@@ -108,22 +86,12 @@ function onReturn(updatePending: boolean) {
     else fetchQuietly();
 }
 
-/**
- * Patches nobody has to close the app for. Every return to the app restarts it
- * into a downloaded patch, or else looks for one and restarts if it lands within
- * `RELOAD_WINDOW_MS`. An open app also looks every `CHECK_EVERY_MS`, so the patch
- * is usually waiting before the return: expo-updates on its own only checks on
- * a cold start, and a clinic phone rarely has one.
- */
 function useQuietUpdates(updatePending: boolean) {
     const pending = useRef(updatePending);
     pending.current = updatePending;
 
     useEffect(() => {
         if (!Updates.isEnabled) return;
-        // A cold start counts as a return too: it opens on the bundle it has and
-        // downloads in the background, and one that lands straight away should
-        // not wait for the next launch.
         if (drawnBefore) onReturn(pending.current);
         else returnedAt = Date.now();
         drawnBefore = true;
@@ -144,7 +112,6 @@ function useQuietUpdates(updatePending: boolean) {
         };
     }, []);
 
-    // A patch that lands in the moments after a return.
     useEffect(() => {
         if (Updates.isEnabled) reloadIfDue(updatePending);
     }, [updatePending]);

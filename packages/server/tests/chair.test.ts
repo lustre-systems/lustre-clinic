@@ -7,17 +7,6 @@ import { visitService } from '../src/modules/visit/visit.service.ts';
 import { setupDatabase, sql, truncateAll } from './helpers/db.ts';
 import { bookedAppointment, type Clinic, clinic, todaySlot } from './helpers/factories.ts';
 
-/**
- * `visits.in_chair_at` — arriving and being seated are two events, and the
- * chair's progress bar on the day view measures from the second one.
- *
- * The rule the clinic actually runs on: the desk checks people in as they come
- * through the door and they queue, so only the head of that queue is in the
- * chair. Everyone behind them has arrived and not started. Measuring a visit
- * from `checked_in_at` charged the second patient of the morning with the first
- * one's time — the bar read `11:40 over` before the doctor had seen them.
- */
-
 let closeDatabase: (() => Promise<void>) | undefined;
 
 beforeAll(async () => {
@@ -100,13 +89,9 @@ describe('who is in the chair', () => {
 
         await appointmentService.awaitPayment(first.id);
 
-        // The chair passes to the longest wait, and only to them — the person
-        // behind is still queueing and their bar has not started.
         expect(await seatStamp(waiting.id)).not.toBeNull();
         expect(await seatStamp(behind.id)).toBeNull();
 
-        // The patient who left keeps the stamp: it records when their visit
-        // began, not that they are still in the chair. The status says that.
         expect(await seatStamp(inChair.id)).not.toBeNull();
     });
 
@@ -145,14 +130,12 @@ describe('who is in the chair', () => {
 
         await appointmentService.awaitPayment(booked.appointment.id);
 
-        // Nothing to promote, and the patient who left is not re-stamped.
         expect((await seatStamp(only.id))?.getTime()).toBe(before?.getTime());
     });
 
     test('checking out straight from the chair hands it on too', async () => {
         const fixtures = await clinic();
 
-        // Booked with a line, because checkout refuses a visit with none.
         const first = await appointmentService.create({
             patient: { kind: 'existing', patientId: fixtures.patient.id },
             branchId: fixtures.branch.id,
@@ -181,11 +164,6 @@ describe('who is in the chair', () => {
     });
 });
 
-/**
- * A patient nobody checked out is still `checked_in` the next morning. Who is in
- * the chair, and who is seated next, is decided within one clinic day, or one
- * forgotten checkout holds the chair, and jumps the queue, on every day after.
- */
 describe('the chair belongs to one clinic day', () => {
     function book(fixtures: Clinic, minutes: number) {
         return appointmentService.create({
@@ -196,7 +174,6 @@ describe('the chair belongs to one clinic day', () => {
         });
     }
 
-    /** As though this patient was checked in yesterday and never checked out. */
     async function leftOverFromYesterday(appointmentId: string): Promise<void> {
         await sql`UPDATE appointments SET starts_at = starts_at - interval '1 day' WHERE id = ${appointmentId}`;
         await sql`
@@ -234,7 +211,6 @@ describe('the chair belongs to one clinic day', () => {
 
         await appointmentService.awaitPayment(leaving.id, 0);
 
-        // Yesterday's patient has waited longest by the clock, and is not here.
         expect(await seatStamp(waiting.id)).not.toBeNull();
         expect(await seatStamp(staleVisit.id)).toBeNull();
     });
@@ -251,7 +227,6 @@ describe('the chair belongs to one clinic day', () => {
         const next = await book(fixtures, 120);
         const waiting = await visitService.checkIn({ appointmentId: next.id });
 
-        // Something was done, or checkout would refuse an empty visit.
         await visitService.setProcedures({
             visitId: inChair.id,
             procedures: [{ procedureId: fixtures.rootCanal.id, quantity: 1 }],

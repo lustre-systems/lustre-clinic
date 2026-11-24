@@ -1,7 +1,3 @@
-/**
- * The alarm is opt-in and per phone: it has to start off, hold across a launch
- * once turned on, and never switch itself on from a read it cannot make sense of.
- */
 import { beforeEach, describe, expect, it, mock } from 'bun:test';
 
 const stored = new Map<string, string>();

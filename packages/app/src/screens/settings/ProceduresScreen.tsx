@@ -1,43 +1,3 @@
-/**
- * Settings → Procedures & prices. The catalogue is a self-referencing tree,
- * one level deep: a row with children is a category — a heading with no price
- * that never reaches a visit — and only leaves are chargeable, each priced on
- * its own (a variant is a leaf).
- *
- * The verb is hide, and hidden means gone from this screen — not dimmed, not
- * folded behind a toggle. Nothing is deleted: the row stays in the database and
- * on every visit that already charged for it, at the price it charged, so old
- * visits and receipts still resolve. The catalogue is just the live price list.
- *
- * The consequence, and it is deliberate: **hiding is one-way from the app.** A
- * hidden procedure has no row to tap, so there is no way back to it here. Only
- * the database remembers it. `settings-procedures.html` draws this as an
- * active/inactive pair with a "Show N inactive" fold; this screen is a
- * deliberate departure from that.
- *
- * The tree is still fetched whole, because parenthood must be computed over
- * hidden rows too — a category whose only subtype is hidden is still a category
- * and must not quietly become a priceable leaf. Only the rendering drops them.
- *
- * In reorder mode the price is dropped rather than sat beside the arrows — a
- * tappable price next to small buttons reprises by accident.
- *
- * ## Making a category
- *
- * A row is a category because something names it as a parent, which used to
- * mean no new one could ever be made: the Category picker only offered rows
- * that already had a child, so nothing could receive its first one. The ghost
- * "Category" button from `settings-procedures.html` is the way in, and it asks
- * for the first subtype in the same breath — a category and the procedure under
- * it are one write, `procedure.createCategory`, sent when the editor is saved.
- *
- * That is the answer to "what if you file nothing under it": you cannot make an
- * empty one. An empty category has no way to be a category — with no children
- * it is a root with a price, which `procedure.list` would happily offer on a
- * visit — so rather than write one and hope, nothing is written until there is
- * a subtype to write with it, and then both go in one transaction. A category that loses its last visible subtype
- * still draws here, as a heading with its "Add to" button and nothing under it.
- */
 import { MAX_PROCEDURE_NAME, seesStats } from '@lustre/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
@@ -83,7 +43,6 @@ import { errorText } from './data/errors';
 type ProcedureNode = RouterOutput['procedure']['tree'][number];
 type Procedure = ProcedureNode['children'][number];
 
-/** What the editor pane was opened to do. */
 type EditorRoute =
     | { kind: 'edit'; procedure: Procedure }
     | { kind: 'new' }
@@ -97,33 +56,17 @@ export function ProceduresScreen({ onBack }: { onBack: () => void }) {
 
     const tree = useQuery(trpc.procedure.tree.queryOptions({ includeInactive: true }));
     const settings = useQuery(trpc.settings.get.queryOptions());
-    // Settings → Clinic sets it. A general clinic is not shown the tooth flags.
     const general = settings.data?.clinicType === 'general';
-    // A category being made: its name, held until the first subtype under it is
-    // saved, because the two are written together. The naming itself is a sheet.
     const [namingCategory, setNamingCategory] = useState(false);
     const [reordering, setReordering] = useState(false);
     const [toast, setToast] = useState<string | null>(null);
 
-    // Reordering is a mode over the list, not a route, so it is not on the
-    // stack — but Back leaves it rather than the screen, the same thing the
-    // header's Back does while it is on. Declared *before* the editor stack so
-    // the editor, which sits above this list, is asked first; a press with
-    // neither open falls through to `SettingsScreen`, which owns what leaving a
-    // settings pane means.
     useBackHandler(() => {
         if (!reordering) return false;
         setReordering(false);
         return true;
     });
 
-    /**
-     * The editor, as one route rather than the three nullable fields it used to
-     * be — `editing`, `addingTo` and `newCategory`, none of which meant anything
-     * without checking the other two. What it opens on is now a single value
-     * with a name, and it outlives the pane's exit animation, where clearing all
-     * three on close used to slide an empty pane off the screen.
-     */
     const editor = useRouteStack<EditorRoute>();
 
     const reorder = useMutation(
@@ -132,18 +75,10 @@ export function ProceduresScreen({ onBack }: { onBack: () => void }) {
         }),
     );
 
-    /**
-     * An arrow is an `IconButton`, so its own press lock covers a repeat on the
-     * same one — not the arrow on the row below, and not the frame before
-     * `isPending` re-renders. Both orders would be computed from the list as it
-     * was before the first write landed, and the second would undo the first.
-     */
     const moveRow = usePendingAction((input: Parameters<typeof reorder.mutateAsync>[0]) =>
         reorder.mutateAsync(input),
     );
 
-    // One write for the whole group, so a dropped connection leaves the order
-    // it had rather than half of the new one.
     function move(siblings: readonly { id: string }[], index: number, delta: number) {
         const next = [...siblings];
         const moved = next[index];
@@ -154,10 +89,6 @@ export function ProceduresScreen({ onBack }: { onBack: () => void }) {
         moveRow.run({ ids: next.map((row) => row.id) });
     }
 
-    // The tree is fetched whole so parenthood — and therefore which rows are
-    // categories — is computed over hidden rows too; a category whose only
-    // subtype is hidden is still a category and must not become priceable.
-    // Only the rendering drops them.
     const all = tree.data ?? [];
 
     function nextSortOrder(parentId: string | null): number {
@@ -171,9 +102,6 @@ export function ProceduresScreen({ onBack }: { onBack: () => void }) {
 
     const empty = nodes.length === 0;
 
-    // Not while reordering: the rows are being dragged against the order this
-    // would replace, and a price list that reshuffles under a finger is worse
-    // than a stale one.
     const pull = usePullToRefresh(() => {
         if (!reordering) void tree.refetch();
     }, tree.isFetching);
@@ -301,15 +229,6 @@ export function ProceduresScreen({ onBack }: { onBack: () => void }) {
                     ),
                 )}
 
-                {/* The ghost Category button belongs on the zero state too.
-                    It is the only way to make a category, so gating it on a
-                    row already existing means the first thing a new clinic can
-                    create is always a bare procedure — and a plain root is
-                    never offered as a parent afterwards, so that first
-                    procedure can never become the heading it should have been.
-                    On empty the panel above already carries "Add a procedure"
-                    as its primary action, so only the ghost twin is drawn
-                    here, centred under it rather than stranded to one side. */}
                 {tree.data && !reordering ? (
                     <View style={[styles.addRow, empty && styles.addRowAlone]}>
                         {empty ? null : (
@@ -368,16 +287,6 @@ export function ProceduresScreen({ onBack }: { onBack: () => void }) {
     );
 }
 
-/**
- * `catSheet` from the mockup, minus its Arabic name field: `procedure_types`
- * has one `name` column, and giving the catalogue a second one is a migration
- * of its own (the same one the patient questions are waiting on). Deferred by
- * the user's decision, so this asks in English and says so nowhere, because a
- * disabled field nobody can fill is worse than a field that is not there.
- *
- * Naming is where the sheet stops. Nothing is written until the editor behind
- * it saves the first subtype — see the note at the top of the file.
- */
 function CategorySheet({ onClose, onNamed }: { onClose: () => void; onNamed: (name: string) => void }) {
     const [name, setName] = useState('');
     const [submitted, setSubmitted] = useState(false);
@@ -427,7 +336,6 @@ type ProcedureRowProps = {
     procedure: Procedure;
     reordering: boolean;
     reorderDisabled: boolean;
-    /** A general (not dental) clinic, so the tooth flag is not shown. */
     general: boolean;
     isFirst: boolean;
     isLast: boolean;
@@ -453,10 +361,6 @@ function ProcedureRow({
                 {procedure.name}
             </Text>
             <View style={styles.tags}>
-                {/* The badge for the flag the toggle below now calls "Waived
-                    when other work is done" — left saying CHECKUP it named the
-                    use while the toggle named the behaviour, and the two sat on
-                    the same screen disagreeing. */}
                 {procedure.isCheckup ? (
                     <Tag tone="accent" variant="filled">
                         WAIVED
@@ -500,12 +404,9 @@ function ProcedureRow({
 type ProcedureEditorProps = {
     procedure: Procedure | null;
     parent: ProcedureNode | null;
-    /** The name of a category being made with this procedure as its first subtype. */
     newCategory: string | null;
     categories: ProcedureNode[];
-    /** Where a new row lands in its group: after everything already in it. */
     nextSortOrder: (parentId: string | null) => number;
-    /** Kept as it was rather than shown: the flag is what switching back restores. */
     general: boolean;
     onClose: () => void;
     onSaved: (message: string) => void;
@@ -530,9 +431,6 @@ function ProcedureEditor({
 
     const [name, setName] = useState(procedure?.name ?? '');
     const [price, setPrice] = useState(procedure ? String(Math.round(procedure.defaultPrice / 100)) : '');
-    // What it costs the clinic, for the stats screen's profit. The admin's
-    // figure: the server sends it as null to anyone else, and this phone does
-    // not offer the field to them either.
     const showsCost = seesStats(useRole().granted);
     const [cost, setCost] = useState(procedure?.cost ? String(Math.round(procedure.cost / 100)) : '');
     const [parentId, setParentId] = useState<string>(procedure?.parentId ?? parent?.id ?? NO_CATEGORY);
@@ -543,7 +441,6 @@ function ProcedureEditor({
     const [confirming, setConfirming] = useState(false);
 
     const isCategory = categories.some((category) => category.id === procedure?.id);
-    /** The category is fixed when it is being made here, or when adding under one. */
     const fixedParent = newCategory ?? parent?.name ?? null;
 
     const create = useMutation(trpc.procedure.create.mutationOptions({ onSuccess: onProcedureWritten }));
@@ -552,13 +449,6 @@ function ProcedureEditor({
     );
     const update = useMutation(trpc.procedure.update.mutationOptions({ onSuccess: onProcedureWritten }));
 
-    /**
-     * One lock for the pane's writes. Save and the hide confirm are the same
-     * `update`, and `isPending` is state: the second of two taps landing in one
-     * frame reads the old `false` and sends a second write — a second procedure,
-     * or a second category with a second copy of its first subtype under it. The
-     * guard's ref refuses it, and clears on failure so it can be tried again.
-     */
     const write = usePendingAction((job: () => Promise<unknown>) => job());
 
     const nameError = submitted && name.trim() === '' ? 'A procedure needs a name.' : undefined;
@@ -588,10 +478,6 @@ function ProcedureEditor({
                 return;
             }
 
-            // The category and this subtype are one write, because a category
-            // with nothing under it is a priceable root — see the note at the
-            // top of the file. Two calls would leave one behind whenever the
-            // second failed.
             if (newCategory !== null) {
                 await createCategory.mutateAsync({
                     name: newCategory,
@@ -614,9 +500,6 @@ function ProcedureEditor({
         });
     }
 
-    // One-way: `active` is still the column, because the server and every
-    // history query already read it. Only the app's language and the way out
-    // have changed.
     function onHide() {
         if (!procedure) return;
         write.run(async () => {
@@ -626,7 +509,6 @@ function ProcedureEditor({
         });
     }
 
-    // A write in flight swallows Back, the same as the header's.
     useBackHandler(() => {
         if (!busy) onClose();
         return true;
@@ -638,9 +520,6 @@ function ProcedureEditor({
             subtitle={!procedure && fixedParent ? t('Under {parent}', { parent: fixedParent }) : undefined}
             onBack={busy ? () => {} : onClose}
             footer={
-                // Save alone, as the mockup draws it: the pane has a back
-                // button, and a Cancel beside Save on a screen reached by a row
-                // tap is a second way to do what backing out already does.
                 <ActionBar
                     primaryLabel={saving ? 'Saving' : 'Save'}
                     onPrimary={onSave}
@@ -655,8 +534,6 @@ function ProcedureEditor({
                 </Callout>
             ) : null}
 
-            {/* Price first, the way the mockup orders it: on a screen opened to
-                change a price, the field being come for should not be third. */}
             <Card padded style={styles.form}>
                 {isCategory ? null : (
                     <NumericField
@@ -742,16 +619,6 @@ function ProcedureEditor({
                         onChange={setHasQuantity}
                     />
                     <CardDivider />
-                    {/* Named for what the flag does, not for what this clinic
-                        happens to use it for. The sub-copy already explained the
-                        behaviour; the label said "checkup" and left another
-                        clinic — which may call the same thing a consultation, an
-                        examination or a visit fee — looking for a word that is
-                        not there. The procedure keeps whatever name they give it.
-
-                        The column behind this is still `is_checkup`; renaming it
-                        is a migration and is not worth making until someone has
-                        asked a clinic what they call this. */}
                     <FlagRow
                         label="Waived when other work is done"
                         sub="Added to every visit at check-in, and waived when any other work is done. Only one procedure can hold it."
@@ -779,8 +646,6 @@ function ProcedureEditor({
                 </Card>
             ) : null}
 
-            {/* Spelled out because it cannot be undone from the app: once the
-                row leaves the list there is nothing left to tap. */}
             <ConfirmSheet
                 visible={confirming}
                 title="Hide this procedure?"
@@ -824,8 +689,6 @@ const styles = StyleSheet.create({
     addRow: { flexDirection: 'row', alignItems: 'stretch', gap: space[2.5] },
     addRowAlone: { justifyContent: 'center' },
     addProcedure: { flex: 1 },
-    // The mockup's ghost twin of `AddButton`: same shape, muted rather than
-    // accented, sized to its own label. `ui/AddButton` draws one weight only.
     addCategory: {
         flexDirection: 'row',
         alignItems: 'center',

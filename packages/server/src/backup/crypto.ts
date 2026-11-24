@@ -1,16 +1,3 @@
-/**
- * SPEC §16 — encrypt before off-site upload, so a dump sitting in somebody
- * else's storage is inert on its own.
- *
- * `BACKUP_ENCRYPTION_KEY` is 32 bytes, hex or base64, and must NOT live on the
- * clinic machine: if it is lost, every off-site dump is lost with it — no
- * recovery path, deliberately no escrow. Local dumps stay unencrypted (same
- * disk as the database). When the key is unset the server backs up locally but
- * refuses the off-site upload rather than send patient data in the clear.
- *
- * AES-256-GCM from the platform's own crypto. Layout: MAGIC (6) ‖ IV (12) ‖
- * ciphertext ‖ tag (16). `decrypt` throws if ciphertext or tag is tampered.
- */
 import { createCipheriv, createDecipheriv, randomBytes } from 'node:crypto';
 
 const MAGIC = Buffer.from('LUSTR1', 'ascii');

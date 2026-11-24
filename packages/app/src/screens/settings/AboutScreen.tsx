@@ -1,8 +1,3 @@
-/**
- * Settings → About: which build this phone runs, for reading out when someone
- * asks over the phone. The index's About row and its footnote give the short
- * form; this is the long one, with the APK and the update it runs.
- */
 import { StyleSheet, View } from 'react-native';
 import { Card, SectionLabel } from '../../components/ui';
 import { useT } from '../../i18n';

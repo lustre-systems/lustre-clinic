@@ -1,7 +1,3 @@
-// The shell's navigation rules, which is all of them that can be checked
-// without a renderer: an ask has to be distinguishable from the one before it,
-// a home signal has to reach one tab without disturbing the other three, and
-// the disconnected route has to go up on a drop without flickering on a probe.
 import { describe, expect, it } from 'bun:test';
 import { ALL_TABS, ask, bumpHome, isUnseen, NO_HOME, nextRoute } from './routes';
 
@@ -16,7 +12,6 @@ describe('a cross-cluster ask (SPEC §18 F3 — no navigator yet)', () => {
         const second = ask(first, { patientId: 'p1' });
 
         expect(second.seq).toBe(2);
-        // What makes backing out of a record and tapping the same row again work.
         expect(isUnseen(second, first.seq)).toBe(true);
     });
 
@@ -74,10 +69,6 @@ describe('the disconnected route', () => {
     });
 
     it('sits still while a probe is running, which is what stops the flicker', () => {
-        // `retry` and every re-probe pass through 'probing' on the way to an
-        // answer: reading it either way flashes the stale app under the screen
-        // she is on, or the screen over an app that is about to be told it is
-        // fine.
         expect(nextRoute('offline', 'probing')).toBe('offline');
         expect(nextRoute('app', 'probing')).toBe('app');
     });

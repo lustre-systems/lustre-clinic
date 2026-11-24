@@ -1,13 +1,3 @@
-/**
- * The parts of the server the handlers share: its error type, its id and ref
- * generators, and the four rule helpers that live in `server/src/util` and
- * `procedure.rules.ts`.
- *
- * These are ports, not re-exports — `packages/app` depends on `@lustre/server`
- * for types only, and everything on the other side reaches for `Bun`, `crypto`
- * or Postgres. Where a rule is duplicated here the original is named above it,
- * because the two have to be changed together.
- */
 import {
     callerWallClock,
     clinicDayOf,
@@ -22,7 +12,6 @@ import {
 } from '@lustre/shared';
 import type { ProcedureTypeRow } from './db';
 
-/** `server/src/errors/AppError.ts`. The link turns this into the wire's `appCode`. */
 export class DemoError extends Error {
     readonly code: ErrorCode;
     readonly httpStatus: number;
@@ -39,7 +28,6 @@ export class DemoError extends Error {
     }
 }
 
-/** A sex typed as spaces is not one. */
 function isBlank(value: string | null | undefined): boolean {
     return value === null || value === undefined || value.trim() === '';
 }
@@ -55,24 +43,16 @@ function genderRequired(): DemoError {
     return new DemoError(ERROR_CODE.GENDER_REQUIRED, 'this clinic requires a sex on every patient', 422);
 }
 
-/** `assertRegistrable` in `server/src/modules/patient/patient.service.ts`. */
 export function assertRegistrable(details: RequiredDetails, requires: PatientRequirements): void {
     if (requires.requireAge && isBlank(details.birthDate)) throw ageRequired();
     if (requires.requireGender && isBlank(details.gender)) throw genderRequired();
 }
 
-/** `assertNotCleared` in the same file. A field the patch leaves out is not judged. */
 export function assertNotCleared(patch: RequiredDetails, requires: PatientRequirements): void {
     if (requires.requireAge && patch.birthDate !== undefined && isBlank(patch.birthDate)) throw ageRequired();
     if (requires.requireGender && patch.gender !== undefined && isBlank(patch.gender)) throw genderRequired();
 }
 
-/**
- * `Bun.randomUUIDv7()` on the server. Hermes has neither that nor
- * `crypto.randomUUID`, and the property that matters here is the one v7 is
- * picked for everywhere else in this codebase: ids sort by creation time, which
- * several reads lean on for a stable order.
- */
 let lastMs = 0;
 let counter = 0;
 
@@ -98,8 +78,6 @@ function hex(length: number, high = 0): string {
     return out;
 }
 
-// --- refs (`server/src/util/ref.ts`) ----------------------------------------
-
 function randomRefSuffix(): string {
     let out = '';
     for (let i = 0; i < REF_RANDOM_LENGTH; i += 1) {
@@ -115,8 +93,6 @@ export function buildRef(startsAt: Date, offsetMinutes = 0): string {
 export function buildPatientRef(): string {
     return randomRefSuffix();
 }
-
-// --- time (`server/src/util/time.ts`) ---------------------------------------
 
 function refDatePart(at: Date, offsetMinutes = 0): string {
     const { year, month, day } = callerWallClock(at, offsetMinutes);
@@ -138,16 +114,6 @@ export function ageFromBirthDate(birthDate: string | null, on: Date = new Date()
     return age < 0 ? null : age;
 }
 
-/**
- * `Object.assign` for a patch that may carry explicit `undefined`.
- *
- * The real server is reached over HTTP, and `JSON.stringify` drops a key whose
- * value is `undefined` — so a field the caller left undefined arrives absent
- * and the stored value survives. The demo link hands `op.input` to the handler
- * by reference, with no serialization in between, so the same key arrives
- * present and `Object.assign` writes `undefined` over the column. Skipping the
- * undefined keys is what makes the two agree.
- */
 export function assignDefined<T extends object>(target: T, ...patches: Partial<T>[]): T {
     for (const patch of patches) {
         for (const [key, value] of Object.entries(patch)) {
@@ -156,8 +122,6 @@ export function assignDefined<T extends object>(target: T, ...patches: Partial<T
     }
     return target;
 }
-
-// --- money (`server/src/util/money.ts`) -------------------------------------
 
 export function assertAmount(amount: number, what = 'amount'): number {
     if (!Number.isInteger(amount) || amount < 0 || amount > MAX_AMOUNT_PIASTRES) {
@@ -172,14 +136,11 @@ export interface PricedLine {
     isCheckup: boolean;
 }
 
-/** Σ(unit × quantity), with the checkup line waived whenever other work was done. */
 export function computeTotal(lines: readonly PricedLine[]): number {
     const hasOther = lines.some((line) => !line.isCheckup);
     const counted = hasOther ? lines.filter((line) => !line.isCheckup) : lines;
     return counted.reduce((sum, line) => sum + line.unitPrice * line.quantity, 0);
 }
-
-// --- phone (`server/src/util/phone.ts`) -------------------------------------
 
 const DEFAULT_COUNTRY_CODE = '20';
 
@@ -198,11 +159,6 @@ export function normalizePhone(raw: string): string {
     return `+${digits}`;
 }
 
-/**
- * `server/src/util/phone.ts` — what a *search* term is matched against, or null
- * when it holds no number. A half-typed number does not normalize, and matched
- * as typed it would find nothing: the local `0` became `20` on write.
- */
 export function phoneSearchTerm(raw: string): string | null {
     try {
         return normalizePhone(raw);
@@ -223,8 +179,6 @@ export function toWhatsAppNumber(e164: string): string {
     return e164.replace(/^\+/, '');
 }
 
-// --- procedure lines (`server/src/modules/procedure/procedure.rules.ts`) ----
-
 export interface RequestedLine {
     procedureId: string;
     quantity: number;
@@ -239,12 +193,6 @@ export interface ResolvedLine {
     note: string | null;
 }
 
-/**
- * Only a leaf may go on a list, `isToothSpecific` decides whether a tooth
- * belongs on the line at all, and uniqueness is per tooth — an extraction on
- * UL6 and one on UR3 are two real lines, while tooth-less lines share one key.
- * A general (not dental) clinic is never asked for a tooth.
- */
 export function resolveProcedureLines(
     lines: readonly RequestedLine[],
     catalogue: readonly ProcedureTypeRow[],

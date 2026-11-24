@@ -30,20 +30,6 @@ import { config } from '../src/config.ts';
 import { backupService } from '../src/modules/backup/backup.service.ts';
 import { insertBranch, insertPatient, setupDatabase, truncateAll } from './helpers/db.ts';
 
-/**
- * SPEC §16. The end-to-end test dumps the real database, restores it into a
- * scratch database, and compares — a dump nobody has restored is not a backup.
- *
- * Retention and pruning must tell dumps apart by identity, not name: two runs
- * inside the same second share a file name, and a name-keyed policy keeps them
- * both forever. Retention only ever sees files it can name, so strangers in the
- * off-site folder are never touched. The `runBackup` suite needs
- * pg_dump/pg_restore and a reachable database; it is skipped on workstations
- * that lack them but never in CI, and resolves the binaries through PG_BIN_DIR
- * exactly as the backup code does. It runs with `offsite: false` so a
- * throwaway dump never reaches a real Drive folder when credentials exist.
- */
-
 async function scratch(): Promise<string> {
     const directory = join(tmpdir(), `lustre-backup-${Bun.randomUUIDv7()}`);
     await mkdir(directory, { recursive: true });
@@ -315,7 +301,6 @@ describe('a revoked Drive grant outlives the run that found it', () => {
             await clearOffsiteState(directory);
             expect(await readOffsiteState(directory)).toBeNull();
 
-            // Clearing what is already clear is what every healthy run does.
             await clearOffsiteState(directory);
             expect(await readOffsiteState(directory)).toBeNull();
         } finally {
@@ -362,7 +347,6 @@ describe('the grant the phone makes', () => {
             await writeDriveGrant(grant, directory);
 
             expect(await readDriveGrant(directory)).toEqual(grant);
-            // It holds a refresh token; the dumps beside it are already 0600.
             const mode = (await stat(join(directory, 'drive-grant.json'))).mode & 0o777;
             expect(mode).toBe(0o600);
             expect(await readdir(directory)).toEqual(['drive-grant.json']);
@@ -402,12 +386,10 @@ describe('backup.status', () => {
         expect(status.lastSuccessAt).toBeNull();
         expect(status.stale).toBe(true);
         expect(status.staleAfterHours).toBe(config.BACKUP_STALE_AFTER_HOURS);
-        // `.env.test` leaves every Drive and S3 field empty on purpose (§16).
         expect(status.offsite).toEqual({
             configured: false,
             reauthorizationRequiredSince: null,
             account: null,
-            // `.env.test` sets no Android client, so the phone cannot offer sign-in.
             canSignIn: false,
         });
     });

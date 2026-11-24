@@ -10,18 +10,8 @@ import { subscribeToDemoEvents, useDeviceBackend } from './demo';
 import { queryClient } from './queryClient';
 import { type Area, createEventCursor, createRefreshBatch, type ServerEvent } from './serverEvents';
 
-// `/ws` tells this phone what the other phone changed (SPEC §13). Payloads carry
-// IDs only — no patient data crosses the channel — so every event does the same
-// thing: invalidate what it touched and let React Query refetch through tRPC.
-// One socket for the app's lifetime, reconnecting with backoff while the clinic
-// PC is down; it is a freshness optimisation on top of the query cache, never a
-// data path. A malformed frame is ignored rather than crashing the app.
-//
-// The cursor outlives the socket, so a reconnect resumes where the last one
-// stopped and the server replays what was missed (`serverEvents.ts`).
 const cursor = createEventCursor();
 
-/** React Native's socket takes headers as a third argument; the DOM type it is checked against does not. */
 const HeaderedWebSocket = WebSocket as unknown as new (
     url: string,
     protocols: null,
@@ -30,12 +20,6 @@ const HeaderedWebSocket = WebSocket as unknown as new (
 
 const changeListeners = new Set<(areas: ReadonlySet<Area> | 'all') => void>();
 
-/**
- * What the refetch below cannot reach: reads that are not tRPC-keyed React
- * Query — the day cluster's `useLocalQuery`, the patients cluster's own keys.
- * Each is told which routers changed and re-reads what it holds. Demo events
- * arrive here too.
- */
 export function onServerChange(listener: (areas: ReadonlySet<Area> | 'all') => void): () => void {
     changeListeners.add(listener);
     return () => {
@@ -54,7 +38,6 @@ const refresh = createRefreshBatch((areas) => {
 
 const listeners = new Set<(event: ServerEvent) => void>();
 
-/** Every event the cursor applied, after its refetch has been asked for. Not called in demo mode. */
 export function onServerEvent(listener: (event: ServerEvent) => void): () => void {
     listeners.add(listener);
     return () => {
@@ -121,15 +104,8 @@ function connect(token: string | null): () => void {
         next.onclose = (event) => {
             if (socket === next) socket = null;
             if (closed) return;
-            // The server shut this phone out (its role withdrawn or replaced).
-            // One request now is what brings the refusal back through
-            // `serverFetch` and puts the shell on the scan screen at once.
             if (event.code === WS_CLOSE_REFUSED) void trpcClient.settings.get.query().catch(() => undefined);
             schedule();
-            // Not a freshness matter, unlike everything else here: a socket
-            // that closes on its own is the first sign the clinic PC is gone,
-            // and the connection state is what the shell's disconnected route
-            // reads. It probes before believing it (`noteLinkDropped`).
             noteLinkDropped();
         };
     };
@@ -145,22 +121,7 @@ function connect(token: string | null): () => void {
 }
 
 export function useServerEvents(): void {
-    // Demo mode has no socket to open, but it has the same events: the handlers
-    // announce them locally (`demo/events.ts`) and they drive the same
-    // invalidation, so the money dashboard refreshes after a payment there for
-    // the same reason it does here.
-    //
-    // A dependency rather than a read at mount. This hook is mounted by
-    // `ApiProvider`, which is above both the setup screen and the shell, so it
-    // is already running when somebody taps "Run in demo mode" — asking once
-    // would leave that session subscribed to a socket that will never open and
-    // deaf to the events it does get, until the app was next launched.
     const enabled = useDeviceBackend().backend !== null;
-    // A socket is admitted as the credential it opened with, and closed by the
-    // server when that credential is revoked. One opened before this phone
-    // scanned a code would never be, so a new credential opens a new socket.
-    // Not before the stored one has been read, or a provisioned phone opens one
-    // bare first.
     const { hydrated, credential } = useCredential();
     const token = credential?.token ?? null;
 

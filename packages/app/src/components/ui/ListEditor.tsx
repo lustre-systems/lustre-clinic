@@ -1,8 +1,3 @@
-/**
- * The numbered option list behind a dropdown patient field. Rows use their
- * index as the React key because options are reorderable and duplicable — the
- * value is not a stable identity.
- */
 import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { useT } from '../../i18n';

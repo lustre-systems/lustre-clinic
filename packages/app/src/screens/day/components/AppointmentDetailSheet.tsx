@@ -1,36 +1,3 @@
-/**
- * One appointment and everything that can happen to it from here. Every write
- * crosses Tailscale and reports its failure *in this sheet*, next to the
- * button that caused it — never a toast that fades. Destructive steps confirm
- * inline because `Sheet` is a `Modal`, and a modal over a modal is how
- * Android's back button ends up cancelling a write already in flight. The
- * inline confirm takes the footer with it: leaving Check in under "Cancel this
- * appointment?" offers two answers to one question. The Check out button is
- * disabled without a visit because (BLOCKED.md) the id is only known for a
- * visit this session checked in.
- *
- * The title is the patient and opens their record, because that is what the
- * name on a sheet is for — the desk taps a row to find out who is coming and
- * then wants their history, and the only way there used to be backing out to
- * the day and searching the patients tab for a name already on the screen.
- *
- * The actions below are three weights, not three of the same: Reschedule keeps
- * the appointment and is bordered, no-show is a correction and is quiet,
- * cancel is destructive and is the only red. They were two identical outlines
- * and a red link, which put the mildest and the most dangerous of the three at
- * the same size and made the wall of full-width buttons read as one control
- * repeated.
- *
- * Lab work sits with the facts, not the actions: it is something to know about
- * the booking, and turning it on or off changes nothing about the slot. It is
- * editable only while the appointment is booked — past check-in the patient is
- * in the chair and the question has been answered. The sheet holds a snapshot,
- * so a lab write is shown from its own answer until the day re-reads.
- *
- * One rule in the body, and it spans the sheet like the footer's does. Hairlines
- * between every pair of facts chopped a short sheet into four, and an inset rule
- * over a full-bleed one reads as two different rules.
- */
 import type { LabStatus } from '@lustre/shared';
 import type { ReactNode } from 'react';
 import { useState } from 'react';
@@ -59,37 +26,15 @@ export type AppointmentDetailSheetProps = {
     onClose: () => void;
     onChanged: () => void;
     onCheckOut: (appointment: Appointment, visit: Visit) => void;
-    /**
-     * Handed up rather than done here: checking in opens the arrival screen,
-     * and that page belongs to the day view. Doing the write in this sheet was
-     * how the same button ended up meaning two different things depending on
-     * which of them you pressed.
-     */
     onCheckIn: (appointment: Appointment) => void;
-    /**
-     * Handed up for the same reason: picking the new time happens on the
-     * booking page's When step, which the day view pushes. Nothing is written
-     * until that page's button.
-     */
     onReschedule: (appointment: Appointment) => void;
-    /** The patient behind the appointment, from their name at the top of the sheet. */
     onOpenRecord: (appointment: Appointment) => void;
-    /**
-     * All of those open a page over the day, so none may draw until this sheet
-     * is off the screen. See `Sheet`'s `onClosed`.
-     */
     onClosed?: () => void;
-    /**
-     * Whether this patient heads the arrival queue. `checked_in` is everyone
-     * who has arrived, so the pill needs the queue to tell the chair from the
-     * waiting room.
-     */
     inChair?: boolean;
 };
 
 type Confirming = 'cancel' | 'no-show' | null;
 
-/** Statuses that are over: one line saying so, and nothing to press. */
 const TAIL: Partial<Record<Appointment['status'], string>> = {
     done: 'This visit is finished.',
     cancelled: 'This appointment was cancelled. The slot is free.',
@@ -118,11 +63,6 @@ export function AppointmentDetailSheet({
         api.setNeedsLab(input.id, input.needsLab),
     );
     const labReady = useLocalMutation(api.markLabReady);
-    // What this sheet last wrote, stamped with the row's `updatedAt` from the
-    // write. It stands only while the snapshot is older than that: once the day
-    // re-reads, whatever it brings back — this write or a later one from
-    // another phone — wins. Comparing values instead would let a later revert
-    // to the old value bring the override back.
     const [labWrite, setLabWrite] = useState<{ status: LabStatus | null; at: number } | null>(null);
 
     const status = appointment?.status;
@@ -145,8 +85,6 @@ export function AppointmentDetailSheet({
         onClose();
     }
 
-    // A confirm left open would come back with the next appointment, and the
-    // footer is hidden while one is up — the sheet would reopen with no way in.
     function close() {
         setConfirming(null);
         onClose();
@@ -176,10 +114,6 @@ export function AppointmentDetailSheet({
                 startMinutes,
                 startMinutes + appointment.durationMinutes,
             )} · ${t('{minutes} min', { minutes: appointment.durationMinutes })}`}
-            // Off while a write is in flight, for the reason `dismissable`
-            // is: leaving takes the failure with it, and this sheet is where
-            // a failure is reported. The chevron and the button role go with
-            // it, so the row stops offering what it cannot do.
             onTitlePress={
                 writing
                     ? undefined
@@ -214,9 +148,6 @@ export function AppointmentDetailSheet({
                 </Text>
             </View>
 
-            {/* What they are in for, in one line: it is what the row was tapped
-                to find out. The note sits under it unlabelled — it is the only
-                prose on the sheet. */}
             <View style={styles.facts}>
                 <Text variant="headline" weight="semibold">
                     {planLine(appointment.procedures) ??
@@ -301,8 +232,6 @@ function PrimaryAction({
 }) {
     switch (appointment.status) {
         case 'booked':
-            // Only on the appointment's own day. From another day's list it is a
-            // mis-tap, and the server refuses it anyway.
             return bookingActions(appointment, todayKey()).checkIn ? (
                 <Button
                     label="Check in"
@@ -419,10 +348,6 @@ function SecondaryActions({
         );
     }
 
-    // Tiles, not a stack: one row the width of the sheet, each a big target,
-    // with the destructive one the only red. A booking on a later day has no
-    // No-show — nobody has failed to come yet — and keeps Cancel, which is
-    // the call the patient rings to make.
     const actions = bookingActions(appointment, todayKey());
     return (
         <View style={styles.tiles}>
@@ -484,13 +409,6 @@ function Tile({
     );
 }
 
-/**
- * Everything below the record is one group behind one rule, and that rule
- * bleeds to the sheet's edges the way the footer's does — an inset rule above a
- * full-bleed one reads as a mistake. It carries its own divider so a status with
- * nothing to say — at the desk, waiting on the checkout — ends the sheet at the
- * record instead of on a rule with an empty row under it.
- */
 function Group({ children }: { children: ReactNode }) {
     return (
         <View style={styles.group}>
@@ -555,7 +473,6 @@ function VisitPanel({
                     <MoneyValue piastres={visit.chargedTotal} />
                 </View>
             ) : null}
-            {/* Null on a phone whose role is not shown payments. */}
             {visit.paidTotal !== null ? (
                 <View style={styles.money}>
                     <Text variant="subhead" tone="muted">
@@ -576,11 +493,6 @@ function VisitPanel({
     );
 }
 
-/**
- * The switch while the booking can still change, and the state of the work
- * under it when there is any. Nothing at all for a finished appointment that
- * never needed a lab.
- */
 function LabPanel({
     status,
     editable,
@@ -653,7 +565,6 @@ function LabPanel({
     );
 }
 
-/** The booked procedures as one line — `Root canal · UL6, Consultation` — or null for none. */
 function planLine(procedures: readonly AppointmentProcedure[]): string | null {
     if (procedures.length === 0) return null;
     return procedures
@@ -699,8 +610,6 @@ const styles = StyleSheet.create({
     },
     money: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
     group: { marginTop: space[2], gap: space[4] },
-    // Out of the scroll's gutter and back, so the rule reaches both edges the
-    // way `Sheet`'s footer rule does.
     rule: { marginHorizontal: -size.gutter, height: 1, backgroundColor: color.hair },
     actions: { gap: space[2] },
     confirmBody: { marginBottom: space[1] },

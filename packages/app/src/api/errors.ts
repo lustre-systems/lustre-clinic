@@ -2,15 +2,6 @@ import { ERROR_CODE, type ErrorCode, isErrorCode } from '@lustre/shared';
 import { TRPCClientError } from '@trpc/client';
 import { ServerUnreachableError } from './connection';
 
-// Turns anything thrown by a query or mutation into a decision a screen can act
-// on (SPEC §4, §14). The client never parses a server message — it switches on
-// `appCode` and localizes from that. `offline` means nothing answered (reads
-// fall back to cache; writes are shown as failed, never queued); `constraint`
-// is an expected refusal, e.g. the Postgres exclusion constraint behind
-// `SLOT_OVERLAP` refusing a double booking (§5) — never an incident; `server`
-// is anything else worth reporting (§17). A link that never got a response
-// leaves no `data`, so a missing HTTP status is offline/timeout, not a server
-// error.
 export type FailureKind =
     | 'offline'
     | 'timeout'

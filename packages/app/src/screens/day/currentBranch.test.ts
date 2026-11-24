@@ -23,7 +23,6 @@ describe('pickedOn', () => {
 
 describe('scheduledBranch', () => {
     it("is the branch working that date's weekday", () => {
-        // 2026-09-23 is a Wednesday, the 24th a Thursday.
         expect(scheduledBranch('2026-09-23', schedule)).toBe('maadi');
         expect(scheduledBranch('2026-09-24', schedule)).toBe('zamalek');
     });

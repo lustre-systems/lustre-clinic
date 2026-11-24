@@ -1,11 +1,3 @@
-/**
- * The crash reporter: `@sentry/react-native` pointed at the clinic's GlitchTip
- * (SPEC §17). `options.ts` decides whether it runs and `privacy.ts` decides what
- * leaves the phone. This file connects the two to the SDK.
- *
- * Offline is the SDK's problem: it keeps envelopes on disk and sends them when
- * the tailnet is back. Nothing here waits on the network.
- */
 import type { ClientRole } from '@lustre/shared';
 import * as Sentry from '@sentry/react-native';
 import * as Application from 'expo-application';
@@ -21,7 +13,6 @@ import { lifecycleCrumb, setTrailSink } from './trail';
 
 const options = sdkOptions(dsnOf(Constants.expoConfig?.extra), BUILD_VARIANT);
 
-/** Whether this build reports at all. A dev build set to demo mode is still checked per event. */
 export const CRASH_REPORTS_ON = options.enabled;
 
 let started = false;
@@ -32,23 +23,16 @@ export function startCrashReports(): void {
 
     Sentry.init({
         ...options,
-        // The release this launch runs, an OTA update's number included, so a
-        // crash is filed under 1.4.2 and not the 1.4.0 APK underneath it.
         release: `lustre@${Constants.expoConfig?.version ?? '0.0.0'}`,
         dist: Application.nativeBuildVersion ?? undefined,
-        // The stock breadcrumbs integration records console calls and every XHR
-        // with its full URL. Both are replaced by the crumbs in `trail.ts`.
         integrations: (defaults) => [
             ...defaults.filter((integration) => integration.name !== 'Breadcrumbs'),
             Sentry.breadcrumbsIntegration({ console: false, xhr: false, fetch: false, sentry: false }),
         ],
-        // Demo mode can be entered on a dev build after launch, so it is asked per crumb and per event.
         beforeBreadcrumb: (crumb) => (isDemoMode() ? null : allowBreadcrumb(crumb)),
         beforeSend: (event) => (isDemoMode() ? null : allowEvent(event)),
     });
 
-    // The release names the code; the update id and runtime name the exact
-    // bundle the server published, which is what `release.ts` and the server go by.
     if (Updates.isEnabled) {
         Sentry.setTags({
             update: Updates.isEmbeddedLaunch || !Updates.updateId ? 'embedded' : Updates.updateId,
@@ -62,10 +46,6 @@ export function startCrashReports(): void {
 
 const reporters = new Map<Boundary, (error: Error, info: ErrorInfo) => void>();
 
-/**
- * `ErrorBoundary`'s `onError`, one function per boundary so a memoised pane is
- * handed the same one every render.
- */
 export function renderErrorReporter(boundary: Boundary): (error: Error, info: ErrorInfo) => void {
     let reporter = reporters.get(boundary);
     if (!reporter) {
@@ -83,15 +63,6 @@ export function renderErrorReporter(boundary: Boundary): (error: Error, info: Er
 
 export type ProblemReport = { queued: true; ref: string } | { queued: false };
 
-/**
- * "Report a problem". Breadcrumbs only leave the phone attached to an event,
- * so a glitch that did not crash sends nothing until this is pressed. `ref` is
- * the start of the event id, which the person on the phone can read out.
- *
- * Queued, not sent: the SDK keeps the event on disk and delivers it when
- * GlitchTip answers, which in a power cut is later. A flush would only hand it
- * to the native transport, so there is no delivery to wait for here.
- */
 export function reportProblem(): ProblemReport {
     if (!CRASH_REPORTS_ON || isDemoMode()) return { queued: false };
     const id = captureProblemReport(Sentry.getCurrentScope());

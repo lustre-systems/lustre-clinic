@@ -1,8 +1,3 @@
-/**
- * `AppRouter` is the API contract (§3, §4). Exported as a type only and
- * consumed by the app, which is why request and response types are never
- * hand-written.
- */
 import { appointmentRouter } from '../modules/appointment/appointment.router.ts';
 import { backupRouter } from '../modules/backup/backup.router.ts';
 import { balanceRouter } from '../modules/balance/balance.router.ts';

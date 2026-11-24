@@ -1,17 +1,3 @@
-/**
- * SPEC §16. One backup run is: dump → verify by restoring → give it its final
- * name (atomic.ts) → copy off-site encrypted → prune. Every step that can fail
- * alerts (§17), and the run records its success so the staleness check has
- * something to look at.
- *
- * Verification restores the dump into a scratch database and compares row
- * counts — and that `appointments_no_overlap` survived, since losing it
- * restores a broken clinic. The off-site upload refuses to run without
- * `BACKUP_ENCRYPTION_KEY`: patient data must not leave the clinic in the clear.
- * Pruning is off by default in tests because a run with real credentials in the
- * environment uploads to the clinic's actual Drive folder and prunes it against
- * the run's own timestamp.
- */
 import { mkdir, readdir, rename, stat, unlink } from 'node:fs/promises';
 import { join } from 'node:path';
 import postgres from 'postgres';
@@ -195,13 +181,6 @@ export async function readLastSuccess(directory = config.BACKUP_DIR): Promise<Ba
     }
 }
 
-/**
- * A revoked Drive grant outlives the run that found it: the Discord alert fires
- * once and dedupes for fifteen minutes, but the clinic stays un-backed-up until
- * a person signs in again. So the state is written down, and Settings reads it.
- * `since` is the first run that failed this way, not the latest — how long the
- * off-site copy has been dead is the part worth showing.
- */
 export interface OffsiteState {
     reauthorizationRequiredSince: string;
 }
@@ -214,18 +193,10 @@ export async function readOffsiteState(directory = config.BACKUP_DIR): Promise<O
     }
 }
 
-/**
- * Only a revoked grant is written down, and only the first one: a later run
- * failing the same way must not reset the clock the doctor is being shown.
- */
 export async function recordOffsiteFailure(directory: string, error: unknown, at: Date): Promise<void> {
     if (!isDriveReauthorizationRequired(error)) return;
     if (await readOffsiteState(directory)) return;
 
-    // Written through a temporary file and renamed over: `backup.status` can be
-    // reading this while the job writes it, and `Bun.write` truncates in place,
-    // so a plain write can be read back as half a file. `readOffsiteState`
-    // answers null on a parse error, which would report the grant as healthy.
     const state: OffsiteState = { reauthorizationRequiredSince: at.toISOString() };
     const target = join(directory, OFFSITE_STATE_FILE);
     const scratch = `${target}.${process.pid}.tmp`;
@@ -263,8 +234,6 @@ export async function runBackup(options: BackupOptions = {}): Promise<BackupResu
         });
 
         const offsiteKey = offsite ? await uploadOffsite(path, name) : null;
-        // Only a real upload clears it. An unconfigured destination returns null
-        // too, and that must not read as "the grant is good again".
         if (offsiteKey !== null) await clearOffsiteState(directory);
 
         const pruned = await pruneLocal(directory, retention);
@@ -288,9 +257,6 @@ export async function runBackup(options: BackupOptions = {}): Promise<BackupResu
         return { file: name, bytes: size, verified: verify, offsiteKey, pruned };
     } catch (err) {
         logger.error({ err }, 'backup failed');
-        // The alert is the escalation; nothing escalates a failure to write the
-        // state file. A full disk here must not swallow the one message that
-        // tells somebody the off-site copy has stopped.
         try {
             await recordOffsiteFailure(directory, err, now);
         } catch (stateErr) {

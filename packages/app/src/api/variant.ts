@@ -1,11 +1,3 @@
-// Which kind of build this is, and what each kind may do. Pure, so `bun test`
-// reaches it; `config.ts` supplies the inputs from the running build.
-//
-// The signal is `__DEV__`, not a value in `app.json`. Metro sets it false in
-// every release bundle whatever the config says, so a clinic's APK cannot be a
-// dev build by somebody forgetting to flip a flag. A release build that ships
-// `extra.demo: true` is the demo handed to someone across a table, which is a
-// deliberate build of its own and still not the clinic's app.
 import type { ServerAddresses } from './config';
 
 export type BuildVariant = 'dev' | 'demo' | 'prod';
@@ -19,47 +11,26 @@ export function variantOf(build: {
     return build.shippedDemo ? 'demo' : 'prod';
 }
 
-// The clinic server listens only on Tailscale, and its firewall drops the API
-// port from the wifi, so a LAN address can never answer a prod build. It would
-// only cost a probe that always fails. Development keeps it: the emulator and a
-// cable-attached phone reach the dev server through `localhost`.
 export function allowsLan(variant: BuildVariant): boolean {
     return variant !== 'prod';
 }
 
-// Demo mode on a clinic phone is a fake register one tap from the real one.
 export function allowsDemo(variant: BuildVariant): boolean {
     return variant !== 'prod';
 }
 
-// A dev build never talks to the clinic's own server: its records are real
-// patients, and a dev phone is where half-finished code runs. It connects only
-// to a server whose `health.check` says development, and a server that says
-// nothing (one from before the field existed) is refused with the rest. Other
-// builds take any server; the clinic's phones are pointed at it on purpose.
 export function acceptsServer(variant: BuildVariant, environment: unknown): boolean {
     return variant !== 'dev' || environment === 'development';
 }
 
-// A dev build picks its role from the dev server instead of scanning a code
-// (`device.devRole`). The server refuses it anywhere but development too; this
-// only keeps the buttons off the builds that could never use them.
 export function picksDevRole(variant: BuildVariant): boolean {
     return variant === 'dev';
 }
 
-// The DEV strip (`shell/DevBanner.tsx`). A demo build does not get one: it is
-// handed to someone across a table and its own screens say what it is, while
-// this says "you are looking at a server", which a demo has none of.
 export function showsDevBanner(variant: BuildVariant): boolean {
     return variant === 'dev';
 }
 
-// A dev build points at the dev server on the machine that built it, which is
-// what the three device scripts reverse onto the phone. Only when nothing was
-// configured: an `app.json` a developer pointed somewhere else stays pointed
-// there. Shipped builds never take it, so the address can be baked into every
-// build and read by the one kind that can reach it.
 export function bootAddresses(
     variant: BuildVariant,
     configured: ServerAddresses,
@@ -69,10 +40,6 @@ export function bootAddresses(
     return { ...configured, lan: devServer };
 }
 
-// The shapes a tailnet address comes in: a MagicDNS name under `.ts.net`, an
-// IPv4 address in Tailscale's 100.64.0.0/10 (the range the server itself checks
-// `TAILSCALE_IP` against), or its fd7a:115c:a1e0::/48 IPv6 range. A bare short
-// name is refused: it could as easily be the wifi router's name for the PC.
 export function isTailnetAddress(address: string): boolean {
     const host = hostOf(address);
     if (host.endsWith('.ts.net') || host.startsWith('fd7a:115c:a1e0:')) return true;
@@ -95,9 +62,6 @@ function hostOf(address: string): string {
     return (hostAndPort.split(':')[0] ?? '').replace(/\.$/, '');
 }
 
-// On prod the Tailscale side must be a tailnet address too, however it arrived:
-// typed into setup, restored from storage, shipped, or reported by the server.
-// Otherwise the one field a prod build has is a way back onto the wifi.
 export function usableAddresses(variant: BuildVariant, addresses: ServerAddresses): ServerAddresses {
     if (allowsLan(variant)) return addresses;
     const { tailscale } = addresses;

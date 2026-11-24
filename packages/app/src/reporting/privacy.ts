@@ -1,46 +1,14 @@
-/**
- * What may leave the phone in a crash report (SPEC §17: allow-list, never
- * strip). Each function builds a new object out of the fields it knows and the
- * values those fields are allowed to hold. It does not try to find a name or a
- * phone number and take it out. Anything not named here is dropped, including
- * whatever an SDK update starts collecting later.
- *
- * What is dropped on purpose:
- * - An exception's message. A thrown message can quote whatever the code was
- *   holding. The type, the stack and the error code stay.
- * - `user`, `request`, `extra` and every context not listed below.
- * - A tap's visible text. A tap is known by its `testID` and the component
- *   names above it.
- * - Request URLs. A tRPC query carries its input in the query string, so only
- *   the procedure path, the status and the duration are kept.
- * - Console breadcrumbs, and any category not listed here.
- *
- * A fingerprint is kept only in the one shape `captureProblemReport` gives it,
- * which names the event itself, so each report is its own GlitchTip issue.
- *
- * `allowBreadcrumb` runs twice: as `beforeBreadcrumb`, and again over the
- * event's breadcrumbs in `allowEvent`. Its output passes its own check, which
- * is what lets it run on its own output.
- */
 import { isErrorCode, WHATSAPP_APPS, WS_EVENT } from '@lustre/shared';
 import type { Breadcrumb, ErrorEvent, Exception, Scope, StackFrame } from '@sentry/react-native';
 
-/** The one message a report may carry: "Report a problem" in Settings. */
 export const PROBLEM_REPORT = 'Report a problem';
 
 const PROBLEM_FINGERPRINT = 'problem-report';
 
-/** A Sentry event id: 32 lowercase hex digits. Unique is all it has to be. */
 function newEventId(): string {
     return Array.from({ length: 32 }, () => Math.floor(Math.random() * 16).toString(16)).join('');
 }
 
-/**
- * Sends "Report a problem" and returns its event id. The id is chosen here,
- * before the send, because the fingerprint has to name it: every report has
- * the same message, and GlitchTip would otherwise group them into one issue
- * and alert only on the first.
- */
 export function captureProblemReport(scope: Scope): string {
     const eventId = newEventId();
     scope.captureMessage(PROBLEM_REPORT, 'warning', {
@@ -53,29 +21,20 @@ export function captureProblemReport(scope: Scope): string {
 export const BOUNDARIES = ['root', 'day', 'patients', 'stats', 'settings'] as const;
 export type Boundary = (typeof BOUNDARIES)[number];
 
-/**
- * Every screen a route stack or the tab bar can name. A route that is not here
- * leaves no crumb, which is the safe way round: a record pushed as a route is
- * named by its own `name` field, and that is data.
- */
 export const SCREENS: ReadonlySet<string> = new Set([
-    // tabs
     'day',
     'patients',
     'stats',
     'settings',
-    // day cluster
     'booking',
     'reschedule',
     'view',
     'treatment',
     'payment',
     'registerPatient',
-    // patients cluster
     'record',
     'edit',
     'visit',
-    // settings panes and their editors
     'app',
     'appointments',
     'reminders',
@@ -87,7 +46,6 @@ export const SCREENS: ReadonlySet<string> = new Set([
     'new',
     'under',
     'category',
-    // stack moves that name no screen
     'back',
     'home',
 ]);
@@ -134,7 +92,6 @@ function flag(value: unknown): boolean | undefined {
     return typeof value === 'boolean' ? value : undefined;
 }
 
-/** Drops the keys that came out undefined, so an empty field is absent rather than `null`. */
 function compact<T extends Record<string, unknown>>(record: T): Partial<T> {
     const out: Partial<T> = {};
     for (const key of Object.keys(record) as (keyof T)[]) {
@@ -156,11 +113,6 @@ function base(crumb: Breadcrumb, category: string, type: string): Breadcrumb {
     });
 }
 
-/**
- * A tap, as `TouchEventBoundary` records it (`data.path`, innermost first, each
- * entry `{ name, label }` with `label` read from `testID`), or as this function
- * already rewrote it (`data.target`, `data.within`).
- */
 function tap(crumb: Breadcrumb): Breadcrumb | null {
     const data = recordOf(crumb.data);
     const path = Array.isArray(data.path) ? data.path.map(recordOf) : [];
@@ -247,7 +199,6 @@ const TAGS: Record<string, (value: unknown) => boolean> = {
     error_code: isErrorCode,
     procedure: (value) => text(value, PROCEDURE, 80) !== undefined,
     report: (value) => value === 'problem',
-    // Which OTA bundle crashed, so a bad update can be told from a bad APK.
     update: (value) => value === 'embedded' || (typeof value === 'string' && UUID.test(value)),
     runtime: (value) => text(value, VERSION, 64) !== undefined,
     'event.origin': (value) => text(value, WORD, 40) !== undefined,
@@ -291,7 +242,6 @@ function exception(value: Exception): Exception {
 const CONTEXT_FIELDS: Record<string, readonly string[]> = {
     app: ['app_identifier', 'app_version', 'app_build'],
     os: ['name', 'version', 'build'],
-    // Not `name`: Android lets the owner call the phone anything, a person's name included.
     device: ['family', 'model', 'manufacturer', 'brand', 'arch', 'simulator'],
     react_native_context: ['js_engine', 'react_native_version', 'hermes_version', 'expo', 'fabric'],
 };
@@ -311,7 +261,6 @@ function contexts(value: unknown): Record<string, Record<string, unknown>> | und
         if (Object.keys(kept).length > 0) out[name] = kept;
     }
 
-    // Component names and bundle positions, as React writes them. Never a prop.
     const componentStack = text(recordOf(source.react).componentStack, COMPONENT_STACK, 4000);
     if (componentStack !== undefined) out.react = { componentStack };
 
@@ -337,12 +286,6 @@ function debugMeta(value: ErrorEvent['debug_meta']): ErrorEvent['debug_meta'] {
     return kept.length > 0 ? { images: kept } : undefined;
 }
 
-/**
- * Every JS crumb is also synced to the native SDK, and on Android the RN SDK
- * merges that native copy back into the event, sorted by time, with a timestamp
- * a few milliseconds off. A crumb that repeats the one before it within 50ms is
- * that copy. Two real taps are never that close.
- */
 function withoutNativeCopies(crumbs: Breadcrumb[]): Breadcrumb[] {
     const kept: Breadcrumb[] = [];
     for (const crumb of crumbs) {
@@ -367,10 +310,6 @@ function fingerprint(value: unknown, eventId: string | undefined): string[] | un
         : undefined;
 }
 
-/**
- * A new event with only the allowed fields. Null when nothing reportable is
- * left: no exception and no "Report a problem" message.
- */
 export function allowEvent(event: ErrorEvent): ErrorEvent | null {
     const values = (event.exception?.values ?? []).map(exception);
     const message = event.message === PROBLEM_REPORT ? PROBLEM_REPORT : undefined;

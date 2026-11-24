@@ -1,11 +1,4 @@
-/**
- * Month grid columns shared by CalendarSheet and MonthGrid. Each week is its
- * own unwrapped row of seven `flex: 1` columns, as is the weekday header: a
- * single wrapping row of `100/7%` cells could round past the row width and
- * push the seventh day onto the next line, shifting every day after it. A
- * column clips at `minWidth: 0` so no content can widen it, and the last week
- * is padded with blanks so its days do not stretch.
- */ import type { ReactNode } from 'react';
+import type { ReactNode } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { space, Text } from '../../../theme';
 import { monthDays, weekdayOf } from '../time';
@@ -34,9 +27,7 @@ export function WeekdayHeader() {
 }
 
 export type WeekRowsProps = {
-    /** Any day in the month on show. */
     month: string;
-    /** Height of one week; the cell a day draws fills its column. */
     rowHeight: number;
     renderDay: (day: string) => ReactNode;
 };

@@ -1,11 +1,3 @@
-/**
- * Google Drive's REST API, as much of it as local mode's backups use. Everything
- * lives in the account's hidden app folder (`appDataFolder`): nobody can browse,
- * move or share these files, and only this app's Google project can read them.
- * The price is that restoring happens in this app or not at all.
- *
- * No native code in here and `fetch` is passed in, so `bun test` reaches it.
- */
 export const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.appdata';
 export const BACKUPS_KEPT = 14;
 
@@ -25,7 +17,6 @@ export type DriveFetch = (
     arrayBuffer(): Promise<ArrayBuffer>;
 }>;
 
-/** `signedOut` is Google no longer honouring the grant; everything else may pass by itself. */
 export class DriveError extends Error {
     constructor(
         readonly kind: 'signedOut' | 'failed',
@@ -58,7 +49,6 @@ export async function driveAccount(fetcher: DriveFetch, token: string): Promise<
     return about.user?.emailAddress ?? null;
 }
 
-/** Newest first. Only this app's own files, should anything else ever sit in the folder. */
 export async function listBackups(fetcher: DriveFetch, token: string): Promise<DriveBackup[]> {
     const backups: DriveBackup[] = [];
     let page: string | undefined;
@@ -134,7 +124,6 @@ export async function deleteBackup(fetcher: DriveFetch, token: string, id: strin
     );
 }
 
-/** What falls out of the last `BACKUPS_KEPT`, given a list that is newest first. */
 export function backupsPastKept(newestFirst: readonly DriveBackup[]): readonly DriveBackup[] {
     return newestFirst.slice(BACKUPS_KEPT);
 }

@@ -1,6 +1,3 @@
-/**
- * `schedule` is the weekly schedule (MAW-1); a weekday with no row is closed.
- */
 import { clinicProcedure, router, setupProcedure } from '../../trpc/init.ts';
 import { clearClinicDayInput, setClinicDayInput, updateSettingsInput } from './settings.schema.ts';
 import { settingsService } from './settings.service.ts';

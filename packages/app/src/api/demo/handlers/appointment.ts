@@ -1,16 +1,3 @@
-/**
- * `server/src/modules/appointment/appointment.service.ts`.
- *
- * On the server, double-booking is refused by an `EXCLUDE USING gist`
- * constraint and the service's job is only to turn SQLSTATE 23P01 into
- * `SLOT_OVERLAP`. There is no constraint here, so `overlaps` is that rule
- * written out: spans are half-open, and only `SLOT_HOLDING_STATUSES`
- * participate — cancelled, no-show and `awaiting_payment` all free their slot.
- *
- * The advisory locking, the ref-collision retry and the stale-day retry that
- * surround it on the server are all answers to two writers racing, and there is
- * exactly one writer here, so they are left out rather than imitated.
- */
 import { canTransition, ERROR_CODE, SLOT_HOLDING_STATUSES, WS_EVENT } from '@lustre/shared';
 import type { RouterInput, RouterOutput } from '../../types';
 import { type AppointmentRow, getDb, save } from '../db';
@@ -33,7 +20,6 @@ function endOf(row: Pick<AppointmentRow, 'startsAt' | 'durationMinutes'>): numbe
     return row.startsAt.getTime() + row.durationMinutes * 60_000;
 }
 
-/** Half-open, so a row ending exactly as another begins is not an overlap. */
 function overlaps(candidate: { startsAt: Date; durationMinutes: number }, other: AppointmentRow): boolean {
     return candidate.startsAt.getTime() < endOf(other) && other.startsAt.getTime() < endOf(candidate);
 }
@@ -85,7 +71,6 @@ function resolvePatient(ref: RouterInput['appointment']['create']['patient']): s
     return createMinimalPatient(details).id;
 }
 
-/** `sortOrder` preserves the entered order, which is the order check-in seeds visit lines in. */
 function replaceProcedures(
     appointmentId: string,
     requested: NonNullable<RouterInput['appointment']['create']['procedures']>,
@@ -151,23 +136,6 @@ function withPatient(row: AppointmentRow): AppointmentWithPatient {
     };
 }
 
-/**
- * A walk-in is someone standing at the desk, so it is never refused for want of
- * room — it is taken and the booked day moves out of its way (§7). Only the
- * rows it actually runs into move, and only as far as they must: the walk-in's
- * end becomes a cursor, each later slot-holding row that starts before the
- * cursor is pushed to it, and the first row that already clears the cursor
- * stops the ripple, so a clinic's natural gaps absorb the walk-in.
- *
- * It is taken *now* only if the chair is free now. There is one practitioner,
- * so a slot still running when the patient arrives cannot be pushed aside
- * without interrupting a procedure in progress: that row stays, and the walk-in
- * starts when it ends.
- *
- * There is no day boundary, only the chain of rows the walk-in runs into, so a
- * queue past midnight still sees the rows an earlier walk-in pushed there.
- * The first gap ends the ripple, which is what leaves tomorrow alone.
- */
 function makeRoomForWalkIn(
     branchId: string,
     at: Date,
@@ -195,8 +163,6 @@ function makeRoomForWalkIn(
     const moved: Dated<RouterOutput['appointment']['walkIn']['moved']> = [];
 
     for (const row of later) {
-        // Rows cannot overlap each other, so the first one clear of the
-        // cursor is a gap, and nothing after it is in the way.
         if (row.startsAt.getTime() >= cursor) break;
 
         moved.push({ id: row.id, from: row.startsAt, to: new Date(cursor) });
@@ -220,8 +186,6 @@ export const appointmentHandlers = {
                 (row) =>
                     row.startsAt >= from &&
                     row.startsAt < to &&
-                    // Nobody came to these. They exist so a migrated balance has
-                    // a visit to hang on.
                     !row.isOpeningBalance &&
                     (input.branchId ? row.branchId === input.branchId : true),
             )
@@ -292,9 +256,6 @@ export const appointmentHandlers = {
 
         const patientId = resolvePatient(input.patient);
 
-        // Before the insert, not after: the walk-in cannot be written into a
-        // slot something else still holds, and this is also what decides when it
-        // starts — now, or when the chair frees.
         const { startsAt, moved } = makeRoomForWalkIn(input.branchId, arrivedAt, durationMinutes);
 
         const appointment = insertAppointment(
@@ -340,7 +301,6 @@ export const appointmentHandlers = {
             );
         }
 
-        // As the server: only a booking still to come can move.
         const moves =
             requestedStart !== undefined ||
             patch.durationMinutes !== undefined ||
@@ -373,7 +333,6 @@ export const appointmentHandlers = {
             ...(durationMinutes ? { durationMinutes } : {}),
             updatedAt: new Date(),
         });
-        // As the server: switching it on again keeps work that is already back.
         if (needsLab !== undefined) current.labStatus = needsLab ? (current.labStatus ?? 'pending') : null;
 
         if (procedures !== undefined) replaceProcedures(id, procedures);
@@ -385,7 +344,6 @@ export const appointmentHandlers = {
         return current;
     },
 
-    /** As the server: a no-op, and no broadcast, when nothing is pending. */
     markLabReady(input: RouterInput['appointment']['markLabReady']): AppointmentRow {
         const current = requireRow(input.id);
         if (current.labStatus !== 'pending') return current;
@@ -418,12 +376,6 @@ export const appointmentHandlers = {
         return current;
     },
 
-    /**
-     * The doctor is finished and the patient goes to the desk. The transition
-     * and the seating are one step: going to the desk is what empties the
-     * chair, and the patient who has been waiting starts their visit at that
-     * instant rather than at the time they arrived.
-     */
     awaitPayment(input: RouterInput['appointment']['awaitPayment']): AppointmentRow {
         const current = requireRow(input.id);
 
@@ -437,10 +389,6 @@ export const appointmentHandlers = {
 
         const now = new Date();
 
-        // Only a patient who actually held the chair empties it. One who is
-        // checked in but still waiting never had it, and seating the next
-        // person off their departure leaves two visits answering "in the
-        // chair" at once — which the day view draws as two running bars.
         const visit = getDb().visits.find((row) => row.appointmentId === current.id);
         const wasInChair = Boolean(visit?.inChairAt);
 

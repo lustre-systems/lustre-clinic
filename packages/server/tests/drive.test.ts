@@ -14,13 +14,6 @@ import {
     type ServiceAccountDriveCredentials,
 } from '../src/backup/drive.ts';
 
-/**
- * SPEC §16 — the off-site destination. Google is stubbed: what is worth
- * asserting is that the assertion we sign is one Google would accept, that the
- * token is reused rather than re-minted per call, and that an upload carries
- * the bytes to the right folder.
- */
-
 const { privateKey, publicKey } = generateKeyPairSync('rsa', { modulusLength: 2048 });
 const PEM = privateKey.export({ type: 'pkcs8', format: 'pem' }).toString();
 const PUBLIC_PEM = publicKey.export({ type: 'spki', format: 'pem' }).toString();

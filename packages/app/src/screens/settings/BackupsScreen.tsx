@@ -1,9 +1,3 @@
-/**
- * Settings → Backups: whether last night's backup ran and where its copy went.
- * Opened only once Drive is linked — until then the row opens the sign-in
- * instead, because there is nothing to report on yet. Changing the account is
- * the same sign-in, so the index owns it and this pane only asks for it.
- */
 import { useQuery } from '@tanstack/react-query';
 import { StyleSheet, View } from 'react-native';
 import { serverNow, useTRPC } from '../../api';
@@ -18,7 +12,6 @@ import { errorText } from './data/errors';
 
 export type BackupsScreenProps = {
     onBack: () => void;
-    /** Absent when this server cannot run the sign-in from the phone. */
     onChangeAccount?: () => void;
 };
 
@@ -48,8 +41,6 @@ export function BackupsScreen({ onBack, onChangeAccount }: BackupsScreenProps) {
                 <View style={styles.section}>
                     <SectionLabel inset={false}>STATUS</SectionLabel>
 
-                    {/* A refresh that failed after one that worked keeps the
-                        old answer, which must not pass for today's. */}
                     {status.error ? (
                         <Text variant="footnote" tone="muted" style={styles.note}>
                             {t('Could not refresh. Showing the last results.')}

@@ -24,12 +24,6 @@ import {
     DEV_STRINGS_XML,
 } from './plugins/withDevIdentity';
 
-/**
- * What a release APK is built to ask for, which cannot be changed after the
- * APK is on a phone. A demo that asks, or an APK that waits on the network at
- * launch, is a fix to the wrong app or a clinic stuck on the splash screen.
- */
-
 describe('updatesConfig', () => {
     test('asks the path and channel the server answers', () => {
         expect(MANIFEST_PATH).toBe(UPDATES_MANIFEST_PATH);
@@ -97,8 +91,6 @@ describe('releaseTrack', () => {
 });
 
 describe('runtime fingerprint', () => {
-    // A config that fails to load is replaced by an empty one without a word,
-    // and every numbered release would then get a runtime of its own.
     test('skips the version fields, so a release number never changes the runtime', () => {
         const config = require('./fingerprint.config.js') as { sourceSkips: string[] };
         expect(config.sourceSkips).toContain('ExpoConfigVersions');
@@ -161,8 +153,6 @@ describe('appConfig', () => {
         const previous = process.env.LUSTRE_DEV_SERVER;
         process.env.LUSTRE_DEV_SERVER = 'http://localhost:3001/';
 
-        // Every build, because only a dev one reads it (`api/config.ts`): a
-        // value left out of a demo would be a second thing to get wrong.
         expect(appConfig(context(false)).extra?.devServer).toBe('http://localhost:3001');
         expect(appConfig(context(true)).extra?.devServer).toBe('http://localhost:3001');
 
@@ -195,17 +185,6 @@ describe('glitchtipDsn', () => {
     });
 });
 
-/**
- * The other half of telling the two builds apart: a dev build has to install
- * beside the clinic's release rather than over it, and has to arrive pointing
- * at the dev server. Android refuses the second install of one package signed
- * two ways — "package already exists" — and the way past it was uninstalling
- * whichever build you were comparing against.
- */
-
-// What `expo prebuild` writes into android/app/build.gradle (SDK 57), trimmed
-// to the blocks the plugin touches. `signingConfigs` is kept: its `debug` block
-// sits above the build type of the same name.
 const GRADLE_TEMPLATE = `apply plugin: "com.android.application"
 
 android {
@@ -245,19 +224,13 @@ describe('dev application id', () => {
         expect(appJson.expo.android.package).toBe('com.lustre.clinic');
         expect(appJson.expo.name).toBe('Lustre Clinic');
         expect(releaseBuildType).not.toContain('applicationIdSuffix');
-        // The signing config above `buildTypes` is a `debug` block too, and
-        // suffixing the wrong one would rename nothing and break the build.
         expect(gradle.slice(0, gradle.indexOf('buildTypes {'))).not.toContain('applicationIdSuffix');
     });
 
     test('names the dev build apart in the launcher, from the debug source set', () => {
         expect(DEV_STRINGS_XML).toContain(`<string name="app_name">${DEV_APP_NAME}</string>`);
-        // Not merely different: a launcher truncates, so a name that opens with
-        // the real one's reads as the real one in the drawer.
         expect(DEV_APP_NAME.startsWith(appJson.expo.name)).toBe(false);
         expect(DEV_APP_NAME).not.toBe(appJson.expo.name);
-        // `main` is where prebuild writes app_name; a build type overrides it,
-        // and any other source set would collide with it instead.
         expect(DEV_STRINGS_PATH.split(/[\\/]/)).toEqual([
             'app',
             'src',

@@ -1,39 +1,3 @@
-/**
- * SPEC §5, §13. Phone is normalized to E.164 on write; age is derived at read
- * time and never stored.
- *
- * `byId` returns the patient and their whole history in one payload (§13), so
- * the records screen is a single round trip. That history is over appointments
- * rather than visits — see the method.
- *
- * Search uses a trigram-free substring `ILIKE` deliberately — thousands of
- * patients, not millions — and normalizes the phone term first so `0101…`
- * finds `+20101…`. `create` validates the full questionnaire (a new record is
- * the form answered in one sitting), while `update` merges a partial `custom`
- * patch and does not re-check answers the caller left out. `createMinimal`
- * (used by appointment booking) takes whatever of the record the booking
- * collected and deliberately skips questionnaire validation — the secretary is
- * on the phone, and the questions are answered at the desk.
- *
- * ## Numbering, and old patients
- *
- * A *new* patient is numbered off `settings.patient_ref_next` — handed that
- * number as it stands, which is then moved on by one, in the same transaction
- * as the insert.
- *
- * An **old** patient is not numbered at all. They arrived with a number written
- * on their paper file and that number is their `ref`, so the desk is given one
- * number for them rather than being shown a fresh one and told the real one is
- * elsewhere. `legacy_ref` carries the same string, which is what marks the
- * record as having come across. Two consequences the code has to enforce:
- * registering one must not consume the number the next new patient is owed, and
- * an old number that is a plain digit string the sequence has still to reach is
- * refused — taking it would hand the same number to two patients later.
- *
- * A ref that is already on a record can be corrected afterwards — see
- * `updateRef`, which is the only path that writes one, and which leaves a row
- * in `ref_edits` every time it does.
- */
 import type { AppointmentStatus } from '@lustre/shared';
 import { ERROR_CODE, type Role, seesPayments, viewOf, WS_EVENT } from '@lustre/shared';
 import { and, asc, desc, eq, ilike, inArray, or, sql } from 'drizzle-orm';
@@ -71,26 +35,18 @@ import type {
 
 export type PatientRow = typeof patients.$inferSelect;
 
-/** What a booking knows about a patient it is creating — `createPatientInput` less the questionnaire. */
 type MinimalPatientInput = Omit<CreatePatientInput, 'custom'>;
 
 export interface Patient extends PatientRow {
     age: number | null;
 }
 
-/** What was done, or — when the patient never got to the chair — what was going to be. */
 interface PatientHistoryProcedure {
     name: string;
     quantity: number;
     tooth: string | null;
 }
 
-/**
- * One row of a patient's history: an appointment, and the visit it became if it
- * became one. A cancellation and a no-show never produce a visit and are still
- * part of the history a record is read for, so the row is keyed by the
- * appointment and every visit-side field is nullable.
- */
 interface PatientHistoryEntry {
     appointmentId: string;
     visitId: string | null;
@@ -99,16 +55,11 @@ interface PatientHistoryEntry {
     status: AppointmentStatus;
     checkedInAt: Date | null;
     completedAt: Date | null;
-    /** Debt carried over from the old system, not a visit. The record labels it rather than drawing it as one. */
     isOpeningBalance: boolean;
-    /** Work the old system recorded. No visit behind it, so no money on it — the record marks it as prior history. */
     isImported: boolean;
-    /** The file did not say when. `startsAt` is the cutoff only because the column demands a value. */
     dateUnknown: boolean;
-    /** Null, like the two below, for a viewer not shown payments, once the visit is past (see `Visit`). */
     computedTotal: number | null;
     chargedTotal: number | null;
-    /** Null for a viewer who may not see payments (a doctor). */
     paidTotal: number | null;
     balance: number | null;
     procedures: PatientHistoryProcedure[];
@@ -120,23 +71,13 @@ interface PatientDetail {
     questionnaireGaps: QuestionnaireGap[];
 }
 
-/**
- * One page of the register, and how many there are in total. `total` counts
- * the register, not the page — the list draws it beside its heading, so a second
- * round trip for one integer would be a wasted call over Tailscale.
- */
 interface RecentPatients {
     patients: Patient[];
     total: number;
 }
 
-/**
- * Which kind of record a `ref_edits` row is about. Appointments carry refs too
- * (§5) and edit into the same table, so the column is not a patient id alone.
- */
 export const REF_EDIT_ENTITY = { PATIENT: 'patient', APPOINTMENT: 'appointment' } as const;
 
-/** One correction, as the record screen reads it back. */
 export interface RefEdit {
     previousRef: string;
     newRef: string;
@@ -144,29 +85,10 @@ export interface RefEdit {
     editedAt: Date;
 }
 
-/** Exported for callers that already hold the row rather than the shape a read returns. */
 export function toPatient(row: PatientRow): Patient {
     return { ...row, age: ageFromBirthDate(row.birthDate) };
 }
 
-/**
- * The one way a patient row is written, so every registration path gets a `ref`
- * and none of them can forget one.
- *
- * `oldRef` is the number an old patient already has; without it the row is
- * numbered off the counter. Either way the number is settled and the row
- * inserted in one transaction (a savepoint when the caller is already in one,
- * as booking and the old-patient write both are). The counter's `UPDATE` takes
- * the settings row's lock, so a second registration waits for the first to
- * commit and reads its number, and a failed insert rolls the counter back with
- * it.
- *
- * An allocated ref that collides is not retried. Settings refuses a next number
- * at or below the highest ref on file, so a collision means a row was written
- * around the counter, and the next number would most likely collide too. An
- * *old* ref that collides is a different event entirely — the desk typed a
- * number another patient has — and says so.
- */
 async function insertPatientWithRef(
     executor: Executor,
     values: Omit<typeof patients.$inferInsert, 'id' | 'ref'>,
@@ -219,16 +141,10 @@ function genderRequired(): AppError {
     return new AppError(ERROR_CODE.GENDER_REQUIRED, 'this clinic requires a sex on every patient', 422);
 }
 
-/** A sex typed as spaces is not one; the schema trims it to `''`. */
 function isBlank(value: string | null | undefined): boolean {
     return value === null || value === undefined || value.trim() === '';
 }
 
-/**
- * Refuses a registration the clinic's settings say is incomplete. Checked in
- * the service, not by the schema or a column constraint, because the clinic
- * can turn either rule on or off (Settings → Patient fields).
- */
 async function assertRegistrable(
     details: { birthDate?: string | null; gender?: string | null },
     executor: Executor = db,
@@ -238,11 +154,6 @@ async function assertRegistrable(
     if (requires.requireGender && isBlank(details.gender)) throw genderRequired();
 }
 
-/**
- * Refuses an edit that clears a field the clinic requires. A field the patch
- * leaves out is not judged: turning a rule on must not lock every record
- * already on file without it, so those are asked for by the editor instead.
- */
 function assertNotCleared(
     patch: { birthDate?: string | null; gender?: string | null },
     requires: PatientRequirements,
@@ -251,12 +162,6 @@ function assertNotCleared(
     if (requires.requireGender && patch.gender !== undefined && isBlank(patch.gender)) throw genderRequired();
 }
 
-/**
- * Hands out `settings.patient_ref_next` and moves it on. `RETURNING` sees the
- * incremented value, so the number actually handed out is the one before it —
- * which is the whole difference between this and the `patient_ref_last` it
- * replaced, where a clinic that typed 910 watched the next patient get 911.
- */
 async function nextPatientRef(executor: Executor): Promise<number> {
     const take = () =>
         executor
@@ -267,7 +172,6 @@ async function nextPatientRef(executor: Executor): Promise<number> {
 
     let [counter] = await take();
     if (!counter) {
-        // The row is seeded on first read, and nothing has read it yet.
         await settingsService.ensureSeeded();
         [counter] = await take();
     }
@@ -276,21 +180,6 @@ async function nextPatientRef(executor: Executor): Promise<number> {
     return counter.next - 1;
 }
 
-/**
- * Refuses an old number the new-patient sequence has still to hand out.
- *
- * The premise of the cutoff is that every old number is below it — a clinic
- * sets the next number above the last one its old system used. A number typed
- * at or above it (9100 for 910, say) is not a record that can be kept: the
- * sequence reaches it eventually and the unique constraint refuses the *new*
- * patient, months later, for something typed today. Refusing it now names the
- * field instead.
- *
- * A ref that is not a plain number cannot collide with the sequence and is
- * taken as it stands. `FOR UPDATE` on the settings row is what makes this and
- * the counter agree: a registration numbering itself and a settings write
- * moving the counter both queue behind it.
- */
 async function assertOldRefUnreserved(tx: Executor, oldRef: string): Promise<void> {
     if (!/^\d+$/.test(oldRef)) return;
 
@@ -299,9 +188,6 @@ async function assertOldRefUnreserved(tx: Executor, oldRef: string): Promise<voi
 
     let [row] = await read();
     if (!row) {
-        // Seeded on first read, and nothing has read it yet — the same shape
-        // `nextPatientRef` uses, and the reason the seed is not attempted up
-        // front: it writes on another connection, and this one holds locks.
         await settingsService.ensureSeeded();
         [row] = await read();
     }
@@ -334,7 +220,6 @@ function isPresent<T>(value: T | null): value is T {
     return value !== null;
 }
 
-/** Grouped by visit, in the order the lines were priced. */
 async function proceduresByVisit(visitIds: string[]): Promise<Map<string, PatientHistoryProcedure[]>> {
     if (visitIds.length === 0) return new Map();
 
@@ -352,7 +237,6 @@ async function proceduresByVisit(visitIds: string[]): Promise<Map<string, Patien
     return group(rows);
 }
 
-/** Grouped by appointment, in the order the booking planned them. */
 async function proceduresByAppointment(
     appointmentIds: string[],
 ): Promise<Map<string, PatientHistoryProcedure[]>> {
@@ -391,25 +275,10 @@ async function requireRow(id: string): Promise<PatientRow> {
     return row;
 }
 
-/** The id breaks ties on `created_at`, so a page boundary never repeats or drops a row. */
 const newestFirst = [desc(patients.createdAt), desc(patients.id)];
 const byName = [asc(patients.name), asc(patients.id)];
 
 export const patientService = {
-    /**
-     * Name, phone, or the number on the file. The ref is in here because an old
-     * patient's ref *is* the number written on their paper file — the desk
-     * reads `710` off the front of it and types it — and `legacy_ref` is here
-     * beside it for the records that came across before that was true, whose
-     * `ref` is a number this app allocated and nobody has ever seen. Both are
-     * matched as a substring, like the name: a half-typed number should narrow
-     * the list rather than find nothing until the last digit.
-     *
-     * The same is true of the phone, and is why the term goes through
-     * `phoneSearchTerm` rather than `normalizePhone`: a number still being typed
-     * does not normalize, and matched as typed it would find nothing at all.
-     * Several patients can share a number, so every one of them comes back.
-     */
     async search(input: SearchPatientInput): Promise<Patient[]> {
         const term = input.q.trim();
         if (!term) return [];
@@ -434,19 +303,6 @@ export const patientService = {
         return rows.map(toPatient);
     },
 
-    /**
-     * Everyone already on file under this number, oldest first.
-     *
-     * `phone` is indexed but not unique, and deliberately: two siblings share a
-     * mother's number, and refusing the second one at the desk would be
-     * refusing a patient. So this answers with a list and lets the caller
-     * decide — data entry warns and carries on, because over a long migration
-     * session the same patient does get typed twice.
-     *
-     * A term that will not normalize is not a duplicate, it is a number still
-     * being typed, so it answers `[]` rather than throwing `INVALID_PHONE`.
-     * Matching is on the normalized form, so `0101…` finds a stored `+20101…`.
-     */
     async byPhone(input: PatientByPhoneInput): Promise<Patient[]> {
         let phone: string;
         try {
@@ -464,12 +320,6 @@ export const patientService = {
         return rows.map(toPatient);
     },
 
-    /**
-     * Who was registered last, newest first — what the Patients tab opens on
-     * before anything is typed — or the whole register A–Z. `search` deliberately answers `[]` for an empty
-     * term, so browsing needed a procedure of its own rather than a term that
-     * matches everybody.
-     */
     async recent(input: RecentPatientsInput): Promise<RecentPatients> {
         const rows = await db
             .select()
@@ -483,18 +333,6 @@ export const patientService = {
         return { patients: rows.map(toPatient), total: counted?.total ?? 0 };
     },
 
-    /**
-     * The record in one payload (§13). Driven from `appointments`, not `visits`:
-     * a no-show and a cancellation never produce a visit, and a record read to
-     * answer "has this patient turned up before" has to show them. The visit is
-     * left-joined, so every money column is zero until there is one.
-     *
-     * Procedures come from the visit when the patient reached the chair — those
-     * carry the price actually billed — and from the booking when they did not,
-     * which is the only record of what was going to be done. Both are fetched
-     * once for the whole history rather than per row.
-     */
-    /** `viewer` is the caller's role when a router asks; omitted, everything is returned. */
     async byId(id: string, viewer?: Role | null): Promise<PatientDetail> {
         const patient = await requireRow(id);
 
@@ -541,7 +379,6 @@ export const patientService = {
             history: rows.map((r) => {
                 const chargedTotal = r.chargedTotal ?? 0;
                 const paidTotal = r.paidTotal ?? 0;
-                // Past: checked out, or brought over from the old system.
                 const past = r.completedAt !== null || r.isImported || r.isOpeningBalance;
                 const priced = shown || !past;
                 return {
@@ -557,22 +394,6 @@ export const patientService = {
         };
     },
 
-    /**
-     * Registering someone, new or old — one screen, one procedure. `old` is what
-     * the **Old patient** switch reveals, and its absence is the whole of what
-     * makes this a new registration.
-     *
-     * An old patient is written in one transaction with everything they brought
-     * with them: their number, what they owed, and whatever the paper file
-     * records they had done. Half of that landing is worse than none of it — a
-     * record on file owing nothing they actually owe is a wrong figure read out
-     * at the desk months later — so any failure takes the patient down with it
-     * and the row is typed again.
-     *
-     * Everything that can be refused is refused before the transaction opens:
-     * the questionnaire, the catalogue lines, and whether the clinic has said
-     * where an old patient's history is dated.
-     */
     async create(input: CreatePatientInput): Promise<Patient> {
         await assertRegistrable(input);
         const custom = await customQuestionService.validateIntake(input.custom);
@@ -598,8 +419,6 @@ export const patientService = {
         const plan = await planOldPatientHistory(old);
 
         const row = await db.transaction(async (tx) => {
-            // The old number is both the ref the desk reads and the mark that
-            // says this record came across, so it is written to both columns.
             const inserted = await insertPatientWithRef(tx, { ...values, legacyRef: old.ref }, old.ref);
             if (plan) await writeOldPatientHistory(tx, inserted.id, plan);
             return inserted;
@@ -632,36 +451,10 @@ export const patientService = {
         return toPatient(row);
     },
 
-    /**
-     * Correct the number a record is already known by.
-     *
-     * A ref goes at the top of a paper file and is read back off it for years,
-     * so a wrong one is not something to live with. Any role may correct it —
-     * the secretary is the one typing in the old paper cards — and two things
-     * stand between a typo and the column:
-     *
-     * **What.** Both patient ref shapes stay valid, the plain number and the
-     * four-character code a patient from before numbering carries, because that
-     * code is still the number on their file. A number at or above
-     * `patient_ref_next` is refused for the reason `assertOldRefUnreserved`
-     * gives, which is the same reason and the same code as registering one.
-     * Uniqueness is Postgres's answer, not a read-then-write: two phones
-     * correcting onto the same number would both see it free.
-     *
-     * **A record of it.** Previous value, new value, role, and when — written in
-     * the same transaction as the change, so a ref never moves without one.
-     *
-     * Re-typing the ref a patient already has is not a change and is not
-     * audited. It is what a screen submitting an untouched field does, and
-     * filling the trail with rows where nothing moved would bury the edits that
-     * did.
-     */
     async updateRef(
         { id, ref, editedBy: claimed }: UpdatePatientRefInput,
         caller?: Role | null,
     ): Promise<Patient> {
-        // A provisioned phone is the role on its credential, whatever it
-        // claims; only a phone with none is still taken at its word.
         const editedBy = caller ? viewOf(caller) : claimed;
 
         const next = normalizeRef(ref);
@@ -722,15 +515,6 @@ export const patientService = {
         return toPatient(row);
     },
 
-    /**
-     * Every correction made to this patient's ref, newest first.
-     *
-     * The patient is not required to still exist. `ref_edits` is kept when a
-     * record is deleted on purpose, and a ref moved onto the wrong patient who
-     * was then deleted is the sequence most worth being able to read back — so
-     * refusing the read for a record that is gone would withhold exactly the
-     * history the table is retained for. An id nobody holds answers `[]`.
-     */
     async refHistory(id: string): Promise<RefEdit[]> {
         return db
             .select({
@@ -744,13 +528,6 @@ export const patientService = {
             .orderBy(desc(refEdits.editedAt));
     },
 
-    /**
-     * Remove a record that should never have existed — a duplicate, a test
-     * entry — and everything under it: bookings, visits, their lines, their
-     * reminders. Refused if any visit has a payment on it, for the reason
-     * `visitService.delete` gives; a record with money on it is a ledger, and
-     * the way to be rid of it is to delete the payments first.
-     */
     async delete(id: string): Promise<void> {
         await db.transaction(async (tx) => {
             await requireRow(id);

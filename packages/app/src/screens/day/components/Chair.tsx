@@ -1,16 +1,3 @@
-/**
- * The doctor's two headline pieces: the strip and the black card. The strip is
- * whoever is in the chair while the card belongs to what comes after; with
- * nothing after, the chair takes the card back. Both forms say IN THE CHAIR and
- * both carry the bar and a Finish button, so the chair reads as the same thing
- * in either.
- *
- * The chair puts a clock on two things and they run off different stamps, which
- * is the whole point of there being two. The waited counter measures the queue
- * and starts at `checked_in_at`; the progress bar measures the visit and starts
- * at `in_chair_at`. On a patient who walked into an empty chair they are the
- * same instant, and on everyone behind them they are not.
- */
 import { Pressable, StyleSheet, View } from 'react-native';
 import { Button, Dot } from '../../../components/ui';
 import { useT } from '../../../i18n';
@@ -24,7 +11,6 @@ import { CheckIcon, ClockIcon, ProcedureIcon } from './icons';
 export type ChairStripProps = {
     appointment: Appointment;
     procedure?: string;
-    /** `in_chair_at` — the strip is only ever drawn for the chair. */
     seatedAt?: string;
     finishing: boolean;
     onOpen: (appointment: Appointment) => void;
@@ -32,22 +18,6 @@ export type ChairStripProps = {
     onFinish: (appointment: Appointment) => void;
 };
 
-/**
- * The chair, while the black card belongs to whoever comes after it.
- *
- * It was a name, a line and a button, and beside the AFTER THIS rows it read as
- * one more of them. There is one practitioner and one chair, so who is in it is
- * a fact to state rather than a row to infer: the strip names itself IN THE
- * CHAIR in the card form's own words, and carries the card form's bar. So the
- * chair looks like the same thing whether or not anything follows it.
- *
- * The two clocks stay two. The bar counts the visit from `in_chair_at`; the
- * waiting card under it counts the queue from `checked_in_at`.
- *
- * It stays white. Dark, it would compete with the card for the place the eye
- * lands first, and the card is what the doctor turns to next — which is the
- * reason the strip form exists at all.
- */
 export function ChairStrip({
     appointment,
     procedure,
@@ -120,9 +90,7 @@ export type ChairCardProps = {
     kind: ChairCardKind;
     nowMinutes: number;
     procedure?: string;
-    /** When the wait started — the `waiting` card counts up from here. */
     checkedInAt?: string;
-    /** When the wait ended — the `chair` card's bar counts up from here. */
     seatedAt?: string;
     finishing: boolean;
     onOpen: (appointment: Appointment) => void;
@@ -171,12 +139,6 @@ export function ChairCard({
                 <Text variant="eyebrow" tone={eyebrow.tone}>
                     {t(eyebrow.label)}
                 </Text>
-                {/* The booked time, and only where it earns its place: on NEXT UP
-                    it is when they are due, and in the chair it is the slot being
-                    worked through. Once someone is waiting they are already here,
-                    and a bare time up here sat right above a labelled arrival time
-                    and read as something about now. The booked time is still on
-                    the detail sheet. */}
                 {kind === 'waiting' ? null : (
                     <Text variant="eyebrow" tone="muted" style={styles.eyebrowEnd}>
                         {`${slot.time} ${slot.meridiem}`}
@@ -184,8 +146,6 @@ export function ChairCard({
                 )}
             </View>
 
-            {/* The name goes to the person, the line under it to the visit —
-                the same split the secretary's card makes. */}
             <Pressable
                 accessibilityRole="button"
                 accessibilityLabel={t("Open {name}'s record", { name: appointment.patient.name })}
@@ -264,9 +224,6 @@ function Waited({ checkedInAt, nowMinutes }: { checkedInAt?: string; nowMinutes:
     );
 }
 
-// The chair's dot holds still: its card carries the progress bar, and the bar
-// is what pulses. `waiting` keeps the blink because there is no bar under it —
-// nothing else on that card moves.
 const EYEBROW = {
     chair: { label: 'IN THE CHAIR', tone: 'live', dot: 'live', pulse: false },
     waiting: { label: 'WAITING', tone: 'due', dot: 'due', pulse: true },
@@ -303,8 +260,6 @@ const styles = StyleSheet.create({
     empty: { gap: space[1] },
     eyebrowRow: { flexDirection: 'row', alignItems: 'center', gap: space[2] },
     eyebrowEnd: { marginStart: 'auto' },
-    // `flex-start` so the target is the name's own width. Stretched across the
-    // card, the gap beside a short name would open the record.
     name: { alignSelf: 'flex-start', maxWidth: '100%', marginTop: space[3.5] },
     stripName: { alignSelf: 'flex-start', maxWidth: '100%' },
     namePressed: { opacity: 0.6 },

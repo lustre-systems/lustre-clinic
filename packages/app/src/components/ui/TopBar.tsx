@@ -1,8 +1,3 @@
-/**
- * Back, title, one trailing action. Every sub-screen has one. The trailing slot
- * is the same width as the back slot so the title stays optically centred
- * whether or not there is a trailing action.
- */
 import type { ReactNode } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { useT } from '../../i18n';

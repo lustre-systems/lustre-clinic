@@ -1,7 +1,3 @@
-/**
- * `server/src/modules/branch/branch.service.ts`. Branches are deactivated,
- * never removed — appointments reference them.
- */
 import type { RouterInput, RouterOutput } from '../../types';
 import { type BranchRow, getDb, save } from '../db';
 import { assignDefined, DemoError, uuidv7 } from '../rules';

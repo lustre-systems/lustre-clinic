@@ -1,18 +1,3 @@
-// The black chart card at the top of the stats screen: the metric and what it
-// covers in the header, with its figure and the change on what came before,
-// then a line over the period and the ones before it. Tapping a point shows it;
-// tapping it again goes back to the one the pill opened on.
-//
-// The line is drawn left to right in English and right to left in Arabic, the
-// way the pills and the bars read. The SVG does not mirror by itself, so its
-// x is flipped here; the overlays (the tap targets, the tag over the selected
-// point and the axis labels) sit on `start`, which the layout mirrors for us.
-//
-// A new run of points — the screen coming up, or another pill's — draws itself in
-// the reading direction, the area filling in behind it and each dot appearing
-// as the line reaches it. The same points with new figures (another metric, a
-// refresh) do not draw again: each point eases from where it was to where it is
-// now, and the dot, its tag and the tap targets ride along.
 // biome-ignore lint/style/noRestrictedImports: drives the line's draw and its morph with `Animated.timing` imperatively, and stops them on cleanup
 import { useEffect, useRef, useState } from 'react';
 import { Animated, type LayoutChangeEvent, Pressable, StyleSheet, View } from 'react-native';
@@ -33,26 +18,19 @@ const HIT = 44;
 const TAG = 84;
 const TAG_HEIGHT = 22;
 const TAG_GAP = 10;
-/** The most axis labels that fit; past it the axis names every second or third point. */
 const LABELS = 7;
 
 export type StatsChartProps = {
     metric: Metric;
-    /** The header's figure: the selected point's, or the whole period's when nothing is selected. */
     value: number;
-    /** What the figure is of, after the metric: "This month", or the selected point. */
     name: string;
-    /** Where a second tap on the selected point goes back to, or null when it is already there. */
     back: string | null;
     delta: Delta | null;
-    /** What the delta is measured against, for "vs last month" or "vs Sep". */
     against: string | null;
     values: readonly number[];
     labels: readonly string[];
-    /** -1 when nothing is selected, as on "All time". */
     selected: number;
     onSelect: (index: number) => void;
-    /** Whether the screen is up. The line draws itself in each time it comes up, and waits while it is hidden. */
     onScreen?: boolean;
 };
 
@@ -75,8 +53,6 @@ export function StatsChart({
     const skin = SKIN[metric];
     const [width, setWidth] = useState(0);
 
-    // The labels name the points, so new labels are a new line to draw; the
-    // same labels with new values are the same line moving.
     const series = labels.join('|');
     const target = chartPoints(values, { width, height: HEIGHT, pad: PAD, top: TOP, bottom: BOTTOM });
     const heights = useEasedHeights(
@@ -121,7 +97,6 @@ export function StatsChart({
                 </View>
 
                 {delta && against ? (
-                    // No change is neither news nor a warning: no arrow, no colour.
                     <View
                         style={[
                             styles.delta,
@@ -177,8 +152,6 @@ export function StatsChart({
                         ) : null}
                         {points.map((p, i) =>
                             i === selected || !reaches(i) ? null : (
-                                // Ringed, so each point reads as something to tap
-                                // rather than a vertex of the line.
                                 <Circle
                                     // biome-ignore lint/suspicious/noArrayIndexKey: a point is its position
                                     key={i}
@@ -208,9 +181,6 @@ export function StatsChart({
                 ) : null}
 
                 {focus ? (
-                    // On its own ground, so the line it sits over cannot run
-                    // through the figure, and below the dot when there is no
-                    // room above it.
                     <View
                         style={[
                             styles.tag,
@@ -276,10 +246,6 @@ export function StatsChart({
     );
 }
 
-/**
- * Runs `frame` from 0 to 1 and calls it once more on 1 when it lands, so the
- * end state is applied even at duration 0. Returns the stop for cleanup.
- */
 function tween(ms: number, curve: (t: number) => number, frame: (t: number) => void): () => void {
     const progress = new Animated.Value(0);
     const id = progress.addListener(({ value }) => frame(value));
@@ -299,18 +265,11 @@ function tween(ms: number, curve: (t: number) => number, frame: (t: number) => v
     };
 }
 
-/**
- * How much of the line is drawn, 0 to 1. Starts again from nothing whenever
- * `series` changes; null holds it at nothing, for a plot with no width yet or a screen that is hidden.
- */
 function useDrawn(series: string | null): number {
     const reducedMotion = useReducedMotion();
-    // Tagged with its series, so a new one reads as nothing drawn from its very
-    // first render rather than flashing whole for a frame before the effect.
     const [state, setState] = useState({ series, drawn: 0 });
 
     useEffect(() => {
-        // Hidden, it goes back to nothing drawn, so coming up draws it again.
         if (series === null) {
             setState({ series, drawn: 0 });
             return;
@@ -321,16 +280,10 @@ function useDrawn(series: string | null): number {
     return state.series === series ? state.drawn : 0;
 }
 
-/**
- * Where each point sits on its way to `to`. Interrupted, it eases on from
- * wherever the line had got to. A new `series` is a new line, which `useDrawn`
- * brings in, so its points start where they belong.
- */
 function useEasedHeights(to: readonly number[], series: string): readonly number[] {
     const reducedMotion = useReducedMotion();
     const key = to.join(',');
     const [shown, setShown] = useState<readonly number[]>(to);
-    // What is on screen right now, read when a new target interrupts the last.
     const live = useRef({ heights: shown, series });
 
     useEffect(() => {
@@ -348,16 +301,11 @@ function useEasedHeights(to: readonly number[], series: string): readonly number
         );
     }, [key, series, reducedMotion]);
 
-    // The render before the effect catches up with a new run of points.
     return shown.length === to.length && live.current.series === series ? shown : to;
 }
 
 type Point = { x: number; y: number };
 
-/**
- * The first `fraction` of the line by length, cut mid-segment where it ends,
- * and whether it has reached a given point yet.
- */
 function along(
     points: readonly Point[],
     fraction: number,

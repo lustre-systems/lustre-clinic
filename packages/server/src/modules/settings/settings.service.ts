@@ -1,23 +1,3 @@
-/**
- * SPEC §12. One enforced row (§5), seeded on first read so a fresh database is
- * usable without a manual step.
- *
- * `reminder_dismissed_on` lives here too (§11): the daily notification's repeat
- * is suppressed while it equals today. Reminder logic reads it through this
- * service rather than touching the row itself.
- *
- * Postgres returns `time` as `HH:MM:SS`, so rows are trimmed to `HH:MM` for the
- * client. Seeding uses `onConflictDoNothing` to cover two boots racing on an
- * empty database. `defaultDuration` must stay inside `durationOptions` or the
- * picker would offer an unpickable default, and `setDay` resolves the branch
- * first so the client gets a localizable `NOT_FOUND` rather than a foreign-key
- * violation.
- *
- * `patient_ref_next` is the number the next *new* patient is given. It was
- * `patient_ref_last` — the number already handed out — and the field was read
- * as this one by everybody who typed into it, which is how a clinic that typed
- * 910 got 911. An old patient keeps their own number and never moves it.
- */
 import {
     type ClinicType,
     DEFAULT_CLINIC_NAME,
@@ -49,22 +29,15 @@ interface Settings {
     reminderRepeatMinutes: number;
     reminderDismissedOn: string | null;
     reminderTemplate: string;
-    /** The number the next new patient is given — handed out as it stands, not one more. */
     patientRefNext: number;
-    /** A registration is refused without an age. Records already on file without one are left alone. */
     requireAge: boolean;
-    /** The same for a sex. */
     requireGender: boolean;
-    /** Whether the doctor's Finish asks first if the procedures need editing. */
     askToEditOnFinish: boolean;
-    /** `general`: no procedure asks for a tooth, whatever the catalogue says (`procedure.rules.ts`). */
     clinicType: ClinicType;
-    /** Whether a phone with no role credential is refused. Changed only by an admin (`device.setRequireProvisioning`). */
     requireProvisioning: boolean;
     updatedAt: Date;
 }
 
-/** What a patient must carry to be registered, under this clinic's settings. */
 export interface PatientRequirements {
     requireAge: boolean;
     requireGender: boolean;
@@ -72,7 +45,6 @@ export interface PatientRequirements {
 
 type SettingsRow = typeof settings.$inferSelect;
 
-/** The fields of `update` that set the clinic up (`managesClinic`). */
 const CLINIC_FIELDS = [
     'clinicName',
     'clinicPhone',
@@ -117,7 +89,6 @@ async function readRow(): Promise<SettingsRow> {
     return seeded;
 }
 
-/** Every write to the row stamps `updatedAt`. */
 async function updateRow(
     values: Partial<typeof settings.$inferInsert>,
     executor: Executor = db,
@@ -132,22 +103,12 @@ async function updateRow(
     return updated;
 }
 
-/** A write, then the handsets are told to refetch. */
 async function writeRow(values: Partial<typeof settings.$inferInsert>): Promise<Settings> {
     const updated = await updateRow(values);
     broadcast(WS_EVENT.SETTINGS_UPDATED);
     return toSettings(updated);
 }
 
-/**
- * Refuses a next patient number at or below the highest all-digit ref on file:
- * the next registration would be handed a number a patient already has. Old
- * random codes count when they happen to be all digits (`2345`), and so does an
- * old patient's own number, which is their `ref` (§5).
- *
- * At, not merely below: this value is handed out as it stands now, where
- * `patient_ref_last` was handed out plus one.
- */
 async function assertPatientRefNext(value: number, executor: Executor): Promise<void> {
     const highest = await highestTakenRef(executor);
 
@@ -169,19 +130,6 @@ async function highestTakenRef(executor: Executor): Promise<number> {
     return highestNumericRef(taken.map((row) => row.ref));
 }
 
-/**
- * The lead time, read under the settings row's own lock, for a caller that is
- * about to write a reminder from it. `update` holds that same lock from its
- * write through `rescheduleAllPending`, so a booking either takes the old lead
- * and commits before the change, or waits and takes the new one. Without it a
- * booking could read the old lead, miss the reschedule because its reminder did
- * not exist yet, and commit the one row the new setting does not reach.
- *
- * Exclusive rather than shared: `nextPatientRef` bumps this row later in the
- * same booking transaction, and two bookings each holding a shared lock and
- * waiting to upgrade it is a deadlock. Bookings already serialize on this row
- * whenever they register a patient.
- */
 async function leadHoursForWrite(executor: Executor): Promise<number> {
     const read = () =>
         executor
@@ -233,13 +181,6 @@ export const settingsService = {
 
     leadHoursForWrite,
 
-    /**
-     * Read through the caller's executor, and without seeding: a booking asks
-     * from inside its own transaction, which may be the one that seeded the
-     * row, and a second connection inserting behind it would wait on that
-     * transaction for as long as it waits on this. No row yet is the column
-     * defaults.
-     */
     async patientRequirements(executor: Executor = db): Promise<PatientRequirements> {
         const [row] = await executor
             .select({ requireAge: settings.requireAge, requireGender: settings.requireGender })
@@ -249,7 +190,6 @@ export const settingsService = {
         return row ?? { requireAge: DEFAULT_REQUIRE_AGE, requireGender: DEFAULT_REQUIRE_GENDER };
     },
 
-    /** Without seeding, like `patientRequirements`: no row yet is the column default. */
     async clinicType(executor: Executor = db): Promise<ClinicType> {
         const [row] = await executor
             .select({ clinicType: settings.clinicType })
@@ -259,11 +199,6 @@ export const settingsService = {
         return row?.clinicType ?? 'dental';
     },
 
-    /**
-     * `viewer` is the caller's role when a router asks. The clinic's details,
-     * numbering and required fields are the admin's to change; durations,
-     * reminders and the Finish prompt are everyone's.
-     */
     async update(input: UpdateSettingsInput, viewer?: Role | null): Promise<Settings> {
         if (viewer !== undefined && !managesClinic(viewer) && CLINIC_FIELDS.some((field) => field in input)) {
             throw new AppError(
@@ -287,23 +222,12 @@ export const settingsService = {
             );
         }
 
-        // Neither the reminders nor the ref counter is in play, so there is
-        // nothing the row lock below would protect.
         if (input.reminderLeadHours === undefined && input.patientRefNext === undefined) {
             return writeRow({ ...input, durationOptions, defaultDuration });
         }
 
         const patientRefNext = input.patientRefNext;
         const updated = await db.transaction(async (tx) => {
-            // The row lock comes first, so a registration already numbering
-            // itself either commits before the refs are read or waits until
-            // this has been written.
-            //
-            // It is also what the lead time is compared against. `current` was
-            // read before this transaction, and two saves racing would both see
-            // the old lead: the one writing it back unchanged would decide
-            // nothing had changed and skip the reschedule, leaving its own
-            // value on the row and the other's on every reminder.
             const [locked] = await tx
                 .select({ reminderLeadHours: settings.reminderLeadHours })
                 .from(settings)
@@ -315,11 +239,6 @@ export const settingsService = {
 
             const row = await updateRow({ ...input, durationOptions, defaultDuration }, tx);
 
-            // "How long before the appointment a reminder becomes due" is a
-            // statement about the pending list, not only about the next
-            // booking, so a new lead time moves the reminders already on the
-            // books — here, under the same lock, so a clinic is never left
-            // reading a lead time its pending list does not obey.
             const leadHours = input.reminderLeadHours;
             if (leadHours !== undefined && leadHours !== locked?.reminderLeadHours) {
                 await reminderService.rescheduleAllPending(tx, leadHours);
@@ -365,7 +284,6 @@ export const settingsService = {
         broadcast(WS_EVENT.SETTINGS_UPDATED);
     },
 
-    /** Read on every request from a phone without a credential, so without seeding: no row is the column default. */
     async requireProvisioning(): Promise<boolean> {
         const [row] = await db
             .select({ requireProvisioning: settings.requireProvisioning })

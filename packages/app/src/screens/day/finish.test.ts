@@ -1,9 +1,3 @@
-/**
- * The doctor's Finish asks whether the procedures need editing first. What a
- * tap decides is `finishPress`, tested as it is; where each answer goes is
- * wiring in JSX, held at the source level like `bookNext.test.ts`, because there
- * is no renderer under `bun test` and the guarantee is structural.
- */
 import { describe, expect, it } from 'bun:test';
 import path from 'node:path';
 import { finishPress } from './finish';
@@ -66,8 +60,6 @@ describe('the doctor day wiring', () => {
         const screen = await read('DoctorDayScreen.tsx');
         const sheet = await read('components/FinishSheet.tsx');
 
-        // The scrim and the hardware back are `Sheet`'s `onClose`, and they
-        // have their own handler rather than either answer's.
         expect(sheet).toContain('onClose={onClose}');
         expect(sheet).not.toContain('onClose={onFinish}');
         expect(sheet).not.toContain('onClose={onEdit}');
@@ -86,8 +78,6 @@ describe('the finishing editor', () => {
         expect(footer).toContain('onPress={handToDesk}');
         expect(footer).not.toContain('onPress={confirm}');
 
-        // Finishing is the save's success callback, so a save that fails never
-        // reaches `awaitPayment` and the visit stays in the chair.
         const handToDesk = body(visit, 'handToDesk');
         expect(handToDesk).toMatch(/save\(\(\) =>\s*sendToDesk\.mutate\(appointment\.id/);
         expect(body(visit, 'save')).toMatch(/onSuccess: \(priced\) => \{[\s\S]*?then\(priced\)/);

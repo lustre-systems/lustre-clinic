@@ -1,24 +1,3 @@
-// The **Old patient** part of the New patient screen: the switch, and the
-// two things a patient the clinic already had brings with them.
-//
-// There is no mockup for it — the Open Design folder has fourteen screens and
-// none of them is this one — so it is built from the tokens and from the shapes
-// `patient-edit.html` already settles. It is two pieces, not one block: the
-// switch is the last row of the BASICS card (`OldPatientRows`, passed in as
-// its `trailing`), with the ref and the balance opening under it in the same
-// card — it is one more fact read off the paper file, next to the age and the
-// sex, not a section of its own.
-//
-// Off is the default and off sends nothing. The fields keep what is in them
-// while the switch is off rather than being wiped — a mis-tap that lost a typed
-// number would be worse than one that did not — and only the submit reads the
-// switch (`patientForm.createInputOf`).
-//
-// ## Two fields, and why only two
-//
-// The number on the paper file and what they owed on it. The server dates the
-// balance on the day it is entered. What the file says was done is not asked
-// here: it is an old visit, added from the record whenever it surfaces.
 // biome-ignore lint/style/noRestrictedImports: the Reveal tween is an animation driven by the switch
 import { type ReactNode, useEffect, useRef, useState } from 'react';
 import { Animated, StyleSheet, View } from 'react-native';
@@ -39,13 +18,10 @@ import { owesInput } from '../patientForm';
 export type OldPatientProps = {
     form: PatientForm;
     onChange: (patch: Partial<PatientForm>) => void;
-    /** Required and still empty — the label goes `due` and the footer counts it. */
     blank: OldField[];
-    /** Typed and wrong, which does have something to correct. */
     errors: Partial<Record<OldField, string>>;
 };
 
-/** The switch row and, once it is on, the ref and the balance — inside the BASICS card. */
 export function OldPatientRows({ form, onChange, blank, errors }: OldPatientProps) {
     const t = useT();
     const old = form.old;
@@ -102,13 +78,6 @@ export function OldPatientRows({ form, onChange, blank, errors }: OldPatientProp
     );
 }
 
-/**
- * The switch's fields open and close rather than appearing: a short height
- * tween with the content fading a touch ahead of it, the same shape as the
- * agenda's *Before this* fold. Closed content stays mounted so the fields keep
- * what was typed (see the file comment) and so there is a height to open to —
- * it is clipped, untouchable, and out of the accessibility tree.
- */
 function Reveal({ open, children }: { open: boolean; children: ReactNode }) {
     const [contentHeight, setContentHeight] = useState(0);
     const reducedMotion = useReducedMotion();
@@ -124,7 +93,6 @@ function Reveal({ open, children }: { open: boolean; children: ReactNode }) {
             toValue: to,
             duration: duration.fadeup,
             easing: easing.promote,
-            // `height` is layout, so the native driver is out.
             useNativeDriver: false,
         });
         tween.start();

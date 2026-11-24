@@ -2,13 +2,6 @@ import { describe, expect, it } from 'bun:test';
 import path from 'node:path';
 import { Glob } from 'bun';
 
-// Two rules the type system cannot express: no raw colour values outside
-// tokens.ts, and no physical-direction style properties — the app runs Arabic
-// and English, and React Native's logical properties (`paddingStart`,
-// `marginEnd`, `start`, `end`, `borderStartWidth`) respect layout direction
-// where their left/right twins do not. The rest of the token discipline is
-// TypeScript's job (`color.dou`, `radius.huge` are compile errors), which is
-// why there is no magic-number check here.
 const APP_ROOT = path.resolve(import.meta.dir, '../..');
 const TOKENS = 'src/theme/tokens.ts';
 

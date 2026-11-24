@@ -2,17 +2,9 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useSyncExternalStore } from 'react';
 import { hydratingSubscribe } from './hydratingSubscribe';
 
-// The day's warning strips (`NotificationsBanner`) can be put away, but only
-// for a while. They name something that is still broken — a check-in nobody
-// hears — so a dismissal that held for good would be the phone agreeing to
-// stay broken. Stored as the instant it ends rather than a flag, so it survives
-// a restart and needs no clearing.
-//
-// Same shape as `updateDismissStore`, one store per banner.
 export const SNOOZE_MS = 4 * 60 * 60_000;
 
 export interface SnoozeState {
-    /** The banner holds until this: the alternative is a frame of it on a phone that already said not now. */
     hydrated: boolean;
     snoozed: boolean;
 }
@@ -22,7 +14,6 @@ function parse(stored: string | null): number | null {
     return Number.isSafeInteger(until) && until > 0 ? until : null;
 }
 
-/** Exported for the tests, which need the thing a cold launch produces and a clock they can move. */
 export function createSnoozeStore(key: string, now: () => number = Date.now) {
     let state: SnoozeState = { hydrated: false, snoozed: false };
     const listeners = new Set<() => void>();
@@ -33,8 +24,6 @@ export function createSnoozeStore(key: string, now: () => number = Date.now) {
         for (const listener of listeners) listener();
     }
 
-    // The banner has to come back by itself when the snooze runs out, with the
-    // app open on the day and nothing else re-rendering it.
     function snoozeUntil(until: number | null): void {
         if (wake !== null) clearTimeout(wake);
         wake = null;

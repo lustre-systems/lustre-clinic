@@ -1,20 +1,3 @@
-/**
- * Issues a role code from the server itself and prints its QR in the terminal:
- *
- *   bun cli grant admin [label]           from a checkout
- *   lustre grant admin [label]            the compiled binary, on the clinic machine
- *
- * This is how the clinic gets its first admin, and how it gets one back if every
- * admin phone is lost. Any role can be issued, but the phones' own admin screen
- * is the everyday way; this one needs a shell on the server, which is the
- * authority it rests on. No phone is promoted by it: the code has to be scanned.
- *
- * The QR is the join page on this server's tailnet address when it has one, so
- * a phone without the app can scan it with its camera and be offered the APK.
- * Without one it is the bare code, which only the app's own scanner reads.
- *
- * The code is printed, never logged: whoever holds it takes the role.
- */
 import {
     GRANT_TTL_MINUTES,
     grantCodeOf,
@@ -31,7 +14,6 @@ import { deviceService } from '../src/modules/device/device.service.ts';
 
 const LABEL: Record<Role, string> = { admin: 'Admin', doctor: 'Doctor', secretary: 'Secretary' };
 
-/** A light quiet zone around the code, which scanners need to find its edge. */
 const QUIET = 4;
 
 const WHITE_FG = '\x1b[97m';
@@ -40,11 +22,6 @@ const WHITE_BG = '\x1b[107m';
 const BLACK_BG = '\x1b[40m';
 const RESET = '\x1b[0m';
 
-/**
- * Two module rows per text line: the upper half-block takes the top row's
- * colour, the background the bottom row's. Colours are explicit rather than
- * left to the terminal, so the code reads dark-on-light on any theme.
- */
 function terminalQr(modules: boolean[][]): string {
     const size = modules.length + QUIET * 2;
     const dark = (row: number, col: number) => modules[row - QUIET]?.[col - QUIET] === true;

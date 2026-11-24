@@ -1,16 +1,3 @@
-/**
- * SPEC §7, §13. `patient` is a discriminated union: book for someone on file,
- * or create them in the same transaction.
- *
- * `offsetMinutes` is the client's UTC offset, so "today" and date inputs mean
- * the clinic's day. `updateAppointmentInput.status` sets only `no_show` —
- * cancel and check-in have their own calls. `awaitPaymentInput` marks that the
- * doctor is finished and the patient pays at the desk (§7).
- *
- * `needsLab` turns the lab requirement on (`pending`) or off. Switching it on
- * again keeps a `ready` lab ready: the work is still back. `markLabReady` is
- * the one call that moves `pending` to `ready`.
- */
 import { MAX_AMOUNT_PIASTRES, MAX_DURATION_MINUTES, MIN_DURATION_MINUTES, toothSchema } from '@lustre/shared';
 import { z } from 'zod';
 
@@ -18,16 +5,9 @@ const duration = z.number().int().min(MIN_DURATION_MINUTES).max(MAX_DURATION_MIN
 
 const offsetMinutes = z.number().int().min(-840).max(840).default(0);
 
-/**
- * §7 — the work the secretary expects. Validated against the same §5 rules as a
- * visit line, so a bookable list is exactly a recordable one. `quotedPrice` is
- * a price promised at the desk, in piastres; omitted, check-in snapshots the
- * catalogue price on the day.
- */
 const procedureLine = z.object({
     procedureId: z.uuid(),
     quantity: z.number().int().min(1).max(999).default(1),
-    /** Palmer notation. Omitted when the procedure is not tooth-specific (§5). */
     tooth: toothSchema.nullish(),
     note: z.string().trim().max(500).nullish(),
     quotedPrice: z.number().int().min(0).max(MAX_AMOUNT_PIASTRES).nullish(),
@@ -37,15 +17,6 @@ const procedures = z.array(procedureLine).max(100);
 
 const needsLab = z.boolean().optional();
 
-/**
- * Everything past `phone` mirrors `createPatientInput` field for field, and is
- * optional to the schema: the desk needs a name and a number to book, plus an
- * age or a sex when the clinic requires one, which the patient service checks
- * against the settings. A secretary who has the rest of the details in front
- * of her should not have to open the record afterwards to enter them. `custom` is deliberately absent — the questionnaire
- * is answered at the desk against the live question list (§7.8), not on the
- * phone.
- */
 const patientRefInput = z.discriminatedUnion('kind', [
     z.object({ kind: z.literal('existing'), patientId: z.uuid() }),
     z.object({
@@ -93,7 +64,6 @@ export const updateAppointmentInput = z.object({
     startsAt: z.iso.datetime({ offset: true }).optional(),
     durationMinutes: duration.optional(),
     branchId: z.uuid().optional(),
-    /** Replaces the whole list; it does not patch individual lines (§13). */
     procedures: procedures.optional(),
     note: z.string().trim().max(2000).nullish(),
     status: z.literal('no_show').optional(),

@@ -1,11 +1,3 @@
-/**
- * The payment screen's field and its Full / Half / Nothing chips. On a
- * correction the field is everything paid on the visit, so the chips have to
- * reach every state of the bill from any other — the bug was that on a visit
- * already paid in full they all landed on the figure already there. The
- * screen's wiring is held at the source level, as in `finish.test.ts`: there is
- * no renderer under `bun test`.
- */
 import { describe, expect, it } from 'bun:test';
 import path from 'node:path';
 import { alreadyPaidBy, paidBy, paidEntry, quickAmounts, typedEntry } from './money';
@@ -13,8 +5,6 @@ import { alreadyPaidBy, paidBy, paidEntry, quickAmounts, typedEntry } from './mo
 const CHARGED = 600_000;
 
 describe('the quick amounts', () => {
-    // A correction's ceiling is the whole charge, so nothing collected before
-    // enters into it: three different figures, on a paid visit as on an unpaid one.
     it('are paid in full, half paid and unpaid on a correction', () => {
         const { full, half, nothing } = quickAmounts(CHARGED);
         expect({ full, half, nothing }).toEqual({ full: CHARGED, half: CHARGED / 2, nothing: 0 });
@@ -25,7 +15,6 @@ describe('the quick amounts', () => {
         const collected = CHARGED;
         const { half, nothing } = quickAmounts(CHARGED);
 
-        // What `setPaid` is then asked to make the total, and so the delta it writes.
         expect(half - collected).toBe(-CHARGED / 2);
         expect(nothing - collected).toBe(-CHARGED);
     });
@@ -72,7 +61,6 @@ describe('the paid field', () => {
 
     it('caps at the ceiling to the piastre and says so', () => {
         expect(typedEntry('9000', CHARGED)).toEqual({ entry: paidEntry(CHARGED), capped: true });
-        // 121 pounds over a 120.50 charge is fifty piastres too many.
         expect(typedEntry('121', 12_050)).toEqual({ entry: { text: '121', piastres: 12_050 }, capped: true });
     });
 
@@ -137,7 +125,6 @@ describe('how a visit was paid', () => {
         expect(alreadyPaidBy(card, 'visa', '')).toBe(true);
         expect(alreadyPaidBy(card, 'cash', '')).toBe(false);
 
-        // A split payment folds onto either of its own methods.
         const split = paidBy([row(50_000, 'cash'), row(40_000, 'visa')]);
         expect(alreadyPaidBy(split, 'cash', '')).toBe(false);
 

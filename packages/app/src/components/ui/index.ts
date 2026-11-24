@@ -1,13 +1,3 @@
-// The design system. Knows nothing about Lustre — no visits, no patients, no
-// balances, and no tRPC. Component Inventory §2: the moment a component needs to
-// know that a visit has procedures, it belongs in `domain/` instead.
-//
-// The one import rule, enforced by `boundaries.test.ts`: a file in `ui/` may
-// import from `react`, `react-native`, `../../theme`, `../../i18n` (for the
-// layout direction and copy) and its own siblings. Not
-// from `@lustre/shared`, not from `domain/`, not from `screens/`, not from an
-// inferred `AppRouter` type.
-
 export type { ActionBarProps } from './ActionBar';
 export { ActionBar } from './ActionBar';
 export type { AddButtonProps, AddButtonVariant } from './AddButton';

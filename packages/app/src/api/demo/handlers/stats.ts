@@ -1,13 +1,3 @@
-/**
- * `server/src/modules/stats/stats.service.ts` — the doctor view's numbers for a
- * period. Everything is an aggregate over the same rows the rest of the app
- * writes, so a stat cannot drift from what happened.
- *
- * Opening-balance rows are debt the clinic inherited, not a day's work:
- * counting them would report a cutoff date on which hundreds of patients were
- * seen. `outstanding` is the one figure that does include them, because they
- * are still owed, and it is the standing balance rather than a per-period one.
- */
 import type { RouterInput, RouterOutput } from '../../types';
 import { getDb } from '../db';
 import { clinicDayOf, dayRange } from '../rules';
@@ -19,12 +9,10 @@ type StatsFigures = Dated<RouterOutput['stats']['overview']>;
 type StatsPeriod = RouterInput['stats']['overview'];
 type BranchFigures = StatsFigures['branches'][number];
 
-/** `statsService.overview`: profit is revenue less each line's snapshotted cost, split by branch. */
 function figuresFor(period: StatsPeriod): StatsFigures {
     const db = getDb();
     const days = rangeOf(period);
     const offsetMinutes = period.offsetMinutes ?? 0;
-    // `statsService`'s minute bounds: the range opens and closes that far into its first and last day.
     const from = new Date(days.from.getTime() + (period.fromMinute ?? 0) * 60_000);
     const to =
         period.toMinute === undefined

@@ -1,14 +1,3 @@
-/**
- * Publishes CHANGELOG.md, which stays the one place entries are written.
- *
- *   bun scripts/changelog.ts notes vX.Y.Z   print that version's entries, for its GitHub release
- *   bun scripts/changelog.ts wiki <dir>     write the changelog pages into a clone of the wiki
- *
- * The wiki gets one page per major version, newest first: `Changelog` holds the
- * current major and `Changelog-N.x` each older one. A major is a breaking change,
- * so it is where a reader looking for "what changed since my version" stops.
- * `[Unreleased]` is left out of both: neither has shipped it.
- */
 import { join } from 'node:path';
 
 type Section = { version: string; major: number; text: string };

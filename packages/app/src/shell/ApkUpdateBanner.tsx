@@ -6,17 +6,6 @@ import { useApkUpdate } from '../screens/settings/data/appUpdate';
 import { color, space } from '../theme';
 import { dismissApkUpdate, useDismissedApkUpdate } from './updateDismissStore';
 
-/**
- * The strip over the day that says the clinic server has a newer APK (§15).
- * Settings has the card with the build number and the how-to; this is the
- * nudge that gets someone there — the day is the screen a clinic phone lives
- * on, and a card two taps away is one nobody finds until told.
- *
- * Dismissable, per build: the X puts it away for this release on this phone
- * (`updateDismissStore`) and the next release brings it back. Never a modal —
- * installing leaves the app, and that is the doctor's call to make between
- * patients.
- */
 export function ApkUpdateBanner() {
     const t = useT();
     const update = useApkUpdate();

@@ -1,20 +1,3 @@
-/**
- * What this patient is in for — the sheet the doctor gets when he taps a row on
- * his day. It replaces the secretary's appointment sheet, which was a column of
- * desk writes he must not press (check in, no-show, cancel) and never drew the
- * one thing he opens a row to see: `appointment.procedures`.
- *
- * So this sheet is mostly a read. Once the patient has arrived it also opens
- * `VisitScreen` over the doctor's day, because recording what was done is his;
- * before that, "Edit booking" opens the booking page on the plan and the time.
- * "Open patient record" is the other way out, and the sheet exists because that
- * record is the wrong first answer: standing over the chair, the question is
- * "what am I doing to this person", not "what did we do in 2023". The plan is
- * two taps closer than the history now, and the history is still one tap away.
- *
- * The plan itself is `PlanSummary`, which the desk's appointment sheet draws
- * too, so both roles read what a booking is for the same way.
- */
 import { StyleSheet, View } from 'react-native';
 import { StatusPill } from '../../../components/domain';
 import { Button, Sheet } from '../../../components/ui';
@@ -28,16 +11,11 @@ export type DoctorVisitSheetProps = {
     visible: boolean;
     appointment: Appointment | null;
     onClose: () => void;
-    /** The record for this patient. */
     onOpenRecord: (appointment: Appointment) => void;
-    /** The procedure editor for this visit. Offered once the patient has arrived. */
     onRecord: (appointment: Appointment) => void;
-    /** The booking page for an appointment still to come: its plan, time and note. */
     onEditBooking: (appointment: Appointment) => void;
-    /** The visit behind the row is being read on the way to the editor. */
     recording?: boolean;
     onClosed?: () => void;
-    /** Whether this patient heads the arrival queue. `checked_in` alone cannot tell the chair from the waiting room. */
     inChair?: boolean;
 };
 
@@ -122,13 +100,6 @@ export function DoctorVisitSheet({
     );
 }
 
-/**
- * The mock's identity block, with the length of the visit on the dark tile
- * where it puts the date. The tile is 64pt and a start time is not: `10:00 AM`
- * set at headline clipped its meridiem. The line under the name already carries
- * the day and both ends of the slot, so the hour was the one thing on the tile
- * said twice, and how long he has is the thing it was not saying at all.
- */
 function Identity({ appointment, inChair }: { appointment: Appointment; inChair: boolean }) {
     const t = useT();
     return (
@@ -157,7 +128,6 @@ function Identity({ appointment, inChair }: { appointment: Appointment; inChair:
     );
 }
 
-/** `Today · 11:35 AM – 12:35 PM`. */
 function slotLabel(appointment: Appointment): string {
     const start = new Date(appointment.startsAt);
     const from = minutesOfDay(appointment.startsAt);
@@ -176,8 +146,6 @@ const styles = StyleSheet.create({
         borderRadius: radius.xl2,
         backgroundColor: color.ink,
     },
-    // The mock's `rgba(255,255,255,.62)` — a second white on ink, which the
-    // palette has no token for because nothing else sits on a dark ground.
     tileSub: { opacity: 0.62 },
     who: { flex: 1, gap: space[1] },
     status: { flexDirection: 'row', paddingTop: space[1] },

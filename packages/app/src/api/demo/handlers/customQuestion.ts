@@ -1,13 +1,3 @@
-/**
- * `server/src/modules/customQuestion/customQuestion.service.ts`.
- *
- * The two validation entry points stay asymmetric, because that asymmetry is
- * the rule: `validateIntake` is the whole form answered in one sitting and
- * enforces every active required question, while `validatePatch` checks only
- * the keys the caller actually sent. A patient who picked a `select` option
- * that has since been removed must still be able to have their phone number
- * corrected.
- */
 import { ERROR_CODE } from '@lustre/shared';
 import type { RouterInput, RouterOutput } from '../../types';
 import { type CustomQuestionRow, getDb, save } from '../db';
@@ -51,7 +41,6 @@ function missingAnswer(question: CustomQuestionRow): DemoError {
     );
 }
 
-/** The single definition of an acceptable answer, shared by validation and the audit. */
 function coerce(question: CustomQuestionRow, value: unknown): unknown {
     switch (question.kind) {
         case 'text':
@@ -92,8 +81,6 @@ function checkSubmitted(submitted: Answers, questions: Map<string, CustomQuestio
 
     for (const [key, value] of Object.entries(submitted)) {
         const question = questions.get(key);
-        // A key with no question behind it is refused: nothing would ever
-        // validate it again.
         if (!question) {
             throw new DemoError(ERROR_CODE.VALIDATION, `no custom question has the key '${key}'`, 422);
         }
@@ -203,8 +190,6 @@ export const customQuestionHandlers = {
     auditAnswers(stored: Answers): QuestionnaireGap[] {
         const gaps: QuestionnaireGap[] = [];
 
-        // The rows, not `list`'s answer: `options` is a `jsonb` column, so the
-        // wire type makes it optional and `coerce` needs the row's own.
         for (const question of sorted(getDb().customQuestions).filter((row) => row.active)) {
             const reason = gapIn(question, stored[question.key]);
             if (!reason) continue;

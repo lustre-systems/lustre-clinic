@@ -1,14 +1,3 @@
-/**
- * The HTTP half of releases (§15). Neither client speaks tRPC: Android's
- * download manager fetches the APK, and expo-updates' native code fetches the
- * manifest and its assets. So these are plain routes on the same tailnet-only
- * `Bun.serve` as `/trpc` (`server.ts`).
- *
- * The manifest route is expo-updates protocol 1
- * (https://docs.expo.dev/technical-specs/expo-updates-1/). "No update" is a 204
- * that still carries `expo-protocol-version`: without the header the client
- * reads the empty body as a broken server, not as nothing new.
- */
 import { UPDATES_ASSETS_PATH } from '@lustre/shared';
 import { config } from '../../config.ts';
 import { releaseService } from './release.service.ts';
@@ -43,8 +32,6 @@ export async function serveUpdateManifest(req: Request): Promise<Response> {
         return new Response('Expected an expo-updates protocol 1 request from Android', { status: 400 });
     }
 
-    // Only release builds are configured to ask, and they name this channel.
-    // Anything else is told there is nothing, which is true for it.
     if (req.headers.get('expo-channel-name') !== config.UPDATES_CHANNEL) return noUpdate();
 
     const update = await releaseService.latestUpdate(runtimeVersion);
@@ -67,6 +54,5 @@ export async function serveUpdateAsset(pathname: string): Promise<Response> {
     const file = await releaseService.updateAsset(segments);
     if (!file) return new Response('Not found', { status: 404 });
 
-    // An update's files never change under its id.
     return new Response(file, { headers: { 'cache-control': 'public, max-age=31536000, immutable' } });
 }

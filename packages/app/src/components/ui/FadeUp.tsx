@@ -1,13 +1,3 @@
-/**
- * A list row arriving: it fades up 4px into place, a beat after the row above
- * it, so a list that loads reads top to bottom rather than appearing at once.
- * The stagger stops growing after a screenful, so a long list does not keep
- * its last rows waiting.
- *
- * It plays once, on mount. `animate={false}` mounts the row already in place —
- * for a row the list has shown before and is only redrawing, such as one a
- * virtualized list unmounted while it was scrolled away.
- */
 // biome-ignore lint/style/noRestrictedImports: runs the staggered entry `Animated.timing` on mount and stops it on cleanup
 import { type ReactNode, useEffect, useRef } from 'react';
 import { Animated } from 'react-native';
@@ -18,7 +8,6 @@ const MAX_STAGGER_STEPS = 8;
 const STAGGER_MS = 32;
 
 export type FadeUpProps = {
-    /** Its place in the list, which sets how long it waits. */
     index?: number;
     animate?: boolean;
     children: ReactNode;
@@ -26,8 +15,6 @@ export type FadeUpProps = {
 
 export function FadeUp({ index = 0, animate = true, children }: FadeUpProps) {
     const reducedMotion = useReducedMotion();
-    // Read once: the row decides on mount whether it arrives, and a later
-    // render saying it has been seen must not cut the entry short.
     const play = useRef(animate).current;
     const entry = useRef(new Animated.Value(play ? 0 : 1)).current;
 

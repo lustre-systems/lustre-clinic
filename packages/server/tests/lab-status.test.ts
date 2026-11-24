@@ -9,14 +9,6 @@ import { setupDatabase, sql, truncateAll } from './helpers/db.ts';
 import { bookedAppointment, clinic, slot } from './helpers/factories.ts';
 import { captureWsEvents, startTestServer, type TestServer } from './helpers/trpc.ts';
 
-/**
- * A visit can wait on lab work (a crown, a bridge, a denture) that has to be
- * back before the patient sits down. `lab_status` is null for no lab, which is
- * every booking made without the switch; `pending` is out at the lab, `ready`
- * is back. The reminder carries it because confirming the visit with the
- * patient is where the desk has to check.
- */
-
 let api: TestServer;
 
 beforeAll(async () => {

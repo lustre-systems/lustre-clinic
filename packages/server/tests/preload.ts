@@ -1,16 +1,3 @@
-/**
- * Runs before any test file is imported (see `bunfig.toml`). `src/config.ts`
- * reads `Bun.env` at module load, and the suite truncates every table between
- * tests, so loading `.env.test` here makes the safe scratch database the
- * default no matter how the runner is invoked — a bare `bun test` otherwise
- * picks up `.env` and destroys the developer's working database.
- *
- * Empty values are meaningful: `.env.test` blanks the Drive and Discord keys
- * precisely so a test run cannot reach the network. An explicitly exported
- * `DATABASE_URL` still wins, but only if it ends in `_test`; `assertTestDatabase`
- * is the backstop that refuses anything else.
- */
-
 const ENV_FILE = new URL('../.env.test', import.meta.url).pathname;
 
 function parseEnvFile(contents: string): Record<string, string> {

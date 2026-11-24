@@ -11,23 +11,9 @@ import {
     whatsAppAppSchema,
 } from './enums.ts';
 
-/**
- * A clinic kept on one phone (the app's local mode), as it leaves the phone: a
- * gzipped SQLite snapshot with a row per record, each row's JSON under its table.
- * The app writes it to Google Drive; a phone in local mode restores it, and the
- * server's `import-local` command reads one to move a clinic onto a server. Either way
- * it is assembled into the object below and held to `localClinicFileSchema`.
- *
- * The tables are the server's (`server/src/db/schema.ts`) under their Drizzle
- * names, timestamps as ISO instants and money as integer piastres. A row shape
- * that changes gets an upgrade step in the app's `localFormat.ts` rather than
- * a new version, so `LOCAL_CLINIC_VERSION` moves only when an old reader would
- * misread a new file.
- */
 export const LOCAL_CLINIC_FORMAT = 'lustre-local';
 export const LOCAL_CLINIC_VERSION = 1;
 
-/** The two tables of a snapshot, and of the phone's own store. */
 export const LOCAL_CLINIC_TABLES_SQL = `
     CREATE TABLE IF NOT EXISTS clinic_rows (
         seq INTEGER PRIMARY KEY,
@@ -41,10 +27,8 @@ export const LOCAL_CLINIC_TABLES_SQL = `
 export const LOCAL_CLINIC_ROWS_SQL = 'SELECT tbl, id, json FROM clinic_rows ORDER BY seq';
 export const LOCAL_CLINIC_META_SQL = 'SELECT key, value FROM clinic_meta';
 
-/** Far past any clinic, and short of what inflating a hostile file would take from a phone. */
 const SNAPSHOT_MAX_BYTES = 256 * 1024 * 1024;
 
-/** Gzip's own header and its size trailer, read before anything is inflated. */
 export function isAcceptableGzip(bytes: Uint8Array): boolean {
     if (bytes.length < 18 || bytes[0] !== 0x1f || bytes[1] !== 0x8b) return false;
     const size = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength).getUint32(
@@ -54,8 +38,6 @@ export function isAcceptableGzip(bytes: Uint8Array): boolean {
     return size <= SNAPSHOT_MAX_BYTES;
 }
 
-// `guid`, not `uuid`: the phone's ids are v7 by their time bits but do not set the RFC
-// variant, and Postgres's `uuid` takes any 8-4-4-4-12 hex.
 const uuid = z.guid();
 const instant = z.iso.datetime({ offset: true }).transform((value) => new Date(value));
 const day = z.iso.date();
@@ -216,15 +198,9 @@ const settings = z.object({
     updatedAt: instant,
 });
 
-/**
- * The phone's own role grants and devices are in the file too, but only that
- * phone's: a server keeps hashes and issues its own, so they are checked for
- * being there and nothing more.
- */
 export const localClinicFileSchema = z.object({
     format: z.literal(LOCAL_CLINIC_FORMAT),
     version: z.literal(LOCAL_CLINIC_VERSION),
-    /** When this copy left the phone. Absent on the phone's own file. */
     exportedAt: instant.optional(),
     db: z.object({
         branches: z.array(branch),
@@ -247,12 +223,6 @@ export const localClinicFileSchema = z.object({
 
 export type LocalClinicFile = z.infer<typeof localClinicFileSchema>;
 
-/**
- * A snapshot's rows as the object the schema checks. A table with no rows has
- * none to find, so every table starts empty, and missing settings are left for
- * the schema to refuse. Throws on a row in a table this build does not know:
- * the schema would never see it, and the record would vanish on the way in.
- */
 export function assembleLocalClinicFile(
     rows: readonly { tbl: string; json: string }[],
     meta: readonly { key: string; value: string }[],

@@ -27,22 +27,6 @@ import {
     todaySlot,
 } from './helpers/factories.ts';
 
-/**
- * Phase 1 modules against a real Postgres. The rules worth asserting are the
- * ones the schema cannot hold on its own: the checkup waiver (§9), one level of
- * procedure nesting (§5), status transitions (§7), and balances being derived
- * rather than stored (§10).
- *
- * Key invariants: a weekday with no row is closed; a category with no bookable
- * children is bookable by nobody; `missed` is `booked` past its end and nothing
- * transitions on a timer; the status check and write are one statement, so a
- * concurrent move is refused rather than silently overwritten; an explicit
- * `charged_total` is the clinic's discount and survives recompute (and is never
- * re-edited after checkout, where §10's `recordPayment` takes over); the
- * questionnaire moves while records stay, so patches never touch answers the
- * caller did not submit.
- */
-
 beforeAll(async () => {
     await setupDatabase();
 });
@@ -87,10 +71,6 @@ describe('settings', () => {
     });
 });
 
-/**
- * A weekday with no row is closed — the day view renders it as closed rather
- * than as an empty schedule, so absence is the meaningful case here.
- */
 describe('clinic days', () => {
     test('an unset weekday is closed', async () => {
         expect(await settingsService.schedule()).toEqual([]);
@@ -354,19 +334,15 @@ describe('procedure', () => {
             expect(root?.selectable).toBe(false);
             expect(root?.children.map((c) => c.id)).toEqual([first.id]);
 
-            // The heading is never bookable, the subtype always is.
             expect((await procedureService.selectableList()).map((p) => p.id)).toEqual([first.id]);
         });
 
-        // Without the transaction the heading survives a failed subtype, and a
-        // childless root priced 0 is a procedure `list` offers on a visit.
         test('writes neither when the subtype cannot be written', async () => {
             await expect(
                 procedureService.createCategory({
                     name: 'Crowns',
                     sortOrder: 0,
                     first: {
-                        // Past int4 — Postgres refuses it after the heading is in.
                         defaultPrice: Number.MAX_SAFE_INTEGER,
                         name: 'Zirconia',
                         hasQuantity: false,
@@ -380,8 +356,6 @@ describe('procedure', () => {
         });
     });
 
-    // The pane says "only one procedure can hold it", and the waiver (§9) has to
-    // know which line it is waiving.
     test('the checkup flag is handed over, never shared', async () => {
         const first = await procedureService.create({
             name: 'Checkup',
@@ -438,8 +412,6 @@ describe('procedure', () => {
             expect(tree.map((n) => n.id)).toEqual([third.id, first.id, second.id]);
         });
 
-        // The point of the procedure: a list naming a row that is not there
-        // leaves the old order intact rather than applying the first half.
         test('leaves the order untouched when one id does not exist', async () => {
             const [first, second, third] = await threeRoots();
             if (!first || !second || !third) throw new Error('fixture');
@@ -485,7 +457,6 @@ describe('procedure', () => {
 });
 
 describe('customQuestion', () => {
-    // §14. The question is bilingual; the answer is not.
     test('keeps both labels, and stores an unwritten Arabic one as null', async () => {
         const bilingual = await customQuestionService.create({
             key: 'diabetic',
@@ -497,8 +468,6 @@ describe('customQuestion', () => {
         });
         expect(bilingual.labelAr).toBe('هل تعاني من السكري؟');
 
-        // What the editor sends for an input nobody filled in has to land as
-        // NULL, or the fallback in `resolveLabel` never fires for that row.
         const blank = createCustomQuestionInput.parse({
             key: 'allergies',
             label: 'Allergies',
@@ -510,7 +479,6 @@ describe('customQuestion', () => {
         const stored = await customQuestionService.create(blank);
         expect(stored.labelAr).toBeNull();
 
-        // A translation added later, and one cleared again.
         const translated = await customQuestionService.update({
             id: stored.id,
             labelAr: 'الحساسية',
@@ -836,12 +804,6 @@ describe('customQuestion', () => {
 });
 
 describe('patient', () => {
-    /**
-     * Every patient carries this clinic's own number, generated once. It is what
-     * goes at the top of their page in the paper book (one page per patient), so
-     * a record without one cannot be filed — which is why the column is NOT NULL
-     * rather than something a screen fills in later.
-     */
     test('gives every registration a ref, whichever path made it', async () => {
         const registered = await patientService.create({
             name: 'Nadia Hassan',
@@ -849,7 +811,6 @@ describe('patient', () => {
             birthDate: '1990-01-01',
             custom: {},
         });
-        // What booking uses when the patient is not on file yet.
         const booked = await patientService.createMinimal({
             name: 'Walk In',
             phone: '01098765432',
@@ -861,8 +822,6 @@ describe('patient', () => {
         expect(registered.ref).not.toBe(booked.ref);
     });
 
-    // A duplicate or a test entry, and everything hanging off it. The visit
-    // going too is what makes this different from cancelling their bookings.
     test('deletes a patient with their bookings and visits', async () => {
         const { branch, patient } = await fixtures();
         const booked = await appointmentService.create({
@@ -919,16 +878,10 @@ describe('patient', () => {
 
         expect(migrated.legacyRef).toBe('4417');
         expect(migrated.ref).not.toBe('4417');
-        // A patient registered since the cutoff never had an old number, and a
-        // blank says that rather than inventing one.
         expect(fresh.legacyRef).toBeNull();
         expect(fresh.ref).toMatch(PATIENT_REF_PATTERN);
     });
 
-    // The constraint is what makes the generator's retry meaningful, so it is
-    // worth asserting rather than assumed. Awaited inside a try rather than
-    // through `.rejects`: a postgres.js query is lazy and only runs when it is
-    // actually awaited, so `expect(query).rejects` hangs instead of failing.
     test('refuses two patients with the same ref', async () => {
         const first = await patientService.create({
             name: 'First',
@@ -976,10 +929,6 @@ describe('patient', () => {
         expect((await settingsService.get()).patientRefNext).toBe(4);
     });
 
-    // The reported figure, the other way round from the bug: a clinic that sets
-    // the next patient number to 910 gets 910, and the one after it gets 911.
-    // `patient_ref_last` gave them 911 and 912, because the field said "last"
-    // and everybody read it as "next".
     test('hands out the number the clinic sets, then the one after it', async () => {
         await settingsService.update({ patientRefNext: 910 });
 
@@ -1051,8 +1000,6 @@ describe('patient', () => {
         expect((await settingsService.get()).patientRefNext).toBe(912);
     });
 
-    // At, not below: the value is handed out as it stands, so a next number
-    // equal to a ref on file would hand that number out twice.
     test('refuses a next number a patient already has, and leaves the counter alone', async () => {
         await patientService.create({
             name: 'One',
@@ -1076,8 +1023,6 @@ describe('patient', () => {
         expect(kept.patientRefNext).toBe(3);
     });
 
-    // Patients from before numbering keep their codes. One that happens to be
-    // all digits is a number the counter could reach, so it is the floor too.
     test('leaves existing codes alone, and counts an all-digit one as taken', async () => {
         const oldCode = uuid();
         const oldNumber = uuid();
@@ -1166,9 +1111,6 @@ describe('patient', () => {
         expect((await patientService.search({ q: 'nobody', limit: 25 })).length).toBe(0);
     });
 
-    // What the Patients tab opens on. `search('')` answers nothing by design, so
-    // browsing is its own procedure — and its `total` is the register rather than
-    // the page, which is the number the list draws beside its heading.
     test('browses the newest registrations, and counts the whole register', async () => {
         const first = await patientService.create({
             name: 'Registered First',
@@ -1298,9 +1240,6 @@ describe('patient', () => {
         );
     });
 
-    // The record is read to answer "has this patient turned up before, and what
-    // did we do", so the history is over appointments: a no-show has no visit
-    // and no money, and still belongs on it, carrying what was going to be done.
     test('history carries what was done, and keeps the appointments that never became visits', async () => {
         const { patient, extraction, appointment, visit } = await checkedInVisit();
 
@@ -1326,7 +1265,6 @@ describe('patient', () => {
         expect(performed?.procedures).toEqual([{ name: 'Extraction', quantity: 1, tooth: 'UR6' }]);
         expect(performed?.chargedTotal).toBe(EXTRACTION_PRICE);
 
-        // No visit, so no money — and the booking is the only record of the plan.
         expect(planned?.visitId).toBeNull();
         expect(planned?.status).toBe('no_show');
         expect(planned?.chargedTotal).toBe(0);
@@ -1370,9 +1308,6 @@ describe('appointment', () => {
         expect(found[0]?.birthDate).toBe('1990-01-01');
     });
 
-    // The desk is not always on the phone — when the card is in her hand, the
-    // details go on the record with the booking rather than in a second visit
-    // to it. The questionnaire is still not asked here (§7.8).
     test('keeps the details the booking collected about a new patient', async () => {
         const { branch } = await fixtures();
 
@@ -1535,7 +1470,6 @@ describe('appointment', () => {
         expect(appointment.channel).toBe('walk_in');
         expect(appointment.status).toBe('checked_in');
 
-        // Nothing was asked for, and check-in adds no checkup of its own.
         const visit = await visitService.byId(visitId);
         expect(visit.procedures).toEqual([]);
         expect(visit.chargedTotal).toBe(0);
@@ -1560,9 +1494,6 @@ describe('appointment', () => {
 
     test('never lists an appointment awaiting payment as missed', async () => {
         const { branch, patient } = await fixtures();
-        // Ended already, but still on today's clinic day (offset 0 → UTC), or
-        // the check-in below refuses it. Within three hours of UTC midnight
-        // "three hours ago" is yesterday, which is when CI happens to run.
         const now = Date.now();
         const sinceMidnight = now % 86_400_000;
         const past = new Date(now - Math.min(3 * 3_600_000, Math.floor(sinceMidnight / 2))).toISOString();
@@ -1694,11 +1625,6 @@ describe('appointment', () => {
     });
 });
 
-/**
- * §7 — a booking carries the list of procedures the secretary expects, not a
- * single type. The §5 rules are the same ones a visit line obeys, so a list
- * that can be booked is a list that can be recorded.
- */
 describe('appointment procedures', () => {
     test('books several procedures and reads them back with their names', async () => {
         const { branch, patient, rootCanal, extraction } = await fixtures();
@@ -1869,14 +1795,11 @@ describe('appointment procedures', () => {
             ],
         });
 
-        // The catalogue moves between booking and arrival; the visit bills the
-        // price on the day, not the one that applied when the slot was taken.
         await procedureService.update({ id: rootCanal.id, defaultPrice: ROOT_CANAL_PRICE + 10_000 });
 
         const created = await visitService.checkIn({ appointmentId: appointment.id });
         const visit = await visitService.byId(created.id);
 
-        // Exactly the plan: check-in adds no checkup line on top of it.
         expect(visit.procedures.map((l) => [l.name, l.unitPrice]).sort()).toEqual(
             [
                 ['Extraction', EXTRACTION_PRICE],
@@ -1923,11 +1846,6 @@ describe('appointment procedures', () => {
         expect(visit.procedures.map((l) => l.name)).toEqual(['Extraction']);
     });
 
-    // The chair is occupied at the moment the patient arrives, which is what a
-    // running-late day looks like from the desk. The slot in progress is not
-    // interrupted, and the walk-in is not refused for it: it starts at the end
-    // of the one already in the chair. Before, the row was never considered and
-    // the insert died on `appointments_no_overlap` as SLOT_OVERLAP.
     test('a walk-in arriving mid-procedure is seated after it, not turned away', async () => {
         const { branch, patient } = await fixtures();
 
@@ -1948,7 +1866,6 @@ describe('appointment procedures', () => {
         expect(appointment.status).toBe('checked_in');
         expect(appointment.startsAt.getTime()).toBe(running.startsAt.getTime() + 30 * 60_000);
 
-        // And the one in the chair stayed exactly where it was.
         expect((await appointmentService.byId(running.id)).startsAt.getTime()).toBe(
             running.startsAt.getTime(),
         );
@@ -1972,11 +1889,6 @@ describe('appointment procedures', () => {
 });
 
 describe('visit', () => {
-    /**
-     * A visit checked in today. `withWork` books a root canal first, so the
-     * visit opens with a line and checkout will take it; a test about an empty
-     * visit, or one that sets its own lines, leaves it off.
-     */
     async function checkedIn({ withWork = false }: { withWork?: boolean } = {}) {
         const f = await fixtures();
         const appointment = await appointmentService.create({
@@ -2037,7 +1949,6 @@ describe('visit', () => {
                 offsetMinutes,
             });
 
-        // Half an hour either side of the clinic's midnight.
         const lastNight = await book(from.getTime() - 30 * 60_000);
         const thisMorning = await book(from.getTime() + 30 * 60_000);
 
@@ -2088,9 +1999,6 @@ describe('visit', () => {
         );
     });
 
-    // Correcting a finished visit: the wrong tooth was charged and the money is
-    // already in the drawer. Reopening is the only edge out of `done`, and the
-    // payments have to survive it — they were handed over.
     test('reopens a checked-out visit for correction, keeping what was paid', async () => {
         const { visit, appointment, extraction } = await checkedIn();
 
@@ -2110,16 +2018,10 @@ describe('visit', () => {
         const reopened = await visitService.reopen({ visitId: visit.id });
 
         expect(reopened.completedAt).toBeNull();
-        // Cleared with it, or `setProcedures` would recompute around a frozen
-        // `chargedTotal` and the bill would not follow the lines.
         expect(reopened.pricedAt).toBeNull();
         expect(reopened.paidTotal).toBe(charged);
-        // The appointment stays `done`: the patient came and went home, and
-        // correcting the paperwork afterwards does not put them back at the
-        // desk waiting to pay — which is what the day view would show.
         expect((await appointmentService.byId(appointment.id)).status).toBe('done');
 
-        // The point of reopening: the list is editable again.
         const corrected = await visitService.setProcedures({
             visitId: visit.id,
             procedures: [{ procedureId: extraction.id, quantity: 1, tooth: 'UR3' }],
@@ -2127,8 +2029,6 @@ describe('visit', () => {
         expect(corrected.procedures.map((p) => p.tooth)).toEqual(['UR3']);
     });
 
-    // The other end of the same edit: closing it again, on an appointment that
-    // never left `done` and so has no transition left to make.
     test('closes a corrected visit again without a status to move', async () => {
         const { visit, appointment, extraction } = await checkedIn();
 
@@ -2158,9 +2058,6 @@ describe('visit', () => {
         expect((await appointmentService.byId(appointment.id)).status).toBe('done');
     });
 
-    // Undoing a check-in. The visit and its lines go, and the booking is
-    // still a booking — the patient was expected, and whether they came is
-    // now for the desk to say with cancel or no-show.
     test('deletes a visit and puts the appointment back to booked', async () => {
         const { visit, appointment } = await checkedIn({ withWork: true });
         expect((await visitService.byId(visit.id)).procedures).toHaveLength(1);
@@ -2172,9 +2069,6 @@ describe('visit', () => {
         expect((await appointmentService.byId(appointment.id)).status).toBe('booked');
     });
 
-    // A walk-in has no booking to go back to: the appointment was made for the
-    // visit, and a `booked` walk-in on the day view would be a patient who is
-    // neither expected nor here.
     test('deleting a walk-in visit takes the appointment with it', async () => {
         const { branch, patient } = await fixtures();
         const { appointment, visitId } = await appointmentService.walkIn({
@@ -2189,9 +2083,6 @@ describe('visit', () => {
         expect((await patientService.byId(patient.id)).history).toEqual([]);
     });
 
-    // Money is the line. A delete that took a payment with it would move a
-    // past day's takings without a trace, so the payment has to be removed
-    // first, on its own, and only then does the visit go.
     test('refuses to delete a visit with a payment, until the payment is removed', async () => {
         const { visit, extraction } = await checkedIn();
         await visitService.setProcedures({
@@ -2218,8 +2109,6 @@ describe('visit', () => {
         await expectAppError(ERROR_CODE.NOT_FOUND, () => visitService.byId(visit.id));
     });
 
-    // Leaving the chair by deletion hands it on the same as leaving it by
-    // checkout: the next patient's visit starts when the chair empties.
     test('deleting the visit in the chair seats the next patient', async () => {
         const { visit: first, branch, patient } = await checkedIn();
         expect(first.inChairAt).not.toBeNull();
@@ -2243,7 +2132,6 @@ describe('visit', () => {
             visitService.checkOut({ visitId: visit.id, chargedTotal: 0, paidTotal: 0, method: 'cash' }),
         );
 
-        // Nothing closed: the visit stays open and the patient stays checked in.
         expect((await visitService.byId(visit.id)).completedAt).toBeNull();
         expect((await appointmentService.byId(appointment.id)).status).toBe('checked_in');
     });
@@ -2263,8 +2151,6 @@ describe('visit', () => {
         );
     });
 
-    // The other half of a correction: the procedures were right and the money
-    // was not. 800 was recorded, 500 was handed over.
     test('corrects what was paid down, keeping the original payment on the record', async () => {
         const { visit, extraction } = await checkedIn();
 
@@ -2290,8 +2176,6 @@ describe('visit', () => {
 
         expect(corrected.paidTotal).toBe(charged - 20_000);
         expect(corrected.balance).toBe(20_000);
-        // Nothing was edited or deleted — the refund is a row of its own, so
-        // both what was entered and what put it right are still readable.
         expect((corrected.payments ?? []).map((p) => p.amount).sort((a, b) => b - a)).toEqual([
             charged,
             -20_000,
@@ -2347,7 +2231,6 @@ describe('visit', () => {
             method: 'cash',
         });
 
-        // A row of zero would be a payment that moved no money.
         expect(same.payments?.length).toBe(1);
         expect(same.paidTotal).toBe(charged);
     });
@@ -2596,7 +2479,6 @@ describe('visit', () => {
 describe('balance', () => {
     async function owing(amount: number, paid: number) {
         const f = await fixtures();
-        // Booked with a line, because checkout refuses a visit with none.
         const appointment = await appointmentService.create({
             patient: { kind: 'existing', patientId: f.patient.id },
             branchId: f.branch.id,

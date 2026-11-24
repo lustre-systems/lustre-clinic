@@ -5,7 +5,6 @@ import { planNudges } from './schedule';
 
 const TODAY = '2026-10-06';
 
-/** The native side's file, the server, and a clock, as the sync sees them. */
 function harness(held: AlarmDismissal | null, { failures = 0 } = {}) {
     const state = {
         held,

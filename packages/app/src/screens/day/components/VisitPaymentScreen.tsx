@@ -1,30 +1,3 @@
-/**
- * Money, and only money — `visit-payment.html`. By the time this opens the
- * procedures are confirmed and written; nothing here edits treatment, which is
- * why the procedure list is a disclosure rather than an editor. The visit
- * screen is one Back away if a line is wrong.
- *
- * Balances are per visit (the payment brief's Q1): this screen settles *this*
- * visit and nothing else. An older debt is paid by opening the visit that
- * carries it, so there is no combined total here and no way to pay one visit's
- * money into another.
- *
- * Overpayment is refused rather than rejected on submit (§7.6, Q2): a cash
- * clinic has no refund workflow, so the entry clamps to the amount due and says
- * it did. Paying nothing is *not* refused — an unpaid visit is a balance, not a
- * blocked checkout — so the confirm button never blocks and only ever changes
- * what it says it is about to record.
- *
- * A doctor's phone is not told what was paid (`seesPayments`): the visit comes
- * with its payment fields withheld. It can still check the patient out and take
- * money at the chair, against the charge, but it cannot correct what was taken
- * before — that needs the figure it is not shown — and what it says afterwards
- * does not claim to know the balance.
- *
- * The design's identity line names the dentist. Lustre does not model one
- * (PRD §10 leaves a second practitioner undecided), so the line carries the
- * date alone.
- */
 import { PAYMENT_METHODS, type PaymentMethod } from '@lustre/shared';
 import { useMemo, useState } from 'react';
 import type { ViewStyle } from 'react-native';
@@ -52,24 +25,10 @@ import { CheckIcon } from './icons';
 
 export type VisitPaymentScreenProps = {
     appointment: Appointment;
-    /** Priced by the visit screen — `chargedTotal` is what this screen collects. */
     visit: PricedVisit;
-    /**
-     * The visit was checked out once already and is being corrected. The field
-     * then means everything collected on it, not a payment on top: a visit
-     * recorded as paid in full offers nothing to collect, and typing 500 over
-     * the 800 on it has to be able to *lower* the figure. Off, this is a desk
-     * taking money, and the field is what is being handed over now.
-     */
     correcting?: boolean;
     onBack: () => void;
-    /** The visit is closed; the day view takes it from here. */
     onClosed: (message: string) => void;
-    /**
-     * The money is being written. The caller holds the hardware back for the
-     * span, because a correction is two writes and leaving between them strands
-     * a reopened visit.
-     */
     onWritingChange?: (writing: boolean) => void;
 };
 
@@ -94,8 +53,6 @@ export function VisitPaymentScreen({
     const withheld = visit.paidTotal === null;
     const correcting = asked && !withheld;
     const collected = visit.paidTotal ?? 0;
-    // There is no discount to type here: a discount is a procedure priced under
-    // the catalogue's on the visit screen, and this only says how much that is.
     const charged = visit.chargedTotal;
     const catalogue = useLocalQuery('procedure-tree', api.procedureTree);
     const defaults = useMemo(() => {
@@ -112,33 +69,16 @@ export function VisitPaymentScreen({
     );
     const lineDiscount = (line: PricedVisit['procedures'][number]) =>
         discountPercent(defaults.get(line.procedureId) ?? 0, line.unitPrice);
-    // Withheld, a visit already closed offers nothing to take: whatever it was
-    // paid is on it, and taking the charge again would be taking it twice.
     const due = withheld ? (visit.completedAt ? 0 : charged) : amountDue(charged, collected);
-    // What the field means, and so the most it can hold: money being taken now
-    // cannot exceed what is owed, but a *total* collected is measured against
-    // the whole charge — which is the figure a correction has to be free to
-    // move up and down.
     const ceiling = correcting ? charged : due;
 
-    // The mock opens on the full amount, already filled in: paid in full is what
-    // happens at the desk almost every time, and the exception is the one worth
-    // typing. A correction opens on what is already recorded, for the same
-    // reason — most corrections are to the procedures, not the money. Capped at
-    // the charge: a visit repriced under what was paid on it opens on giving
-    // the difference back, which the hint under the methods says in so many
-    // words, rather than on a credit the model has no place for.
     const [entry, setEntry] = useState(() => paidEntry(correcting ? Math.min(collected, ceiling) : due));
-    // How the money already on a corrected visit was paid, so the methods open
-    // on the truth rather than on cash. Largest first when it was split.
     const held = useMemo(
         () => (correcting ? paidBy(visit.payments ?? []) : []),
         [correcting, visit.payments],
     );
     const [method, setMethod] = useState<PaymentMethod>(() => held[0]?.method ?? 'cash');
     const [methodNote, setMethodNote] = useState(() => held[0]?.methodNote ?? '');
-    // Whether the desk chose a method rather than leaving the one it opened on.
-    // Opening on a split payment must not fold it into its largest part unasked.
     const [picked, setPicked] = useState(false);
     const [showProcedures, setShowProcedures] = useState(false);
     const [toast, setToast] = useState<string | null>(null);
@@ -155,21 +95,9 @@ export function VisitPaymentScreen({
     const nothing = paidPiastres === 0;
 
     const quick = quickAmounts(ceiling);
-    // What the field is measured from: nothing at the desk, where it is money
-    // handed over now, and what is already on the visit on a correction, where
-    // it is the running total.
     const base = correcting ? collected : 0;
-    // What this confirm actually moves — the whole field at the desk, only the
-    // difference on a correction. Negative is money going back.
     const moving = paidPiastres - base;
-    // Whether any money actually moves. On a correction only the difference
-    // does — leaving the figure alone writes nothing, so there is no method to
-    // ask for; changing it does move money, even when the new figure is zero,
-    // because that is a refund of everything.
     const moves = moving !== 0;
-    // With the total left alone, the methods say how what is already on the
-    // visit was paid, and choosing another says it again: no money moves, but
-    // the takings by method do.
     const restatable = correcting && !moves && held.length > 0;
     const restating = restatable && picked && !alreadyPaidBy(held, method, methodNote);
     const noteMissing = (moves || restating) && method === 'other' && methodNote.trim() === '';
@@ -188,7 +116,6 @@ export function VisitPaymentScreen({
         }
     }
 
-    /** A chip's figure is exact, never a pound rounded off the field. */
     function choose(piastres: number) {
         setEntry(paidEntry(piastres));
     }
@@ -198,11 +125,6 @@ export function VisitPaymentScreen({
         return methodNote.trim() ? methodNote.trim().toLowerCase() : t('other method').toLowerCase();
     }
 
-    /**
-     * A correction settles the money first and then closes the visit on the
-     * same charge. `setPaid` writes only the difference — nothing at all when
-     * there is none — so the checkout that follows takes no payment of its own.
-     */
     function confirm() {
         if (writing) return;
         onWritingChange?.(true);
@@ -230,7 +152,6 @@ export function VisitPaymentScreen({
         );
     }
 
-    /** `paying` is money handed over now, which a correction has already done. */
     function close(paying: number) {
         checkOut.mutate(
             {
@@ -340,12 +261,6 @@ export function VisitPaymentScreen({
               ? t('Confirm & close visit')
               : t('Confirm — {balance} still owed', { balance: formatMoney(remaining) });
 
-    /**
-     * The method belongs to the money moving now, not to the visit. A patient
-     * who paid 150 in cash and the rest by Instapay is two payment rows, and
-     * the screen only ever writes the second of them — so it says which amount
-     * it is asking about, and that the first keeps what it was paid by.
-     */
     const methodHint = !moves
         ? restating
             ? t('The {amount} already paid will be recorded as {method}.', {
@@ -380,8 +295,6 @@ export function VisitPaymentScreen({
                 <Pressable
                     accessibilityRole="button"
                     accessibilityLabel={t('Back to the visit')}
-                    // A correction is two writes, the money and then the close;
-                    // leaving between them strands a reopened visit.
                     disabled={writing}
                     onPress={onBack}
                     style={({ pressed }) => [styles.back, pressed && styles.backPressed]}
@@ -428,8 +341,6 @@ export function VisitPaymentScreen({
                         <Text variant="footnote" weight="bold" tone="muted">
                             {t('EGP')}
                         </Text>
-                        {/* A procedure priced under the catalogue's: what it
-                            would have been, struck through, then what it is. */}
                         {discount ? (
                             <Text
                                 variant="headline"
@@ -647,9 +558,6 @@ export function VisitPaymentScreen({
                     </Text>
                 ) : null}
 
-                {/* Worked out from the charge alone, which is wrong the moment
-                    anything was paid before — and a doctor's phone is not told
-                    whether it was. So it says nothing about what is owed. */}
                 {withheld ? null : (
                     <View style={styles.strip}>
                         {settled ? (
@@ -726,7 +634,6 @@ export function VisitPaymentScreen({
 
 type DoneTone = 'settled' | 'owing' | 'none';
 
-/** What the closing sheet says, plus the shorter line the day view toasts. */
 type Done = { tone: DoneTone; title: string; message: string; toast: string };
 
 function QuickChip({ label, selected, onPress }: { label: string; selected: boolean; onPress: () => void }) {
@@ -751,8 +658,6 @@ function QuickChip({ label, selected, onPress }: { label: string; selected: bool
 }
 
 const styles = StyleSheet.create({
-    // Canvas, matching `VisitScreen` and the shell's status-bar inset — see the
-    // note there. The cards on it keep their white.
     screen: { flex: 1, backgroundColor: color.canvas },
 
     topbar: {
@@ -803,7 +708,6 @@ const styles = StyleSheet.create({
         paddingHorizontal: space[4],
         paddingBottom: space[1.5],
         borderRadius: radius.xl2,
-        // `surface2` where the mock says `canvas` — the page is canvas now.
         backgroundColor: color.surface2,
         overflow: 'hidden',
     },
@@ -815,8 +719,6 @@ const styles = StyleSheet.create({
         marginTop: space[2],
     },
     struck: { textDecorationLine: 'line-through' },
-    // Accent, which is neither "good" nor "paid": a discount is a fact about
-    // the price, not a state of the money.
     percentOff: {
         alignSelf: 'center',
         paddingHorizontal: space[2.5],
@@ -826,8 +728,6 @@ const styles = StyleSheet.create({
     },
     percentOffText: { color: color.inverse },
     percentOffSmall: { paddingHorizontal: space[1.5], paddingVertical: space[0.5] },
-    // Full-bleed inside the card: the rule under the figure is the card's own
-    // width, not the text column's.
     procToggle: {
         flexDirection: 'row',
         alignItems: 'center',
@@ -908,8 +808,6 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         gap: space[2.5],
-        // Two to a row: 48% leaves room for the gap, and `flexGrow` takes the
-        // remainder back so the pair fills the width exactly.
         flexBasis: '48%',
         flexGrow: 1,
         minHeight: 56,
@@ -937,8 +835,6 @@ const styles = StyleSheet.create({
     otherInputMissing: { borderColor: color.due },
 
     methodNote: { marginTop: space[2], marginHorizontal: size.gutter },
-    // Sits under the field, tight to it — it is a caption on the number above,
-    // not a section of its own.
     hint: { marginTop: space[2], marginHorizontal: size.gutter },
 
     strip: {
@@ -974,16 +870,6 @@ const styles = StyleSheet.create({
     bar: {
         paddingHorizontal: size.gutter,
         paddingTop: space[3.5],
-        // The tab bar is below this again and owns the gesture inset, so the
-        // bar only needs its own breathing room — `space[6]` left the button
-        // floating well clear of the tabs. `paddingBottom` is supplied inline:
-        // it carries the keyboard as well, since the window no longer shrinks
-        // around it (see `ui/useKeyboardHeight`), and this screen's amount
-        // field is the one that first showed it.
-        //
-        // The same ground as the page. The mock fades its bar into the page
-        // rather than sitting a panel on it, so a white bar on canvas read as
-        // a seam across the bottom of the screen.
         backgroundColor: color.canvas,
     },
     pressed: { opacity: 0.72 },

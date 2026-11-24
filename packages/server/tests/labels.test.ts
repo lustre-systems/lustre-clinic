@@ -1,8 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import { resolveLabel } from '@lustre/shared';
 
-/** The §14 resolution rule, away from any screen. */
-
 describe('resolveLabel', () => {
     const both = { label: 'Diabetic?', labelAr: 'هل تعاني من السكري؟' };
 
@@ -16,8 +14,6 @@ describe('resolveLabel', () => {
         expect(resolveLabel({ label: '', labelAr: 'هل تعاني من السكري؟' }, 'en')).toBe('هل تعاني من السكري؟');
     });
 
-    // Rows predating the second column, and the empty string the editor sends
-    // for an input the user tabbed through, must both read as "not written".
     test('treats a missing translation and a blank one the same', () => {
         expect(resolveLabel({ label: 'Diabetic?' }, 'ar')).toBe('Diabetic?');
         expect(resolveLabel({ label: 'Diabetic?', labelAr: '   ' }, 'ar')).toBe('Diabetic?');

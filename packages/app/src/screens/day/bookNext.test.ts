@@ -1,13 +1,3 @@
-/**
- * "Book later" used to open the patient's record, which took the secretary off
- * the day for a question she had just declined. It is a navigation outcome
- * decided in JSX, so what is held here is the shape that decides it: the
- * book-next prompt offers exactly one answer that goes anywhere, and the day
- * screen wires the other one to something that does not navigate.
- *
- * Source-level, like `components/ui/boundaries.test.ts`, because the guarantee
- * is structural — a renderer would only re-check the same wiring at more cost.
- */
 import { describe, expect, it } from 'bun:test';
 import path from 'node:path';
 
@@ -23,18 +13,14 @@ describe('the book-next prompt after a check-in', () => {
 
         const handlers = [...sheet.matchAll(/^\s{4}(on[A-Z]\w*):/gm)].map((match) => match[1]);
 
-        // `onClosed` reports the slide, it does not answer the question.
         expect(handlers).toEqual(['onBookNow', 'onLater', 'onClosed']);
     });
 
     it('sends Book later, the scrim and the hardware back to the same handler', async () => {
         const sheet = await read('components/BookNextSheet.tsx');
 
-        // The scrim and the hardware back are `Sheet`'s `onClose`.
         expect(sheet).toContain('onClose={onLater}');
         expect(sheet).toContain('onPress={onLater}');
-        // Three separate handlers is how the button and the scrim came to
-        // disagree in the first place.
         expect(sheet).not.toContain('onDismiss');
     });
 
@@ -46,7 +32,6 @@ describe('the book-next prompt after a check-in', () => {
 
         const stayOnDay = screen.match(/function stayOnDay\([\s\S]*?\n {4}\}/)?.[0] ?? '';
         expect(stayOnDay).not.toBe('');
-        // The two ways off the day screen: the record, and pushing a page.
         expect(stayOnDay).not.toContain('onOpenRecord');
         expect(stayOnDay).not.toContain('pushPage');
         expect(stayOnDay).toContain('setToast');

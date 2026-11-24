@@ -1,14 +1,3 @@
-/**
- * SPEC §12 — everything the clinic can configure is a row here, edited in-app.
- * `.env` holds only what a user must never touch.
- *
- * Postgres `time` accepts `HH:MM:SS` and returns it, so `reminderNotifyAt`
- * tolerates both but the client reads `HH:MM`. Weekdays are 0 = Sunday, matching
- * `Date#getDay`. Opening times are `HH:MM` exactly — accepting seconds would
- * store a value that never survives a round trip and echoing a day back into
- * `setDay` would silently shift it; both are zero-padded, so comparing them as
- * strings orders them by time.
- */
 import {
     clinicTypeSchema,
     MAX_DURATION_MINUTES,
@@ -39,9 +28,6 @@ export const updateSettingsInput = z
             .min(1)
             .max(24 * 60),
         reminderTemplate: z.string().trim().min(1).max(1000),
-        // The number the next new patient is given, so one is the lowest it can
-        // be. At or below a ref already on file is refused by the service,
-        // which is the only side that can see the patients.
         patientRefNext: z.number().int().min(1).max(MAX_PATIENT_REF),
         requireAge: z.boolean(),
         requireGender: z.boolean(),

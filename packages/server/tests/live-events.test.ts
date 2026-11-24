@@ -4,13 +4,6 @@ import { broadcast } from '../src/ws/index.ts';
 import { setupDatabase, truncateAll } from './helpers/db.ts';
 import { expectTrpcError, startTestServer, type TestServer } from './helpers/trpc.ts';
 
-/**
- * `/ws` as a phone sees it (SPEC §13): numbered frames, a `hello` closing every
- * connect, and what a reconnect gets back — the frames it missed, or `resync`
- * when they are gone. The client half of the protocol is
- * `packages/app/src/api/serverEvents.test.ts`.
- */
-
 let api: TestServer;
 
 beforeAll(async () => {
@@ -31,7 +24,6 @@ type Event = Extract<WsFrame, { type: 'event' }>;
 
 interface Phone {
     hello: Hello;
-    /** Frames that arrived before `hello`: the replay. */
     replayed: Event[];
     events: Event[];
     close(): void;

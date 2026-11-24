@@ -1,8 +1,3 @@
-/**
- * `server/src/modules/settings/settings.service.ts`, over the arrays in
- * `../db`. The single enforced row is a single object, so there is nothing to
- * seed on read.
- */
 import { ERROR_CODE, WS_EVENT } from '@lustre/shared';
 import type { RouterInput, RouterOutput } from '../../types';
 import { type ClinicDayRow, getDb, type SettingsRow, save } from '../db';
@@ -58,7 +53,6 @@ export const settingsHandlers = {
             : [...current.durationOptions].sort((a, b) => a - b);
         const defaultDuration = input.defaultDuration ?? current.defaultDuration;
 
-        // The picker would otherwise offer a default nobody can pick.
         if (!durationOptions.includes(defaultDuration)) {
             throw new DemoError(
                 ERROR_CODE.INVALID_DURATION,
@@ -67,9 +61,6 @@ export const settingsHandlers = {
             );
         }
 
-        // A new lead time is retroactive: the reminders already booked move
-        // with it, so the pending list can never disobey the setting the pane
-        // is showing (`server/src/modules/settings/settings.service.ts`).
         const leadHours =
             input.reminderLeadHours !== undefined && input.reminderLeadHours !== current.reminderLeadHours
                 ? input.reminderLeadHours
@@ -115,7 +106,6 @@ export const settingsHandlers = {
         broadcast(WS_EVENT.SETTINGS_UPDATED);
     },
 
-    /** `device.setRequireProvisioning` — an admin's switch, kept off `update` as it is on the server. */
     setRequireProvisioning(input: RouterInput['device']['setRequireProvisioning']): Settings {
         const settings = getDb().settings;
         settings.requireProvisioning = input.required;

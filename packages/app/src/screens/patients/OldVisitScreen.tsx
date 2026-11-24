@@ -1,42 +1,3 @@
-// A visit that happened on a day that has passed and was never typed in.
-//
-// It replaced **Walk-in today** on the record. A walk-in is the same shape of
-// thing — unscheduled work, entered as it happens — and this clinic does not
-// have walk-ins, so the button was spending the record's one secondary action
-// on a flow nobody uses. An old visit dated today does what a walk-in did,
-// without shuffling the live day around to make a slot for it.
-//
-// ## Booking's page, asked backwards in time
-//
-// It started as a sheet with a day row on top and a list under it. It is a page
-// now, stepped the way `day/components/BookingScreen` is — what was done, then
-// which day, then read it back — because the desk has already learned that
-// shape from booking and an old visit is the same conversation about a day
-// that has gone. The step bar and the read-back rows are booking's own
-// (`day/components/Steps`); nothing is written until the last step's button,
-// and a refusal lands above that button, not in a toast.
-//
-// ## It bills, and that is the whole difference from Old procedures
-//
-// Registration's Old procedures list writes rows with **no visit** behind
-// them: clinical history, never charged, excluded from every total. That is
-// right for work done years ago or somewhere else. It is wrong for work this
-// clinic did and forgot to enter, because it was charged for. So this writes
-// an ordinary completed visit: priced, charged — and **paid**, in cash, on the
-// day. That is what nearly every late entry is: work the patient paid for at
-// the desk that nobody typed in. The one they still owe on is corrected on the
-// visit afterwards, from the record's history, the way any checkout that
-// recorded the wrong amount is — so the page asks nothing about money, and
-// the Confirm step says where the correction lives.
-//
-// ## One date, no time
-//
-// The only thing this asks that booking does not is *which day* — and the only
-// thing it does not ask is *what time*. A visit that already happened occupies
-// no slot, and the server stamps it at noon UTC so the day reads back the same
-// at any offset. The day step is `MonthGrid`, the historical date sheet's grid
-// drawn inline, with no "the file doesn't say": a visit without a day is not a
-// visit.
 import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { MoneyValue, phoneText, ToothGroupCard } from '../../components/domain';
@@ -64,9 +25,7 @@ import { useMutation, useQuery } from './data/hooks';
 export type OldVisitScreenProps = {
     patientId: string;
     onBack: () => void;
-    /** A write in flight — the cluster holds Back and the tabs while it is. */
     onSavingChange?: (saving: boolean) => void;
-    /** Recorded; the message is what the record underneath says about it. */
     onRecorded: (message: string) => void;
 };
 
@@ -78,7 +37,6 @@ const STEPS: { key: Step; label: string }[] = [
     { key: 'confirm', label: 'Confirm' },
 ];
 
-/** `ProcedurePlan` in this page's words: the work is done, and it is charged. */
 const PLAN_COPY: PlanCopy = {
     heading: 'WHAT WAS DONE',
     emptyHint: 'At least one',
@@ -87,7 +45,6 @@ const PLAN_COPY: PlanCopy = {
     total: 'Total',
 };
 
-/** The floating dock's button and its padding — what the scroll has to clear. */
 const BAR_HEIGHT = space[3] + size.button + space[4];
 
 export function OldVisitScreen({ patientId, onBack, onSavingChange, onRecorded }: OldVisitScreenProps) {
@@ -97,16 +54,11 @@ export function OldVisitScreen({ patientId, onBack, onSavingChange, onRecorded }
     const [plan, setPlan] = useState<PlannedProcedure[]>([]);
     const [performedOn, setPerformedOn] = useState<string | null>(null);
     const [month, setMonth] = useState(todayKey());
-    // See `BookingScreen`: a warning above the bar wraps, so the scroll's inset
-    // is measured off the dock rather than assumed.
     const [dockHeight, setDockHeight] = useState(BAR_HEIGHT);
     const keyboard = useKeyboardHeight();
 
-    // The record underneath has just read this, so it is already cached.
     const record = useQuery(['byId', patientId], () => patientsApi.byId(patientId));
     const save = useMutation(patientsApi.addOldVisit);
-    // Booking's catalogue, read the way booking reads it — the plan editor
-    // below is booking's too.
     const catalogue = useLocalQuery('procedure-tree', dayApi.procedureTree);
     const general = useGeneralClinic();
 
@@ -114,7 +66,6 @@ export function OldVisitScreen({ patientId, onBack, onSavingChange, onRecorded }
     const name = patient?.name ?? '';
     const step = STEPS[index]?.key ?? 'confirm';
 
-    // The checkup waiver the server charges by (§10), so the figure shown is the one owed.
     const checkups = new Set(
         (catalogue.data ?? [])
             .flatMap((root) => [root, ...root.children])
@@ -140,8 +91,6 @@ export function OldVisitScreen({ patientId, onBack, onSavingChange, onRecorded }
         const added = await save.mutate({
             patientId,
             performedOn,
-            // One line out per line in, as booking sends its plan — plus the
-            // price, because this visit is charged at what the desk typed.
             procedures: plan.map((line) => ({
                 procedureId: line.procedureId,
                 quantity: 1,
@@ -161,9 +110,6 @@ export function OldVisitScreen({ patientId, onBack, onSavingChange, onRecorded }
                 <Pressable
                     accessibilityRole="button"
                     accessibilityLabel={index === 0 ? 'Back to the record' : 'Back a step'}
-                    // Not while the write is open: it crosses Tailscale, and a
-                    // page left mid-flight leaves the desk unable to tell
-                    // whether the visit was recorded.
                     disabled={save.pending}
                     onPress={() => {
                         if (index === 0) {
@@ -223,8 +169,6 @@ export function OldVisitScreen({ patientId, onBack, onSavingChange, onRecorded }
                 keyboardShouldPersistTaps="handled"
                 keyboardDismissMode="on-drag"
             >
-                {/* Keyed on the step, not the answers: every answer lives up here,
-                    so the slide only moves what is drawn. */}
                 <StepView index={index} style={styles.stepBody}>
                     {step === 'what' ? (
                         <ProcedurePlan
@@ -327,8 +271,6 @@ export function OldVisitScreen({ patientId, onBack, onSavingChange, onRecorded }
                 </StepView>
             </ScrollView>
 
-            {/* Over the scroll, with the keyboard in its floor — `BookingScreen`
-                says why on both counts. */}
             <View
                 style={[styles.dock, { paddingBottom: keyboard }]}
                 pointerEvents="box-none"
@@ -347,8 +289,6 @@ export function OldVisitScreen({ patientId, onBack, onSavingChange, onRecorded }
                         label={last ? t('Record this visit') : 'Next'}
                         block
                         loading={save.pending}
-                        // Grey until the step's question is answered, so a
-                        // press that does nothing never looks like a frozen app.
                         disabled={!stepReady || save.pending}
                         onPress={() => {
                             if (last) {
@@ -415,7 +355,6 @@ const styles = StyleSheet.create({
     },
 
     scroll: { flex: 1 },
-    // `paddingBottom` is measured off the dock and supplied inline.
     body: { paddingHorizontal: size.gutter },
     stepBody: { gap: space[5] },
     section: { gap: space[2.5] },

@@ -1,9 +1,3 @@
-/**
- * Demo mode is entered from the setup screen of a phone with a real clinic
- * behind it, so leaving it is part of the feature: without a way out, a mis-tap
- * on "Run in demo mode" leaves the desk writing into a fake register until
- * someone clears the app's data.
- */
 import { beforeEach, describe, expect, it, mock } from 'bun:test';
 
 const stored = new Map<string, string>();
@@ -22,9 +16,6 @@ mock.module('@react-native-async-storage/async-storage', () => ({
 
 mock.module('expo-constants', () => ({ default: { expoConfig: { extra: { demo: false } } } }));
 
-// `api/config.ts` reads React Native's `__DEV__` at import, which `bun test` does
-// not define. The flag only needs the build variant from it, and a dev build is
-// one that allows the demo.
 mock.module('../config', () => ({ BUILD_VARIANT: 'dev' }));
 
 const demo = await import('./flag');

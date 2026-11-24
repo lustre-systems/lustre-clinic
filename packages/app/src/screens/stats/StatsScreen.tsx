@@ -1,18 +1,3 @@
-// The owner's stats: profit, revenue, cost and new patients over the period the
-// pills pick, against `stats-screen-final` (the Stats screen design on the task
-// page). Only the admin's phone has this tab (`seesStats`), and the server
-// refuses its reads to anyone else.
-//
-// The chart's points are like for like — days, weeks, months, years — so the
-// line and the branch bars compare one with the next. The latest point, the
-// period so far, is selected by default and everything under the pills shows
-// it; its change chip compares with the same stretch the period before
-// (`comparisonRange`), not the whole of it. Tapping an earlier point shows that
-// one against the point before it, both whole; tapping it again goes back to
-// the latest. "All time" selects nothing and shows the whole history.
-//
-// Every figure is the server's. The client picks the ranges, compares two of
-// them and lays the points out (`stats.ts`).
 // biome-ignore lint/style/noRestrictedImports: two of them, both external — the imperative `scrollTo` when the tab is re-tapped, and the `AppState` subscription and timer that re-read the clock
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AppState, ScrollView, StyleSheet, View } from 'react-native';
@@ -41,7 +26,6 @@ import {
     trendSlots,
 } from './stats';
 
-/** What one point on the chart is, per pill. */
 const POINT_UNIT: Record<Period, PointUnit> = {
     today: 'day',
     week: 'week',
@@ -51,9 +35,7 @@ const POINT_UNIT: Record<Period, PointUnit> = {
 };
 
 type StatsScreenProps = {
-    /** Bumped when the Stats tab is tapped while it is already up: back to the top. */
     goHome?: number;
-    /** Whether the tab is up. It is mounted hidden ahead of the first tap, and the chart draws its line in when it comes up. */
     onScreen?: boolean;
 };
 
@@ -66,8 +48,6 @@ function StatsScreenView({ goHome = 0, onScreen = true }: StatsScreenProps) {
     const [{ today, minute }, rereadNow] = useNow();
 
     const allTime = period === 'all';
-    // "All time" is the yearly line, so the two pills share one query. The
-    // locale is in the key because the slots carry their labels.
     const slots = useMemo(
         () => trendSlots(allTime ? 'year' : period, today, locale),
         [allTime, period, today, locale],
@@ -81,8 +61,6 @@ function StatsScreenView({ goHome = 0, onScreen = true }: StatsScreenProps) {
     );
     const comparison = useStatsOverview(before?.range ?? whole, before !== null);
 
-    // Years before the clinic's first are dropped from the front rather than
-    // drawn as a run of zeros.
     const trims = period === 'year' || allTime;
     const lead = trims && trend.data ? emptyLead(trend.data) : 0;
     const points = trend.data?.slice(lead) ?? [];
@@ -104,7 +82,6 @@ function StatsScreenView({ goHome = 0, onScreen = true }: StatsScreenProps) {
         setPicked(null);
     }
 
-    // A second tap on the point that is up goes back to where the pill opened.
     function selectPoint(index: number) {
         setPicked(index === selected ? null : index);
     }
@@ -128,7 +105,6 @@ function StatsScreenView({ goHome = 0, onScreen = true }: StatsScreenProps) {
     const figures = current
         ? (Object.fromEntries(METRICS.map((key) => [key, metricOf(current, key)])) as Record<Metric, number>)
         : null;
-    // One branch still gets its bars: they are the profit per point, stacked or not.
     const branchesShown = branchOrder(points).length > 0;
     const headLoading = trend.isLoading || (allTime && overview.isLoading);
     const headError = trend.error ?? (allTime ? overview.error : null);
@@ -136,9 +112,6 @@ function StatsScreenView({ goHome = 0, onScreen = true }: StatsScreenProps) {
         trend.refetch();
         if (allTime) overview.refetch();
     };
-    // The latest point is the period so far, so it is compared with the same
-    // stretch before it rather than with the whole of the point before; an
-    // earlier point is whole, and so is the one before it.
     const onLatest = selected === last && !allTime;
     const previous = onLatest ? comparison.data : selected > 0 ? points[selected - 1] : undefined;
     const against = onLatest ? (before?.label ?? null) : selected > 0 ? (labels[selected - 1] ?? null) : null;
@@ -228,24 +201,8 @@ function StatsScreenView({ goHome = 0, onScreen = true }: StatsScreenProps) {
     );
 }
 
-/**
- * Thin as the props are, the memo is the boundary that keeps the whole screen
- * out of a tab switch: `goHome` comes from the shell unchanged, and `onScreen`
- * only changes on a switch to or from this tab.
- */
 export const StatsScreen = memo(StatsScreenView);
 
-// Which local day, and which minute of it, the pills are measured from. The
-// shell mounts a tab once and hides it rather than unmounting it, and a desk
-// phone can sit on it all day, so both are re-read on a timer as well as when
-// the app comes back to the foreground and on every pull. Without the timer
-// "Today" stops adding hours and the change chip keeps comparing with
-// yesterday up to the minute the tab was first opened.
-//
-// The minute moves in steps of five: it is in the comparison's query key, and
-// a refetch every minute buys nothing a five-minute-old comparison does not
-// already say. A re-read that lands on the same step keeps the same object, so
-// it costs no render.
 const STEP_MINUTES = 5;
 
 function useNow(): [{ today: string; minute: number }, () => void] {

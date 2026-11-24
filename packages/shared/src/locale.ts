@@ -1,8 +1,5 @@
 import type { Locale } from './enums.ts';
 
-/** Strings shared by the handset and receipt rendering. English copy is the
- * stable key so existing server-side renderers can opt in without importing
- * React or knowing anything about the handset's locale store. */
 export const COPY_AR = {
     About: 'حول التطبيق',
     Active: 'نشط',
@@ -68,8 +65,6 @@ export const COPY_AR = {
     'Edit booking': 'تعديل الحجز',
     'Edit visit': 'تعديل الزيارة',
     'Editing a patient is not wired up from here yet.': 'تعديل بيانات المريض غير متاح من هنا بعد.',
-    /* The language toggle names each language in its own script, so this one
-       is deliberately the same in both. */
     EN: 'EN',
     Email: 'البريد الإلكتروني',
     Female: 'أنثى',
@@ -228,8 +223,6 @@ export const COPY_AR = {
     RECENT: 'الأحدث',
     RESULTS: 'النتائج',
     'New patient': 'مريض جديد',
-    // Isolated: a typed phone number is weak text in an RTL line, and without it
-    // `+20 109 555-0199` is drawn as `0199-555 109 20+`.
     'Add “{term}” as a new patient': 'إضافة «\u2068{term}\u2069» كمريض جديد',
     Finances: 'الحسابات',
     'Older visits': 'زيارات سابقة',
@@ -915,7 +908,6 @@ export const COPY_AR = {
     "That is the clinic's own server. A dev build connects only to the dev server, on port 3001.":
         'هذا خادم العيادة نفسه. نسخة التطوير تتصل بخادم التطوير فقط، على المنفذ 3001.',
 
-    // --- old patients: the New patient switch, the record, and Settings → Clinic
     'Already a patient here': 'مريض سابق في العيادة',
     'They have a number from before the clinic moved over.': 'لديه رقم من قبل انتقال العيادة إلى هذا النظام.',
     'Old patient': 'مريض قديم',
@@ -926,15 +918,12 @@ export const COPY_AR = {
     'What they still owed the old system. Leave blank if nothing.':
         'ما تبقى عليه في النظام القديم. اتركه فارغًا إن لم يكن هناك شيء.',
     Optional: 'اختياري',
-    // The historical procedures list, and the sheet that dates one.
     'Previous year': 'السنة السابقة',
     'Next year': 'السنة التالية',
     'Use this day': 'استخدم هذا اليوم',
     'No date': 'بدون تاريخ',
     'Saved as prior history with no day on it — the record reads it as before migration.':
         'يُحفظ كسجل سابق بلا يوم — ويقرأه السجل على أنه قبل الانتقال.',
-    // The old-visit page: a visit entered after the day it happened. Unlike a
-    // previous procedure this one is charged, so the copy says so out loud.
     'Old visit': 'زيارة سابقة',
     'OLD VISIT': 'زيارة سابقة',
     'No day yet': 'لم يُحدد اليوم بعد',
@@ -967,7 +956,6 @@ export const COPY_AR = {
     'Day, month and year — 01 / 08 / 2026.': 'اليوم والشهر والسنة — 01 / 08 / 2026.',
     'That has to be a day that has happened.': 'يجب أن يكون يومًا قد مضى.',
 
-    // --- the patient form's own rules, drawn under the row they are about
     'As it is on the card': 'كما هو على البطاقة',
     'That address is missing something.': 'هذا العنوان ينقصه شيء.',
     'That is too short to be a number.': 'هذا أقصر من أن يكون رقمًا.',
@@ -976,7 +964,6 @@ export const COPY_AR = {
     'That is not a date anyone was born on.': 'هذا ليس تاريخ ميلاد ممكنًا.',
     'That is not an amount in pounds.': 'هذا ليس مبلغًا بالجنيه.',
 
-    // --- Settings
     'Enter demo': 'دخول الوضع التجريبي',
     'A fake register, off the clinic server': 'سجل تجريبي، بعيدًا عن خادم العيادة',
     Saved: 'تم الحفظ',
@@ -984,10 +971,8 @@ export const COPY_AR = {
         'سيصل هذا النص إلى المرضى بدءًا من التذكير التالي.',
     'Save message': 'حفظ الرسالة',
 
-    // --- the appointment sheet
     "Open {name}'s record": 'فتح سجل {name}',
 
-    // --- backups and the Google Drive sign-in (§16)
     Backups: 'النسخ الاحتياطية',
     'Checking…': 'جارٍ التحقق…',
     'No backup yet': 'لا توجد نسخة احتياطية بعد',
@@ -1030,7 +1015,6 @@ export const COPY_AR = {
         'كل نسخة احتياطية بدءًا من الليلة تذهب إلى ذلك الحساب',
     'Older backups stay where they are; nothing is moved or deleted':
         'النسخ الأقدم تبقى مكانها؛ لا يُنقل شيء ولا يُحذف',
-    // Deleting — a visit, a payment row, a patient — and the one refusal.
     'Edit patient': 'تعديل المريض',
     'Delete patient': 'حذف المريض',
     'Delete this patient?': 'حذف هذا المريض؟',
@@ -1055,7 +1039,6 @@ export const COPY_AR = {
         'المال المستلم يبقى في السجل. أزل الدفعات أولًا إن كانت قد سُجلت بالخطأ.',
     'This patient has payments on file, so the record stays. Remove the payments from their visits first if they were entered by mistake.':
         'لهذا المريض دفعات مسجلة، لذا يبقى السجل. أزل الدفعات من زياراته أولًا إن كانت قد سُجلت بالخطأ.',
-    // The patient's own notes: written in the editor, read on the record.
     NOTES: 'ملاحظات',
     'Patient notes': 'ملاحظات المريض',
     'Anything the clinic should know': 'أي شيء يجب أن تعرفه العيادة',
@@ -1462,7 +1445,6 @@ export const COPY_AR = {
     'The reminder alarm repeats until the list is clear.': 'يتكرر منبّه التذكيرات حتى تفرغ القائمة.',
     'The reminder alarm could not be changed — try again.': 'تعذّر تغيير منبّه التذكيرات — حاول مرة أخرى.',
 
-    // --- "Last done": the history button on the Patients heading and its sheet
     'Last done': 'آخر ما فعلت',
     'What you did': 'ما فعلته',
     'On this phone': 'على هذا الهاتف',
@@ -1491,27 +1473,10 @@ export const COPY_AR = {
 
 export type CopyKey = keyof typeof COPY_AR;
 
-/** Values substituted into a `{name}` slot in the copy.
- *
- * The slot is in the English key as well as the Arabic, so the two can order
- * the sentence differently — `Open on {day}` against `مفتوح يوم {day}` — which
- * is the whole reason the interpolation is here rather than at the call site
- * concatenating a translated fragment onto a name. */
 export type CopyVars = Record<string, string | number>;
 
 const SLOT = /\{(\w+)\}/g;
 
-/**
- * First-strong isolate and its pop (U+2068, U+2069).
- *
- * Android lays a line out in the direction of its first strong character, and
- * in Arabic a slot is usually filled with Latin — a patient's name, a
- * procedure, a branch. `{procedure} · {minutes} دقيقة` filled with
- * "Consultation" started with a Latin letter, so the whole line ran left to
- * right and read "دقيقة 30". The rule skips whatever sits inside an isolate, so
- * wrapping each value keeps the Arabic sentence the one that decides, and the
- * value still reads in its own direction inside it.
- */
 const ISOLATE = '\u2068';
 const POP = '\u2069';
 
@@ -1523,14 +1488,6 @@ function fill(copy: string, vars: CopyVars, isolate: boolean): string {
     });
 }
 
-/**
- * Arabic counted nouns take a form by number, where English takes two: one,
- * two, three to ten, eleven to ninety-nine, and the hundreds, which go back to
- * the singular. `COPY_AR` holds one string per key, so `{count} يوم` read
- * "4 يوم" where Arabic says "4 أيام". A key listed here picks its form from
- * the first number among its values; `COPY_AR` still carries the key, so the
- * catalogue test sees it and anything missing falls back there.
- */
 type ArabicForms = { one: string; two: string; few: string; many: string; other: string };
 
 const PLURAL_AR: Partial<Record<CopyKey, ArabicForms>> = {

@@ -1,8 +1,3 @@
-/**
- * `byAppointment` returns the full visit (not the bare row): every caller wants
- * it to check the patient out, and handing back a row would make each of them
- * follow with `byId`.
- */
 import { clinicProcedure, paymentProcedure, router } from '../../trpc/init.ts';
 import {
     checkInInput,
@@ -35,7 +30,6 @@ export const visitRouter = router({
         .input(pendingNextInput)
         .query(({ input }) => visitService.pendingNextProcedures(input.patientId)),
 
-    /** The first of them, for phones on 1.10. */
     pendingNext: clinicProcedure
         .input(pendingNextInput)
         .query(({ input }) => visitService.pendingNext(input.patientId)),

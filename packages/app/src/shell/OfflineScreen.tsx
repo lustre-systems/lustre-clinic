@@ -10,16 +10,6 @@ import { color, space, Text } from '../theme';
 import { DeadEnd } from './DeadEnd';
 import { requestReconfigure } from './serverStore';
 
-// The one screen with nothing on it (SPEC §7.14). When the clinic server does
-// not answer there is no honest thing to draw — every list is a cache of a
-// number that may already have changed — so the shell hands the whole surface
-// over here: no tab bar, no headers, nothing tappable except Try again. It is
-// deliberately a dead end. The alternative, a banner over a live-looking app,
-// is how a secretary books onto a slot that was taken an hour ago.
-//
-// The one thing drawn under it is today's and tomorrow's schedule as last
-// saved (`screens/day/savedSchedule.ts`), stamped and read-only: a power cut
-// must not cost the desk the list of who is coming.
 export function OfflineScreen() {
     const t = useT();
     const { retry, lastOnlineAt } = useConnection();
@@ -62,9 +52,6 @@ export function OfflineScreen() {
                     : t('Never connected')}
             </Text>
 
-            {/* The only other way out. A saved address that is wrong fails
-                identically to a clinic PC that is off, and Try again can
-                never fix the first one. */}
             <Button
                 label="Change server address"
                 onPress={requestReconfigure}
@@ -76,8 +63,6 @@ export function OfflineScreen() {
     );
 }
 
-// Coarse on purpose: the exact minute is noise, and the only question being
-// answered is "was this a moment ago, or is this stale?".
 function formatLastOnline(at: number, t: (copy: string, vars?: CopyVars) => string): string {
     const minutes = Math.floor((Date.now() - at) / 60_000);
     if (minutes < 1) return t('just now');
@@ -90,7 +75,5 @@ function formatLastOnline(at: number, t: (copy: string, vars?: CopyVars) => stri
 
 const styles = StyleSheet.create({
     action: { marginTop: space[4], marginBottom: space[2] },
-    // `Button` bases at `alignSelf: 'flex-start'`, which opts it out of the
-    // card's centring — every other child here is centred by the parent.
     reconfigure: { marginTop: space[2], alignSelf: 'center' },
 });

@@ -11,14 +11,6 @@ import { setupDatabase, sql, truncateAll } from './helpers/db.ts';
 import { clinic as fixtures, ROOT_CANAL_PRICE, todaySlot } from './helpers/factories.ts';
 import { expectTrpcError, startTestServer, type TestServer } from './helpers/trpc.ts';
 
-/**
- * The owner's stats screen: profit is revenue less the cost snapshotted on each
- * visit line, split by the branch the visit was booked at. The figures that
- * matter most are the ones that must *not* move — a cost entered after a visit
- * was priced, and visits from before costs existed, both leave past profit
- * alone.
- */
-
 const DAY_MS = 86_400_000;
 const ROOT_CANAL_COST = 60_000;
 
@@ -26,7 +18,6 @@ function isoDate(at: Date): string {
     return at.toISOString().slice(0, 10);
 }
 
-/** Yesterday through tomorrow: holds `todaySlot()`, which is 00:30 UTC today. */
 function around(daysBack = 1) {
     return {
         from: isoDate(new Date(Date.now() - daysBack * DAY_MS)),
@@ -35,7 +26,6 @@ function around(daysBack = 1) {
     };
 }
 
-/** A root canal booked, checked in and checked out at `chargedTotal`. */
 async function rootCanalVisit(
     patientId: string,
     branchId: string,
@@ -265,7 +255,6 @@ describe('stats.trend', () => {
 describe('a range narrowed to minutes of its day', () => {
     test('counts a visit only inside the hour it fell in', async () => {
         const clinic = await fixtures();
-        // `todaySlot()` is 00:30 UTC today.
         await rootCanalVisit(clinic.patient.id, clinic.branch.id, clinic.rootCanal.id);
         const today = isoDate(new Date());
         const hour = (h: number) => ({

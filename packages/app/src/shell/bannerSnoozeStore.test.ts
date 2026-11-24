@@ -1,8 +1,3 @@
-/**
- * A warning strip put away has to stay away across a launch, and has to come
- * back on its own once the snooze runs out, because what it warns about is
- * still broken.
- */
 import { beforeEach, describe, expect, it, jest, mock, onTestFinished } from 'bun:test';
 
 const stored = new Map<string, string>();
@@ -59,7 +54,6 @@ describe('bannerSnoozeStore', () => {
     });
 
     it('comes back by itself when the snooze ends with the app open', async () => {
-        // Fake before the launch: the launch is what sets the timer.
         jest.useFakeTimers();
         onTestFinished(() => jest.useRealTimers());
         stored.set(KEY, String(clock + 5));

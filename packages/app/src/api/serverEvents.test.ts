@@ -55,7 +55,6 @@ describe('the event cursor', () => {
 
     it('resumes quietly when the server replayed everything that was missed', () => {
         const cursor = connected('e1', 3);
-        // The socket drops; the server replays 4 and 5 ahead of the new hello.
         expect(cursor.read(event('e1', 4)).outcome).toBe('applied');
         expect(cursor.read(event('e1', 5)).outcome).toBe('applied');
         expect(cursor.read(hello('e1', 5))).toEqual({ outcome: 'ignored', resync: false, event: null });

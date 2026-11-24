@@ -1,11 +1,3 @@
-/**
- * Which tooth — the chart, not a dropdown. Four quadrants laid out the way a
- * dentist reads them (upper right runs towards the midline), searchable because
- * "UL6" is faster to type than to find, and with an explicit way out: plenty of
- * work belongs to the mouth rather than to a number, and a picker that insists
- * on a tooth gets a wrong one.
- */
-
 import type { Tooth } from '@lustre/shared';
 import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
@@ -18,12 +10,6 @@ export type ToothSheetProps = {
     visible: boolean;
     onClose: () => void;
     onPick: (tooth: Tooth | null) => void;
-    /**
-     * Asked *after* a procedure that is done to a tooth, rather than before the
-     * catalogue. There is no way out of it: §5 refuses the line without a tooth
-     * (TOOTH_REQUIRED), so "no tooth assigned" would only build a line the
-     * confirm then throws away. The named procedure says why it is asking.
-     */
     required?: string;
 };
 
@@ -37,12 +23,6 @@ export function ToothSheet({ visible, onClose, onPick, required }: ToothSheetPro
         codes: query ? quadrant.codes.filter((code) => code.includes(query)) : quadrant.codes,
     })).filter((quadrant) => quadrant.codes.length > 0);
 
-    /**
-     * A pick closes the sheet, and the sheet is on screen and under the finger
-     * for the whole slide down — so the second tap of a double tap lands on a
-     * chart that has already been answered, and adds the line again. The sheet
-     * that is leaving cannot answer.
-     */
     function pick(tooth: Tooth | null) {
         if (!visible) return;
         onPick(tooth);

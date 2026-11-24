@@ -1,16 +1,3 @@
-/**
- * A label, a control, and whatever has to be said under it.
- *
- * `layout` is where the label sits, not what the control looks like. `stacked`
- * is a form being filled in: label above, control below, full width. `inline`
- * is a card being corrected — label on the start edge, control on the end edge,
- * one row — which is how the designs draw a "what is on file" card, where the
- * screen is a record with a few things to fix rather than a page of empty
- * boxes. A stacked label above a 48px box turns eight known facts into a form.
- *
- * `TextField`'s own `inline` is a different axis: that one is the underlined
- * control against the boxed one, and either layout can carry either control.
- */
 import type { ReactNode } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { useT } from '../../i18n';
@@ -19,18 +6,10 @@ import { space, Text } from '../../theme';
 export type FieldLayout = 'stacked' | 'inline';
 
 export type FieldProps = {
-    /** English copy; the field localizes it, the way `Button` does its label. */
     label?: string;
     required?: boolean;
-    /** English copy, localized here. `error` is not: it arrives already
-     * localized from an `ERROR_CODE`, which is the only direction §4 allows. */
     hint?: string;
     error?: string;
-    /**
-     * Required and still empty. Marked on the label and never with a message —
-     * a field the desk has not reached yet has nothing to correct — so that a
-     * footer counting what is owed has something on screen to point at.
-     */
     due?: boolean;
     layout?: FieldLayout;
     children: ReactNode;
@@ -63,8 +42,6 @@ export function Field({
     const footer =
         error || hint ? (
             <Text variant="footnote" tone={error ? 'danger' : 'muted'}>
-                {/* The error is a rule's sentence from a plain module, so it
-                    is localized here rather than where it was decided. */}
                 {t(error ?? hint ?? '')}
             </Text>
         ) : null;
@@ -92,11 +69,7 @@ export function Field({
 
 const styles = StyleSheet.create({
     field: { alignSelf: 'stretch', gap: space[1.5] },
-    // `flexShrink` because React Native defaults it to 0, not to the web's 1:
-    // without it a long inline label pushes its control off the end edge.
     labelRow: { flexDirection: 'row', alignItems: 'center', gap: space[0.5], flexShrink: 1 },
     row: { flexDirection: 'row', alignItems: 'center', gap: space[3] },
-    // The label keeps what it needs and the control takes the rest, so a column
-    // of these lines up on the end edge whatever the labels are.
     control: { flex: 1, minWidth: 0 },
 });

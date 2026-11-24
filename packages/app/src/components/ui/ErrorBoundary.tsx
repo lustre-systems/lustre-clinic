@@ -1,21 +1,3 @@
-/**
- * The last thing between a throw during render and a white screen. React
- * unmounts the whole tree when a render throws and there is no boundary above
- * it: in a dev build that is the red screen, in a release build it is nothing
- * at all, with no route back short of force-stopping the app. That lands on a
- * secretary mid-check-in with a patient standing there.
- *
- * Not `ErrorState`, which is a different job entirely — that draws a *query*
- * that failed, a rejected fetch the caller already knows about, and catches
- * nothing. This catches what nobody saw coming.
- *
- * What it does not catch, because React boundaries do not: anything thrown from
- * an event handler, a timer, or a promise. Those are the query layer's, and a
- * rejected mutation still surfaces through `ErrorState` where it always did.
- *
- * A class, which is the one place in this codebase that is the right answer —
- * `getDerivedStateFromError` has no hook form.
- */
 import { Component, type ErrorInfo, type ReactNode } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { useT } from '../../i18n';
@@ -24,30 +6,16 @@ import { Button } from './Button';
 
 export type ErrorBoundaryProps = {
     children: ReactNode;
-    /** The headline, in the app's voice. The caller knows what it wrapped. */
     title: string;
     message: string;
     actionLabel?: string;
-    /** The glyph over the headline, from the caller's icon set — `ui/` draws none. */
     icon?: ReactNode;
-    /**
-     * Clears a boundary that has already tripped. Any value that changes when
-     * the user navigates will do — a tripped boundary that stays tripped after
-     * they have gone somewhere else is a dead tab.
-     */
     resetKey?: unknown;
-    /**
-     * Somewhere to report from. The shell passes `reporting`'s crash reporter
-     * (§17), which sends the stack and the component stack through the
-     * allow-list: IDs and codes, never patient data. Kept as a prop so `ui/`
-     * still knows nothing about Lustre.
-     */
     onError?: (error: Error, info: ErrorInfo) => void;
 };
 
 type ErrorBoundaryState = {
     failed: boolean;
-    /** The key the current `failed` was decided against, to notice a change. */
     resetKey: unknown;
 };
 
@@ -70,10 +38,6 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
         this.props.onError?.(error, info);
     }
 
-    // Nothing is preserved across this. The children were unmounted when the
-    // boundary tripped, so their state went with them and a retry remounts them
-    // from scratch — which for a cluster means it comes back at its own root
-    // rather than on the route that threw. That is the recovery, not a loss.
     private retry = () => this.setState({ failed: false });
 
     override render() {
@@ -91,10 +55,6 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
     }
 }
 
-/**
- * The tripped state, as a function so it can localize. `useT` is a hook and
- * this file's outer component is a class, which is why the two are split.
- */
 function Fallback({
     title,
     message,

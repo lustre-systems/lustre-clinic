@@ -1,11 +1,6 @@
 import { describe, expect, it } from 'bun:test';
 import { hydratingSubscribe } from './hydratingSubscribe';
 
-/**
- * `LocaleProvider` and `serverStore` read storage when something first
- * subscribes, not at import, so nothing touches the native module until a
- * screen renders.
- */
 describe('hydratingSubscribe', () => {
     it('adds the listener and starts hydration on the first subscriber only', () => {
         const listeners = new Set<() => void>();

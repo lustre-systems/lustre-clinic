@@ -1,14 +1,3 @@
-/**
- * Calendar arithmetic on `YYYY-MM-DD` keys. All of it runs in UTC, where the
- * phone's zone cannot reach it: a key is a name for a day, not an instant.
- * Turning an instant into a clinic day or time is `clinicTime.ts`'s job.
- *
- * Calendar arithmetic only — no clock formatting. A time on screen is 12-hour
- * with a meridiem, the meridiem localizes to ص/م, and both of those are
- * presentation rather than a contract, so they live in the app at
- * `components/domain/clock.ts`.
- */
-
 export const DAY_MINUTES = 24 * 60;
 
 export function pad2(value: number): string {
@@ -17,10 +6,8 @@ export function pad2(value: number): string {
 
 export interface KeyParts {
     year: number;
-    /** 1–12. */
     month: number;
     day: number;
-    /** 0 = Sunday … 6 = Saturday, as `clinic_days.weekday`. */
     weekday: number;
 }
 
@@ -49,7 +36,6 @@ export function addDays(key: string, days: number): string {
     return keyOf(date);
 }
 
-/** The first of the month `months` from `key`'s. */
 export function addMonths(key: string, months: number): string {
     const date = utcOf(key);
     date.setUTCDate(1);
@@ -61,7 +47,6 @@ export function weekdayOf(key: string): number {
     return keyParts(key).weekday;
 }
 
-/** Every day of `key`'s month, in order. */
 export function monthDays(key: string): string[] {
     const { year, month } = keyParts(key);
     return Array.from(
@@ -70,7 +55,6 @@ export function monthDays(key: string): string[] {
     );
 }
 
-/** The Gregorian calendar, not a rule about any particular date. */
 export function daysInMonth(year: number, month: number): number {
     const leap = year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
     return [31, leap ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31][month - 1] ?? 0;

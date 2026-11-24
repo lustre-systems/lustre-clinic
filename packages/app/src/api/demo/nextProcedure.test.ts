@@ -1,8 +1,3 @@
-/**
- * The next procedures against the demo and local-mode backend. The server's twin
- * is `packages/server/tests/next-procedure.test.ts`; a phone with no server
- * must take it onto the next booking the same way.
- */
 import { beforeEach, describe, expect, it, mock } from 'bun:test';
 
 mock.module('@react-native-async-storage/async-storage', () => ({
@@ -48,10 +43,6 @@ function book(daysOut: number) {
     });
 }
 
-/**
- * A visit checked in now, for a patient new to the seed: the seeded ones
- * already have bookings to come, which would take the procedure first.
- */
 function visitToday() {
     const branch = getDb().branches[0];
     if (!branch) throw new Error('the seed has no branch');

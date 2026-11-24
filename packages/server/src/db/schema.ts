@@ -1,50 +1,3 @@
-/**
- * SPEC §5. Timestamps are `timestamptz`. Money is integer piastres — never
- * floats. IDs are UUIDv7, generated in application code (`Bun.randomUUIDv7()`)
- * because Postgres 17 has no `uuidv7()`.
- *
- * The `EXCLUDE USING gist` overlap constraint on `appointments` and the
- * `btree_gist` extension it needs are not expressible in Drizzle's schema DSL.
- * They live in a hand-written migration; see `db/migrations/`.
- *
- * The weekly schedule keys a row by the weekday itself, so the dentist being
- * in two places on the same day is impossible by construction (MAW-1).
- * `visits.appointment_id` is UNIQUE (one appointment has at most one visit),
- * and `settings` is a single enforced row (id = 1).
- *
- * `patients.legacy_ref` is the number the *old* system knew this patient by. It
- * is free text and not generated here: the old system's format is its own, and
- * the paper files already have that number written on them. For a patient
- * registered as an old patient it is also their `ref` — the desk was given one
- * number for them and must not be shown a second — so the two columns hold the
- * same string and `ref`'s UNIQUE constraint is what refuses the number twice.
- * Nullable and unbackfilled: a patient registered since the cutoff has no old
- * number, and a blank says so.
- *
- * `appointments.is_opening_balance` marks a row that stands for debt carried
- * over from the old system rather than for anything that happened here. A
- * balance is derived per visit and a visit needs an appointment, so a patient
- * who arrived owing 800 gets one of each, dated at the cutoff. The flag is what
- * lets the money and the schedule disagree about them on purpose: they are
- * owed, so `balance.outstanding` counts them, but nothing was billed and nobody
- * sat in the chair, so `balance.summary`, `stats.summary` and the day view
- * leave them out.
- *
- * `appointments.is_imported` is the same trick for work the old system recorded:
- * a row with planned procedures, no visit and therefore no money at all. It
- * belongs in the record's history and nowhere else, so every reader that counts
- * something — the day view, revenue, statistics, reminders, the queue — excludes
- * it the way it already excludes an opening balance. `date_unknown` says the row
- * carries a date only because the column demands one; the record labels it
- * *before migration* rather than reading it out.
- *
- * `appointment_procedures` is the work a booking plans (§7). It mirrors
- * `visit_procedures`, but `quoted_price` is null unless the desk quoted a price:
- * a booking made three weeks out bills at the price on the day, so check-in
- * snapshots the catalogue price for every row without one, seeding one visit
- * line per planned row. Teeth are Palmer notation, null unless
- * the procedure is tooth-specific (§5).
- */
 import {
     APPOINTMENT_CHANNELS,
     APPOINTMENT_STATUSES,
@@ -111,11 +64,6 @@ export const patients = pgTable(
     'patients',
     {
         id: uuid('id').primaryKey(),
-        // This clinic's own number for the patient, generated once and written
-        // at the top of their page in the paper book (§5). `legacy_ref` below is
-        // the *old* system's number and is a different fact: one is ours and
-        // always present, the other is theirs and only on patients who predate
-        // the migration.
         ref: text('ref').notNull().unique(),
         name: text('name').notNull(),
         phone: text('phone').notNull(),
@@ -178,8 +126,6 @@ export const appointments = pgTable(
         index('appointments_starts_at_idx').on(t.startsAt),
         index('appointments_patient_id_idx').on(t.patientId),
         check('appointments_duration_positive', sql`${t.durationMinutes} > 0`),
-        // `starts_at` is NOT NULL, so a row whose real date nobody knows still
-        // carries one. The flag is what stops it being read as that date.
         check('appointments_date_unknown_imported', sql`NOT ${t.dateUnknown} OR ${t.isImported}`),
         check('appointments_lab_status_valid', sql`${t.labStatus} IN ('pending', 'ready')`),
     ],
@@ -215,24 +161,17 @@ export const visits = pgTable('visits', {
         .unique()
         .references(() => appointments.id),
     checkedInAt: timestamptz('checked_in_at').notNull(),
-    // Arrived and seated are two different moments, and the chair's progress
-    // bar is measured from the second one. The desk checks people in as they
-    // come through the door and they queue, so `checked_in_at` is when the wait
-    // started; `in_chair_at` is when it ended. Null means still waiting.
     inChairAt: timestamptz('in_chair_at'),
     pricedAt: timestamptz('priced_at'),
     completedAt: timestamptz('completed_at'),
     computedTotal: integer('computed_total').notNull().default(0),
     chargedTotal: integer('charged_total').notNull().default(0),
-    // The booking that took `visit_next_procedures`: null while the patient's
-    // next booking is still to be made.
     nextAppointmentId: uuid('next_appointment_id').references((): AnyPgColumn => appointments.id, {
         onDelete: 'set null',
     }),
     createdAt: timestamptz('created_at').notNull().defaultNow(),
 });
 
-/** What the doctor wants done at the patient's next visit (`visit.next.ts`, 0026). */
 export const visitNextProcedures = pgTable(
     'visit_next_procedures',
     {
@@ -263,9 +202,6 @@ export const payments = pgTable(
     },
     (t) => [
         index('payments_visit_id_idx').on(t.visitId),
-        // Negative is a refund: a correction to a visit that was checked out
-        // recording more than was handed over (`0002_payment_corrections.sql`).
-        // Zero is not a correction, it is a mistake.
         check('payments_amount_nonzero', sql`${t.amount} <> 0`),
         check(
             'payments_other_requires_note',
@@ -286,7 +222,6 @@ export const visitProcedures = pgTable(
             .references(() => procedureTypes.id),
         quantity: integer('quantity').notNull().default(1),
         unitPrice: integer('unit_price').notNull(),
-        // Snapshotted like `unitPrice`, so a later cost change cannot rewrite past profit.
         unitCost: integer('unit_cost').notNull().default(0),
         tooth: text('tooth', { enum: TEETH }),
         note: text('note'),
@@ -298,10 +233,6 @@ export const visitProcedures = pgTable(
     ],
 );
 
-// A question is asked in both languages; the answer is stored once, in whichever
-// language it was given (§14). `label_ar` is nullable because a clinic that only
-// works in one language has no translation to write, and the resolution rule
-// falls back to the label that exists.
 export const customQuestions = pgTable('custom_questions', {
     id: uuid('id').primaryKey(),
     key: text('key').notNull().unique(),
@@ -347,25 +278,11 @@ export const settings = pgTable(
             .default(DEFAULT_REMINDER_REPEAT_MINUTES),
         reminderDismissedOn: date('reminder_dismissed_on'),
         reminderTemplate: text('reminder_template').notNull(),
-        // The ref the next *new* patient will be given. Read and incremented in
-        // the same transaction as the patient insert, so two registrations at
-        // once cannot share one. An old patient keeps their own number and
-        // never touches this.
         patientRefNext: integer('patient_ref_next').notNull().default(1),
-        // Whether a registration needs an age, and a sex. Checked by the
-        // patient service, not by a constraint on `patients`: turning one off
-        // has to be possible, and turning one on must not break the records
-        // already on file without it.
         requireAge: boolean('require_age').notNull().default(DEFAULT_REQUIRE_AGE),
         requireGender: boolean('require_gender').notNull().default(DEFAULT_REQUIRE_GENDER),
-        // Whether the doctor's Finish asks first if the procedures need editing.
         askToEditOnFinish: boolean('ask_to_edit_on_finish').notNull().default(true),
-        // `general` is a clinic that is not charting teeth. Procedures keep
-        // their `is_tooth_specific`, so going back to `dental` restores them.
         clinicType: text('clinic_type', { enum: CLINIC_TYPES }).notNull().default('dental'),
-        // Whether a phone with no role credential is refused. Off, so the
-        // phones installed before roles existed keep working until each has
-        // scanned a code; an admin turns it on once they all have.
         requireProvisioning: boolean('require_provisioning').notNull().default(false),
         updatedAt: timestamptz('updated_at').notNull().defaultNow(),
     },
@@ -375,21 +292,6 @@ export const settings = pgTable(
     ],
 );
 
-/**
- * Every ref that was changed after the fact: what it was, what it became, the
- * role that declared the change, and when.
- *
- * `entity_id` carries no foreign key, deliberately. An audit trail whose rows
- * vanish with the record they describe is not one — a ref edited onto the wrong
- * patient and the patient then deleted is exactly the sequence somebody comes
- * back asking about. It is a plain uuid for the same reason it is paired with
- * `entity`: appointments carry refs too (§5), and they edit into this table
- * without a second one.
- *
- * `edited_by` is a `CLIENT_ROLES` value and not a user: there are no accounts
- * (§1). It records what the client said it was, which is the most this model
- * has to record, and is why the column is text rather than a reference.
- */
 export const refEdits = pgTable(
     'ref_edits',
     {
@@ -404,15 +306,6 @@ export const refEdits = pgTable(
     (t) => [index('ref_edits_entity_idx').on(t.entity, t.entityId, t.editedAt)],
 );
 
-/**
- * A role, offered by QR code. `code_hash` is all that is kept of the code: the
- * QR on the admin's screen is the only copy, so a leaked backup hands out no
- * roles. Single-use, and dead after `expires_at` or once revoked.
- *
- * The row is also the audit trail the admin reads back: who issued it (a device,
- * or null for the server's CLI), and — through `devices.grant_id` — which phone
- * it made and when.
- */
 export const roleGrants = pgTable('role_grants', {
     id: uuid('id').primaryKey(),
     role: text('role', { enum: ROLES }).notNull(),
@@ -425,12 +318,6 @@ export const roleGrants = pgTable('role_grants', {
     revokedAt: timestamptz('revoked_at'),
 });
 
-/**
- * A phone that redeemed a grant. `token_hash` is the hash of the credential it
- * sends on every request; the role on this row is the only role the server
- * believes it has. Revoking the grant revokes this too, and a revoked phone is
- * refused whether or not the clinic requires provisioning.
- */
 export const devices = pgTable('devices', {
     id: uuid('id').primaryKey(),
     grantId: uuid('grant_id')

@@ -1,9 +1,3 @@
-/**
- * `server/src/modules/procedure/procedure.service.ts`. The hierarchy is one
- * level deep: a row something else names as a parent is a category and is not
- * selectable, and parenthood is computed over every row — active or not — so a
- * deactivated subtype cannot make its category look selectable to a picker.
- */
 import { ERROR_CODE, todayKey } from '@lustre/shared';
 import type { RouterInput, RouterOutput } from '../../types';
 import { getDb, type ProcedureTypeRow, save, type VisitProcedureRow, type VisitRow } from '../db';
@@ -34,7 +28,6 @@ function hasChildren(id: string): boolean {
     return getDb().procedureTypes.some((row) => row.parentId === id);
 }
 
-/** The checkup flag is held by exactly one row — taking it hands it over (§8/§9). */
 function clearOtherCheckups(keep: string): void {
     for (const row of getDb().procedureTypes) {
         if (row.id !== keep) row.isCheckup = false;
@@ -164,12 +157,6 @@ export const procedureHandlers = {
         return current;
     },
 
-    /**
-     * `server/src/modules/procedure/procedure.history.ts` — a visit that
-     * happened on a day that has passed and was never typed in. It carries
-     * money: it is an ordinary completed visit, charged, and paid in cash on
-     * the day unless corrected afterwards.
-     */
     addOldVisit(input: RouterInput['procedure']['addOldVisit']): {
         appointmentId: string;
         visitId: string;
@@ -200,9 +187,6 @@ export const procedureHandlers = {
         const branchId = input.branchId ?? branchHandlers.list({ includeInactive: false })[0]?.id;
         if (!branchId) throw DemoError.notFound('branch');
 
-        // Noon UTC, the same stamp the imported rows use: the row records which
-        // day it was, not which slot, so it must read back as that day at any
-        // offset.
         const at = new Date(`${input.performedOn}T12:00:00.000Z`);
 
         const priced = lines.map((line, index) => ({
@@ -217,8 +201,6 @@ export const procedureHandlers = {
             priced.map((line, index) => ({ ...line, isCheckup: lines[index]?.procedure.isCheckup ?? false })),
         );
 
-        // `done` holds no slot, which is the only reason a past date is
-        // writable at all — the day is probably already full of real rows.
         const appointment = insertAppointment(
             {
                 patientId: input.patientId,
@@ -257,7 +239,6 @@ export const procedureHandlers = {
         }));
         db.visitProcedures.push(...rows);
 
-        // Paid in full, in cash, on the day — corrected on the visit if not.
         if (chargedTotal > 0) {
             db.payments.push({
                 id: uuidv7(),
@@ -282,9 +263,6 @@ export const procedureHandlers = {
 
         const rows = ids.map(requireRow);
 
-        // `sortOrder` is only ever compared inside a group, so a list spanning
-        // two categories would write positions that mean nothing next to each
-        // other.
         if (new Set(rows.map((row) => row.parentId)).size > 1) {
             throw new DemoError(ERROR_CODE.VALIDATION, 'a reorder must name one group of siblings', 422);
         }

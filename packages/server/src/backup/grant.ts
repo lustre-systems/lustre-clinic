@@ -1,17 +1,3 @@
-/**
- * SPEC §16 — the Drive grant the doctor made from the phone, as opposed to the
- * one the operator pasted into the environment.
- *
- * The environment is read once at boot and cannot change while the server runs,
- * so a sign-in done from a handset has nowhere to go without this. It is a file
- * beside the dumps rather than a `settings` row because backups must keep
- * working when the database is the thing that is broken — `backup.status` and
- * the job already read files for the same reason.
- *
- * It holds a refresh token, so it is written 0600 and through a temporary file
- * and a rename: a torn read here would drop the clinic back to whatever the
- * environment says, which is a different Drive account.
- */
 import { chmod, rename, unlink } from 'node:fs/promises';
 import { join } from 'node:path';
 import { config } from '../config.ts';
@@ -22,7 +8,6 @@ export interface DriveGrant {
     clientId: string;
     refreshToken: string;
     folderId: string;
-    /** Who consented, for the operator reading the file. Never logged, never sent. */
     account?: string;
     linkedAt: string;
 }

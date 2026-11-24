@@ -1,17 +1,3 @@
-/**
- * What one write on this phone reads as in the "Last done" sheet, worked out
- * from the procedure's path, what was sent and what came back.
- *
- * Only the writes the dentist asked about are listed: book, move, cancel,
- * no-show, check in, finish, procedures, payments, a patient added or edited,
- * and an old visit. Anything else answers `null` and is not logged — a lab
- * flag or a reminder ticked off is not something anyone forgets doing.
- *
- * The detail is kept as data, not as a sentence, so the sheet says it in the
- * language that is on when it is opened rather than the one that was on when
- * the write happened.
- */
-
 export const LAST_DONE_KINDS = [
     'book',
     'move',
@@ -41,7 +27,6 @@ export type LastDoneDetail =
 export interface LastDoneEntry {
     id: string;
     kind: LastDoneKind;
-    /** Phone time, ms. */
     at: number;
     patientId: string | null;
     patientName: string | null;
@@ -50,10 +35,8 @@ export interface LastDoneEntry {
     detail: LastDoneDetail | null;
 }
 
-/** What a write says about itself, before the name behind its ids is looked up. */
 export type LastDoneDraft = Omit<LastDoneEntry, 'id' | 'at'>;
 
-/** What the phone knew just before the write went out — a move's old time. */
 export interface BeforeWrite {
     startsAt: string | null;
 }
@@ -86,7 +69,6 @@ function draft(kind: LastDoneKind, parts: Partial<LastDoneDraft> = {}): LastDone
     };
 }
 
-/** The patient a booking named: one on file, or one registered with it. */
 function bookedFor(input: Fields): Pick<LastDoneDraft, 'patientId' | 'patientName'> {
     const patient = fields(input.patient);
     return patient.kind === 'new'
@@ -106,7 +88,6 @@ function firstProcedure(visit: Fields): LastDoneDetail | null {
     return { type: 'procedure', name, tooth: str(first, 'tooth'), more: lines.length - 1 };
 }
 
-/** The visit a visit-shaped answer is, with the appointment it hangs off. */
 function onVisit(kind: LastDoneKind, visit: Fields, detail: LastDoneDetail | null): LastDoneDraft {
     return draft(kind, {
         visitId: str(visit, 'id'),
@@ -167,7 +148,6 @@ export function describeWrite(
             });
         }
 
-        // The doctor's "finished": the patient goes to the desk to pay.
         case 'appointment.awaitPayment':
             return draft('finish', {
                 appointmentId: str(output, 'id') ?? str(input, 'id'),
@@ -231,7 +211,6 @@ export function describeWrite(
     }
 }
 
-/** Where a line goes when it is tapped. A cancellation has nothing left to open. */
 export type LastDoneTarget =
     | { kind: 'patient'; patientId: string }
     | { kind: 'visit'; appointmentId: string; visitId: string }

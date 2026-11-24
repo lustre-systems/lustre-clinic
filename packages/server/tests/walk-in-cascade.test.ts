@@ -4,21 +4,6 @@ import { db } from '../src/db/index.ts';
 import { makeRoomForWalkIn } from '../src/modules/appointment/appointment.service.ts';
 import { insertBranch, insertPatient, setupDatabase, sql, truncateAll, uuid } from './helpers/db.ts';
 
-/**
- * A walk-in is someone standing at the desk, so it is never refused for want of
- * room: the booked day moves out of its way (§7). What is asserted here is that
- * it moves as little as it can — only the rows actually run into, only as far
- * as the walk-in's end, and a natural gap stops the ripple rather than the
- * whole afternoon sliding. The one row it will not move is the one already in
- * the chair: the walk-in waits for it instead, which is the difference between
- * waiting and being turned away.
- *
- * Times are UTC and the clinic offset is zero, so a minute here is a minute on
- * the wall. The database is the referee throughout: `appointments_no_overlap`
- * is not deferrable, so a cascade written in the wrong order would be refused
- * mid-rearrangement and these would fail with 23P01 rather than a bad answer.
- */
-
 const BASE = new Date('2026-03-10T09:00:00.000Z');
 
 const at = (minutes: number) => new Date(BASE.getTime() + minutes * 60_000);
@@ -53,7 +38,6 @@ async function startOf(id: string): Promise<number> {
 const room = (startMinutes: number, durationMinutes: number) =>
     makeRoomForWalkIn(db, at(startMinutes), durationMinutes);
 
-/** Who moved. Most of these are about the cascade, not about where the walk-in landed. */
 const makeRoom = async (startMinutes: number, durationMinutes: number) =>
     (await room(startMinutes, durationMinutes)).moved;
 
@@ -93,9 +77,6 @@ describe('a walk-in making room', () => {
         expect(await startOf(clash)).toBe(30);
     });
 
-    // The ripple, and the reason the writes go last-one-first: pushing the 20
-    // onto the 50 before the 50 has moved is a 23P01 the constraint would
-    // refuse halfway through a rearrangement that is legal once finished.
     test('ripples through a solid run of bookings', async () => {
         const first = await book(20, 30);
         const second = await book(50, 30);
@@ -136,8 +117,6 @@ describe('a walk-in making room', () => {
         expect(await startOf(seated)).toBe(30);
     });
 
-    // One practitioner: a procedure already under way is not interrupted, so
-    // the walk-in waits for the chair rather than being refused for it.
     test('starts when the chair frees, leaving the running slot alone', async () => {
         const running = await book(-10, 30, 'checked_in');
 
@@ -185,15 +164,10 @@ describe('a walk-in making room', () => {
     test('leaves tomorrow alone when a gap stands before it', async () => {
         const tomorrow = await book(24 * 60 + 30, 30);
 
-        // 23:50 tonight for 30 minutes: it runs past midnight itself, but
-        // nothing tomorrow is in its way.
         expect(await makeRoom(14 * 60 + 50, 30)).toEqual([]);
         expect(await startOf(tomorrow)).toBe(24 * 60 + 30);
     });
 
-    // Midnight is 15 hours after BASE. The queue does not know where the day
-    // ends, only which rows it runs into; a row the ripple cannot see is a row
-    // the next push lands on, and the constraint refuses that with 23P01.
     const MIDNIGHT = 15 * 60;
 
     test('sees a row an earlier walk-in already pushed past midnight', async () => {

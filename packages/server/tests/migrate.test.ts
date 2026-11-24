@@ -4,19 +4,6 @@ import { withScratchDatabase } from '../src/backup/pg.ts';
 import { config } from '../src/config.ts';
 import { setupDatabase, sql } from './helpers/db.ts';
 
-/**
- * SPEC §5 — the schema, and the migrations that produce it. Nothing else checks
- * that migrations apply to an *empty* database: `setupDatabase` is a no-op
- * after the first run, so the fresh-machine boot path was never exercised.
- * Migrations must also be idempotent, because the entrypoint migrates on every
- * start (§4). The scratch database doubles as a check on the truncation list —
- * a table added to the schema but forgotten in `truncateAll` leaks rows into
- * whichever test runs next. Double booking is prevented by Postgres, not
- * application code, and the EXCLUDE index requires an IMMUTABLE expression, so
- * the session-timezone test in overlap.test.ts guards against a volatile-
- * behaving wrapper.
- */
-
 const TRUNCATED_TABLES = [
     'payments',
     'visit_procedures',

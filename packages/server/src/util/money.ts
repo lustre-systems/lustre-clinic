@@ -1,13 +1,3 @@
-/**
- * SPEC §9 — money is integer piastres throughout. No floats, no decimal types,
- * anywhere. Parsing happens at the boundary and formatting at the display
- * layer, so nothing in between ever sees a fractional pound.
- *
- * `computeTotal` is Σ(unit_price × quantity) minus checkup lines, if any
- * non-checkup line exists. The checkup waiver is the only automatic rule; the
- * checkup line is never deleted — it is excluded from the sum and stays on the
- * visit as the record that the patient was seen.
- */
 import { ERROR_CODE, MAX_AMOUNT_PIASTRES } from '@lustre/shared';
 import { AppError } from '../errors/AppError.ts';
 

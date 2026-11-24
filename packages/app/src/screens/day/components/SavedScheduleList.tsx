@@ -1,14 +1,3 @@
-/**
- * Today and tomorrow as the server last told this phone, under the offline
- * card. Read-only by construction: no row presses, no FAB, no status that can
- * be changed — everything here may already be wrong, so the list says when it
- * was taken before it says anything else, and the rows are drawn in the
- * day's own `AppointmentRow` shape but without its chevron, so it does not
- * read as the live day with a banner over it.
- *
- * The phone number is on every row because the reason to open this during a
- * power cut is usually to ring someone.
- */
 import { StyleSheet, View } from 'react-native';
 import { serverAddresses } from '../../../api';
 import { formatStamp, phoneText, StatusPill, TimeValue } from '../../../components/domain';

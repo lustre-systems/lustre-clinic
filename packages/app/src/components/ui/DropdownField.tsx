@@ -1,9 +1,3 @@
-/**
- * A field that opens its options as a menu directly under itself, at its own
- * width — for a short, fixed list (a handful of options, no search), where
- * `Select`'s sheet is more motion than the choice is worth. The field is
- * measured on the tap rather than on layout: it may have scrolled since.
- */
 import { useRef, useState } from 'react';
 import { I18nManager, Pressable, StyleSheet, useWindowDimensions, type View } from 'react-native';
 import { useT } from '../../i18n';
@@ -14,12 +8,10 @@ import { Field } from './Field';
 import type { MenuAnchor } from './PopoverMenu';
 
 export type DropdownFieldProps<T extends string> = {
-    /** Labels are this app's copy and are localized here, like `DropdownMenu`'s. */
     options: readonly DropdownOption<T>[];
     value: T;
     onChange: (value: T) => void;
     label?: string;
-    /** For a field whose section heading already names it, so it draws no label. */
     accessibilityLabel?: string;
     hint?: string;
     disabled?: boolean;
@@ -39,8 +31,6 @@ export function DropdownField<T extends string>({
     const t = useT();
     const trigger = useRef<View>(null);
     const window = useWindowDimensions();
-    // Kept after closing: the menu is still on screen for its exit, and with no
-    // anchor it would leave from the default corner instead of the field.
     const [anchor, setAnchor] = useState<MenuAnchor | null>(null);
     const [open, setOpen] = useState(false);
     const selected = options.find((option) => option.value === value);

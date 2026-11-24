@@ -17,10 +17,8 @@ export const balanceRouter = router({
         .input(byPatientInput)
         .query(({ input }) => balanceService.byPatient(input.patientId)),
 
-    /** The app's one payment entry point: money against a patient, not a visit. */
     settle: paymentProcedure.input(settleInput).mutation(({ input }) => balanceService.settle(input)),
 
-    // The clinic's takings, not one patient's: the owner's figures, like `stats`.
     summary: statsProcedure.input(balanceSummaryInput).query(({ input }) => balanceService.summary(input)),
 
     takings: statsProcedure.input(balanceTakingsInput).query(({ input }) => balanceService.takings(input)),

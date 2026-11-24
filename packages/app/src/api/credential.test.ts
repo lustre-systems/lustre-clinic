@@ -1,8 +1,3 @@
-/**
- * The credential is what the server reads a phone's role off, so losing it is a
- * phone quietly back on the access one with no role has, and keeping a revoked
- * one is a phone that refuses to notice it was shut out.
- */
 import { beforeEach, describe, expect, it, mock } from 'bun:test';
 
 const stored = new Map<string, string>();

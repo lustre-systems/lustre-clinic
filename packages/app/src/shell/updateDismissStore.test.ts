@@ -1,9 +1,3 @@
-/**
- * The home banner is waved away per build, and that has to hold across a
- * launch: a banner that comes back every morning is one that gets ignored,
- * and one that never comes back for the next release is worse. What is
- * checked is the launch, as `roleStore.test.ts` does.
- */
 import { beforeEach, describe, expect, it, mock } from 'bun:test';
 
 const stored = new Map<string, string>();

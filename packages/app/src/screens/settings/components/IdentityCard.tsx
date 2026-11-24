@@ -1,18 +1,3 @@
-/**
- * The settings index's first card, and the reason the index opens on a dark
- * block instead of a list: `settings.html` puts the two things you reach for
- * when something is wrong — who this phone thinks you are, and whether it can
- * see the server — above every row, so neither is a screen you have to go
- * looking for. Everything below it is navigation.
- *
- * The role is the one an admin's code gave this phone, and the only way to
- * change it is another code — so the card states it and offers the scanner,
- * never a switch. It is still not a login: the phone is the account.
- *
- * A clinic on one phone (`solo`) has neither: no role to have been given and no
- * server to see. The card is then the clinic and whether it is backed up, which
- * for that clinic is what is most likely to be wrong, and it opens the backups.
- */
 import { Pressable, StyleSheet, View } from 'react-native';
 import { Dot } from '../../../components/ui';
 import { useT } from '../../../i18n';
@@ -23,13 +8,10 @@ import { ReprobeIcon, ScanCodeIcon } from './icons';
 export type IdentityCardProps = {
     roleName: string;
     roleInitial: string;
-    /** The clinic, under the role. Not the branch — nothing tracks which
-     * branch a phone is standing in yet, so the card does not claim to. */
     clinicName: string;
     connection: ConnectionView;
     onScanCode: () => void;
     solo?: boolean;
-    /** Under the clinic's name on a `solo` card. */
     soloLine?: string;
     onOpenBackups?: () => void;
     testID?: string;

@@ -7,24 +7,12 @@ import { visitService } from '../src/modules/visit/visit.service.ts';
 import { setupDatabase, sql, truncateAll, uuid } from './helpers/db.ts';
 import { expectAppError, clinic as fixtures, todaySlot } from './helpers/factories.ts';
 
-/**
- * The three period figures the money dashboard draws that `summary` did not
- * compute, plus `takings`. `modules.test.ts` already covers the derived
- * balances themselves (§10); this covers what the *range* means.
- *
- * The one worth reading twice is `olderCollected`. It is a join of payment date
- * against visit date, and it is NOT `collected - charged` — that shortcut is
- * the period's net position, which moves for reasons that have nothing to do
- * with old visits. `divergesFromTheShortcut` asserts the two disagree.
- */
-
 const DAY_MS = 86_400_000;
 
 function isoDate(at: Date): string {
     return at.toISOString().slice(0, 10);
 }
 
-/** Today through tomorrow, which contains `todaySlot()` — tomorrow at 09:00 UTC. */
 function thisPeriod() {
     return {
         from: isoDate(new Date()),
@@ -40,8 +28,6 @@ async function checkedOut(
     chargedTotal: number,
     paidTotal: number,
 ) {
-    // Checkout refuses a visit with no procedures, so the visit is booked with
-    // the fixture clinic's root canal. The charge is still `chargedTotal`.
     const [work] = await sql<
         { id: string }[]
     >`SELECT id FROM procedure_types WHERE name = 'Root canal' LIMIT 1`;
@@ -58,10 +44,6 @@ async function checkedOut(
     return visit;
 }
 
-/**
- * Move a visit's appointment into the past. Booking one there is refused, and
- * the charge date is the only thing that makes a visit "older".
- */
 async function backdate(visitId: string, days: number): Promise<void> {
     await sql`
         UPDATE appointments
@@ -78,15 +60,9 @@ beforeEach(async () => {
     await truncateAll();
 });
 
-/**
- * The task's own worked example, in piastres. Kareem owes 9,550 EGP over three
- * visits and hands over 6,000: the oldest settles, the middle takes a partial,
- * the newest is untouched.
- */
 const KAREEM = { oldest: 585_000, middle: 20_000, newest: 350_000 };
 const KAREEM_OWES = KAREEM.oldest + KAREEM.middle + KAREEM.newest;
 
-/** Three unsettled visits, oldest first — `todaySlot(n)` is tomorrow 09:00 plus n minutes. */
 async function threeDebts(patientId: string, branchId: string) {
     const oldest = await checkedOut(patientId, branchId, todaySlot(), KAREEM.oldest, 0);
     const middle = await checkedOut(patientId, branchId, todaySlot(60), KAREEM.middle, 0);
@@ -94,7 +70,6 @@ async function threeDebts(patientId: string, branchId: string) {
     return { oldest, middle, newest };
 }
 
-/** What each of a patient's visits still owes, keyed by visit id. */
 async function owedPerVisit(patientId: string): Promise<Record<string, number>> {
     const rows = await balanceService.byPatient(patientId);
     return Object.fromEntries(rows.map((row) => [row.visitId, row.balance]));
@@ -114,8 +89,6 @@ describe('balance.settle — allocation', () => {
         expect(report.outstandingBefore).toBe(KAREEM_OWES);
         expect(report.outstandingAfter).toBe(KAREEM_OWES - 600_000);
 
-        // The newest is absent rather than present with a zero — an untouched
-        // visit is not part of what this payment did.
         expect(report.visits.map((v) => [v.visitId, v.amount, v.settled])).toEqual([
             [oldest.id, KAREEM.oldest, true],
             [middle.id, 600_000 - KAREEM.oldest, false],
@@ -159,11 +132,6 @@ describe('balance.settle — allocation', () => {
         }
     });
 
-    /**
-     * Money carried over from the old system is the oldest debt a patient has,
-     * and `outstanding`/`byPatient` both count it. Allocation follows them
-     * rather than inventing a second rule about it.
-     */
     test('allocates against an opening balance before this clinic’s own work', async () => {
         const f = await fixtures();
         const carried = await checkedOut(f.patient.id, f.branch.id, todaySlot(), 400_000, 0);
@@ -233,17 +201,7 @@ describe('balance.settle — what it refuses', () => {
     });
 });
 
-/**
- * `procedure.reorder`'s rule, with money instead of sort order. Three inserts of
- * which the second fails would leave the patient having handed over 6,000 with
- * 5,850 recorded — and 5,850 is the figure the desk reads back to them. The
- * trigger fails the *second* slice specifically, so this is a genuine
- * mid-allocation failure and not a request that never started.
- */
 describe('balance.settle — one transaction or none', () => {
-    // `sql.unsafe` because a bind parameter cannot appear inside a function
-    // body — Postgres plans the body separately and has no type for it. The
-    // interpolated value is a uuid this test just generated.
     async function failPaymentsAgainst(visitId: string): Promise<void> {
         await sql.unsafe(`
             CREATE FUNCTION refuse_this_visit() RETURNS trigger AS $$
@@ -284,8 +242,6 @@ describe('balance.settle — one transaction or none', () => {
             await stopFailing();
         }
 
-        // The first slice committed nothing either: the oldest is still owed in
-        // full, which is the assertion that the whole allocation rolled back.
         expect(await owedPerVisit(f.patient.id)).toEqual(before);
         expect(before[oldest.id]).toBe(KAREEM.oldest);
         expect(before[newest.id]).toBe(KAREEM.newest);
@@ -295,11 +251,6 @@ describe('balance.settle — one transaction or none', () => {
     });
 });
 
-/**
- * Two phones settling the same patient at once. Whichever commits first, the
- * loser reads the outstanding the winner left behind rather than the one it
- * started from — so the pair can never allocate more than the patient owes.
- */
 describe('balance.settle — two phones at once', () => {
     test('the second settle sees what the first left, and is refused', async () => {
         const f = await fixtures();
@@ -331,11 +282,6 @@ describe('balance.settle — two phones at once', () => {
     });
 });
 
-/**
- * Each slice is an ordinary `payments` row, which is the whole reason there is
- * no patient-level payments table: everything downstream keeps working without
- * learning a new concept.
- */
 describe('balance.settle — the rows it writes are ordinary payments', () => {
     test('summary and takings pick them up unchanged', async () => {
         const f = await fixtures();
@@ -350,8 +296,6 @@ describe('balance.settle — the rows it writes are ordinary payments', () => {
 
         expect(summary.collected).toBe(600_000);
         expect(takings.total).toBe(600_000);
-        // Two visits were touched, so the method split carries two rows of one
-        // payment each rather than one row of 600,000.
         expect(takings.byMethod).toEqual([{ method: 'visa', amount: 600_000, count: 2 }]);
     });
 
@@ -460,18 +404,9 @@ describe('balance.summary — older visits', () => {
     });
 });
 
-/**
- * Egypt keeps DST, so a range that starts in the other regime has two offsets.
- * The queries compare `paid_at` against an instant, so the boundary decides
- * inclusion outright — this is not a day-bucket aggregation that rounds the
- * difference away.
- *
- * Offsets are passed explicitly here rather than read from a clock, so the test
- * says the same thing in any timezone CI runs in.
- */
 describe('a range that crosses a DST changeover', () => {
-    const WINTER = 120; // UTC+2, in force on 1 January
-    const SUMMER = 180; // UTC+3, in force when "This year" is being read
+    const WINTER = 120;
+    const SUMMER = 180;
 
     async function payAt(paidAt: string, amount: number) {
         const f = await fixtures();
@@ -482,8 +417,6 @@ describe('a range that crosses a DST changeover', () => {
         `;
     }
 
-    // 23:30 local on 31 December under UTC+2 — the last half hour of the old
-    // year, and squarely outside "This year".
     const NEW_YEARS_EVE = '2025-12-31T21:30:00Z';
 
     function thisYear(fromOffsetMinutes?: number) {
@@ -515,8 +448,6 @@ describe('a range that crosses a DST changeover', () => {
     test('one offset for both ends is what pulled it into the new year', async () => {
         await payAt(NEW_YEARS_EVE, 90_000);
 
-        // The old behaviour: today's summer offset applied to 1 January opens
-        // the window at 21:00Z instead of 22:00Z.
         const summary = await balanceService.summary(thisYear());
 
         expect(summary.collected).toBe(90_000);
@@ -586,19 +517,12 @@ describe('balance.takings', () => {
         expect(takings.byMethod).toEqual([]);
     });
 
-    /**
-     * `visit.setPaid` writes the delta against what is already on the visit, so
-     * correcting a paid total downwards inserts a negative payment row. The
-     * takings card divides by `total` to size its bars, so these two shapes are
-     * what stop it drawing a bar backwards or calling a busy day empty.
-     */
     test('reports a method that refunded more than it took as negative', async () => {
         const f = await fixtures();
         const visit = await checkedOut(f.patient.id, f.branch.id, todaySlot(), 300_000, 0);
 
         await visitService.recordPayment({ visitId: visit.id, amount: 200_000, method: 'cash' });
         await visitService.recordPayment({ visitId: visit.id, amount: 40_000, method: 'visa' });
-        // The desk over-recorded the card payment; correcting it writes -40_000.
         await visitService.setPaid({ visitId: visit.id, paidTotal: 200_000, method: 'visa' });
 
         const takings = await balanceService.takings(thisPeriod());
@@ -607,17 +531,6 @@ describe('balance.takings', () => {
         expect(takings.byMethod).toContainEqual({ method: 'visa', amount: 0, count: 2 });
     });
 
-    /**
-     * `payments.amount` is `integer`, so a SUM of it overflows int4 at 2^31−1
-     * piastres — about 21.5M EGP, a lifetime of takings rather than an
-     * impossible number. Cast back to `::int` Postgres raises `integer out of
-     * range` rather than saturating, which would take the dashboard out for
-     * good the moment the clinic passed that figure. "All time" sums the whole
-     * table on every visit to the screen, so this is the query that finds it.
-     *
-     * Inserted directly: the zod input caps a single payment far below this.
-     * Nothing caps the sum.
-     */
     test('sums past the 32-bit ceiling instead of throwing', async () => {
         const f = await fixtures();
         const visit = await checkedOut(f.patient.id, f.branch.id, todaySlot(), 1_000_000, 0);
@@ -665,7 +578,6 @@ describe('balance.takings', () => {
 
         const takings = await balanceService.takings(thisPeriod());
 
-        // Zero total, two payment rows — "nothing was collected" would be false.
         expect(takings.total).toBe(0);
         expect(takings.byMethod).toEqual([{ method: 'cash', amount: 0, count: 2 }]);
     });

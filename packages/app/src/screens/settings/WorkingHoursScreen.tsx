@@ -1,19 +1,3 @@
-/**
- * Settings → Working hours. Seven rows, one per weekday; a weekday with no row
- * is closed — absence, not a flag — so the editor's switch is `setDay` against
- * `clearDay`. The schedule only supplies a default; booking outside opening
- * hours is the secretary's call and nothing here blocks it. Deactivated
- * branches stay in the lists, and this day's own branch is kept as a select
- * option even if it has since been deactivated, so it never draws as an unset
- * placeholder.
- *
- * Times cross the wire as zero-padded `HH:MM`, so string comparison stays
- * chronological, and are held in the editor as minutes from midnight — which is
- * what the picker speaks and what makes "closes after opens" a number
- * comparison rather than a string one. `minutesFromTime` / `timeFromMinutes`
- * are the same pair the reminders pane converts with. What the user reads is
- * always 12-hour, from `domain/clock`; the `HH:MM` never reaches a screen.
- */
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
@@ -69,8 +53,6 @@ export function WorkingHoursScreen({ onBack }: { onBack: () => void }) {
         void branches.refetch();
     }
 
-    // Both reads: a day names a branch, so a stale branch list draws a day
-    // against "Unknown branch".
     const pull = usePullToRefresh(reload, schedule.isFetching || branches.isFetching);
 
     return (
@@ -162,9 +144,6 @@ function DayRow({ name, day, branchName, onPress }: DayRowProps) {
             </View>
 
             {day ? (
-                // Smaller than the 24-hour figure it replaces: two meridiems
-                // make the span half again as long, and it shares the row with
-                // a weekday, a branch name and a chevron.
                 <Text variant="subhead" tone="ink2" script="mono" numberOfLines={1}>
                     {daySpan(day, locale)}
                 </Text>
@@ -210,15 +189,8 @@ function DayEditor({ weekday, name, day, branches, onClose, onSaved }: DayEditor
     const setDay = useMutation(trpc.settings.setDay.mutationOptions({ onSuccess: onSettingsWritten }));
     const clearDay = useMutation(trpc.settings.clearDay.mutationOptions({ onSuccess: onSettingsWritten }));
 
-    // A number comparison now the picker counts minutes; the old string one
-    // only worked because every option was zero-padded `HH:MM`.
     const orderError = open && opens >= closes ? t('Closing time must be after opening.') : undefined;
     const canSave = !open || (branchId !== null && orderError === undefined);
-    /**
-     * Save writes one of two mutations depending on the switch, so neither
-     * `isPending` refuses a tap that lands on the other — and the state behind
-     * both lags a frame. One ref for the sheet is what refuses the second tap.
-     */
     const write = usePendingAction((job: () => Promise<unknown>) => job());
 
     const pending = write.pending;

@@ -1,10 +1,3 @@
-/**
- * The parts of a stepped page that are not its questions: the numbered bar
- * across the top that says which one this is, and the rows of the read-back on
- * the last step. `BookingScreen` drew them first; the record's Old visit asks
- * its own three questions the same way, and the two must not look like two
- * different apps.
- */
 import type { ReactNode } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { useT } from '../../../i18n';
@@ -13,7 +6,6 @@ import { CheckIcon } from './icons';
 
 export type StepItem = { key: string; label: string };
 
-/** Which of the page's questions this is — the page's own progress. */
 export function Steps({
     index,
     steps,
@@ -75,12 +67,6 @@ export function Steps({
     );
 }
 
-/**
- * `lead` is the one row the eye should land on first — the day it is for.
- * `icon` is a slot rather than an icon name so the caller sizes the glyph to
- * its own row; the lead row's text is larger and the icon goes with it.
- * Centred rather than baseline-aligned: a glyph has no baseline to share.
- */
 export function SummaryRow({
     label,
     value,

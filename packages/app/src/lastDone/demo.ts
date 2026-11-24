@@ -1,11 +1,3 @@
-/**
- * A demo's "Last done" log, so the button has something to show the first time
- * someone opens the Patients tab in it — it only moves for something new, and a
- * fresh demo has done nothing yet.
- *
- * Built from the demo's own rows, so every line names a patient who exists and
- * opens the booking, visit or record it is about. Never used outside the demo.
- */
 import type { DemoDb } from '../api/demo/db';
 import type { LastDoneEntry } from './entry';
 

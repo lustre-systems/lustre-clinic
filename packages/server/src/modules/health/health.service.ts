@@ -1,8 +1,3 @@
-/**
- * SPEC §13/§14. The client probes this on the Tailscale hostname, and a dev
- * build on its LAN address first, so it must be cheap and must not throw — an
- * unreachable database is a reportable state, not an error.
- */
 import type { ClinicZone } from '@lustre/shared';
 import { utcOffsetMinutes } from '@lustre/shared/zoneSpans';
 import { sql as raw } from 'drizzle-orm';
@@ -14,32 +9,13 @@ interface HealthReport {
     ok: boolean;
     db: boolean;
     migration: string | null;
-    /**
-     * Where to reach this machine from elsewhere on the tailnet, or `null` when
-     * the clinic has not said. The app stores it so the address is configured
-     * once here rather than on every phone, and re-reads it on each connection
-     * so moving the server is a one-line change the handsets pick up by
-     * themselves.
-     */
     tailscale: string | null;
-    /**
-     * Which stack answered. A dev build connects only to `development`, so a
-     * dev phone can never read or write the clinic's own records.
-     */
     environment: 'production' | 'development';
 }
 
 interface ClockReport {
-    /** This machine's clock, in epoch milliseconds. */
     now: number;
-    /** The clinic's offset from UTC right now, in minutes east — DST included. */
     utcOffsetMinutes: number;
-    /**
-     * The clinic zone's offsets over the years around now. The app converts
-     * every time with this rather than its own zone data, which on an old
-     * phone predates Egypt's summer time (`clinicTime`). Older servers leave
-     * it out, and the app falls back on the table it was built with.
-     */
     zone: ClinicZone;
 }
 

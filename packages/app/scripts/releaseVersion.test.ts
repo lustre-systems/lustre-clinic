@@ -8,12 +8,6 @@ import {
     type Version,
 } from './releaseVersion';
 
-/**
- * A number that repeats puts two different releases under one name in
- * GlitchTip and in what the doctor reads out, and a tag that already exists
- * stops the release script after the build is staged.
- */
-
 const v = (text: string): Version => {
     const parsed = parseVersion(text);
     if (!parsed) throw new Error(`not a version: ${text}`);
@@ -76,8 +70,6 @@ describe('nextUpdateVersion', () => {
         expect(formatVersion(nextUpdateVersion(v('1.4.0'), ['v1.3.9', 'v2.4.7']))).toBe('1.4.1');
     });
 
-    // An OTA update can move the minor, and the patch after it counts on from
-    // there rather than going back to the APK's own minor.
     test('counts on from an update that moved the minor', () => {
         expect(formatVersion(nextUpdateVersion(v('1.5.0'), ['v1.5.1', 'v1.6.0']))).toBe('1.6.1');
     });

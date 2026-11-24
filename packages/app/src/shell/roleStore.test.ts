@@ -1,9 +1,3 @@
-/**
- * The role decides which day screen and which Settings rows a handset draws, so
- * a launch that forgets it is a secretary's phone opening on the doctor's view
- * of the clinic. A store built fresh against seeded storage is what a cold
- * start actually does.
- */
 import { beforeEach, describe, expect, it, mock } from 'bun:test';
 
 const stored = new Map<string, string>();
@@ -22,7 +16,6 @@ mock.module('@react-native-async-storage/async-storage', () => ({
 
 const { createRoleStore, resolveRole } = await import('./roleStore');
 
-/** A cold launch: a store that has never read storage, subscribed to as the shell subscribes. */
 async function launch() {
     const store = createRoleStore();
     const seen: string[] = [];
@@ -80,8 +73,6 @@ describe('the role a launch opens in', () => {
 
         const { store } = await launch();
 
-        // Hydrated matters as much as the role: a shell that never hydrates
-        // holds a blank screen forever.
         expect(store.getSnapshot()).toEqual({ hydrated: true, role: 'secretary' });
     });
 

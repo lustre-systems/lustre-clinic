@@ -25,7 +25,6 @@ export function DropdownMenu<T extends string>({
     value,
     onChange,
     anchor,
-    // Unfolds from its trigger with the page left undimmed; nothing here is a modal decision.
     motion = 'drop',
     accessibilityLabel,
     testID,

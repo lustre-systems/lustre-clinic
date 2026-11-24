@@ -1,18 +1,3 @@
-/**
- * The Done-when of the crash-report task: a report taken on the patient list
- * and on a visit contains no name, phone, note or amount anywhere in the event
- * JSON.
- *
- * This runs the real SDK pipeline, not the filter on its own. `@sentry/core` is
- * the core `@sentry/react-native` is built on, at the same version: scope data
- * is merged, `beforeBreadcrumb` and `beforeSend` run as they do on the phone,
- * and the envelope a transport would put on the wire is parsed back and
- * searched. The breadcrumbs going in have the shapes the SDK itself records (a
- * tap from `TouchEventBoundary`, an XHR with its full URL, a console call),
- * plus the ones `trail.ts` builds. The tRPC URLs come from a real
- * `httpBatchLink`, so the input a query puts in its query string is the real
- * encoding.
- */
 import { beforeEach, describe, expect, it } from 'bun:test';
 import type { AppRouter } from '@lustre/server/src/trpc/router.ts';
 import {
@@ -53,7 +38,6 @@ const PATIENT = {
     phone: '+201001234567',
     localPhone: '01001234567',
     note: 'allergic to penicillin',
-    // Piastres, and the pounds a screen would draw for them.
     amount: 987654,
     amountShown: '9,876.54',
 };
@@ -122,7 +106,6 @@ beforeEach(() => {
     client.init();
 });
 
-/** Every event the transport was handed, as the JSON that would reach GlitchTip. */
 async function eventsSent(): Promise<string[]> {
     await client.flush(1000);
     return sent.flatMap((body) =>
@@ -136,7 +119,6 @@ function expectNoPatientData(json: string) {
     for (const value of FORBIDDEN) expect(json).not.toContain(value);
 }
 
-/** The URLs a real batch link builds for these calls. */
 async function trpcUrls(call: (trpc: ReturnType<typeof createTRPCClient<AppRouter>>) => Promise<unknown>[]) {
     const urls: string[] = [];
     const trpc = createTRPCClient<AppRouter>({
@@ -154,7 +136,6 @@ async function trpcUrls(call: (trpc: ReturnType<typeof createTRPCClient<AppRoute
     return urls;
 }
 
-/** A tap as `TouchEventBoundary` logs it with `labelName: 'testID'`, innermost first. */
 function touch(path: { name?: string; label?: string; file?: string }[]): Breadcrumb {
     const label = path.find((entry) => entry.label)?.label;
     return {
@@ -199,7 +180,6 @@ describe('a report taken on the patient list', () => {
                 { name: 'PatientListScreen' },
             ]),
         );
-        // A label that is visible text, the way `sentry-label` or a careless testID would carry it.
         addBreadcrumb(touch([{ name: 'Text', label: PATIENT.name }, { name: 'PatientRow' }]));
         addBreadcrumb({
             category: 'console',
@@ -256,7 +236,6 @@ describe('a report taken on a visit', () => {
         addBreadcrumb(screenCrumb(screenName('patients')));
         addBreadcrumb(screenCrumb(screenName({ name: 'record', patientId: PATIENT.id })));
         addBreadcrumb(screenCrumb(screenName({ name: 'visit', ...VISIT })));
-        // A stack whose routes are records: a branch named like a person is still only data.
         addBreadcrumb(screenCrumb(screenName({ id: PATIENT.id, name: PATIENT.name })));
         addBreadcrumb(xhr(byIdUrl, 'GET'));
         addBreadcrumb(apiCrumb(new URL(byIdUrl).pathname, 200, 88));
@@ -439,9 +418,6 @@ describe('allowBreadcrumb', () => {
 });
 
 describe('the native merge on Android', () => {
-    // As an event arrived from Waydroid: the RN SDK's device-context step puts the
-    // native copy of every JS crumb next to it, a few milliseconds apart, along
-    // with Android's own crumbs, before `beforeSend` sees any of it.
     it('keeps one of each crumb and none of the native-only ones', () => {
         const tap = allowBreadcrumb(touch([{ name: 'Pressable', label: 'tab-patients' }])) as Breadcrumb;
         const api = allowBreadcrumb(apiCrumb('/trpc/health.check', 200, 24)) as Breadcrumb;
@@ -465,7 +441,6 @@ describe('the native merge on Android', () => {
                 },
                 { ...tap, timestamp: 1789416546.897 },
                 { ...tap, timestamp: 1789416546.898 },
-                // The same tap again a second later is a second tap, not a copy.
                 { ...tap, timestamp: 1789416547.9 },
                 { ...tap, timestamp: 1789416547.901 },
             ],

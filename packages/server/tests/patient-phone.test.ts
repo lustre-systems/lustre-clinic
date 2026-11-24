@@ -4,16 +4,6 @@ import { phoneSearchTerm } from '../src/util/phone.ts';
 import { setupDatabase, truncateAll } from './helpers/db.ts';
 import { startTestServer, type TestServer } from './helpers/trpc.ts';
 
-/**
- * One number, several records. A parent registers three children on their own
- * phone, so the number on a patient is theirs to be reached on and not an
- * identity: it is validated and normalized like any other, and nothing anywhere
- * refuses the second patient to carry it.
- *
- * The family below is what every case here is asked about — a mother and two
- * children on `+201012345678`, and one unrelated patient on another number.
- */
-
 const SHARED = '01012345678';
 const OTHER = '01198765432';
 
@@ -143,8 +133,6 @@ describe('search by number', () => {
         expect(found.map((p) => p.id)).not.toContain(stranger.id);
     });
 
-    // The gap this suite was written for: a local number is stored with its `0`
-    // replaced by `20`, so a half-typed `010123` shares no substring with it.
     test('returns them for a number still being typed', async () => {
         await family();
 
@@ -197,7 +185,6 @@ describe('reminders and display read the number on the record', () => {
 
         expect(updated.phone).toBe('+201198765432');
         expect(patient.phone).toBe('+201198765432');
-        // The siblings are on their own rows and keep theirs.
         expect(await patientService.byPhone({ phone: SHARED })).toHaveLength(2);
     });
 });

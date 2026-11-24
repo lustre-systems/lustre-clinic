@@ -2,13 +2,6 @@ import type { ReactNode } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { color, radius, space, Text } from '../theme';
 
-/**
- * The card the shell's dead-end routes stand on — offline, and refused by the
- * server: a glyph, what happened, what to do, and the one or two ways out
- * below. Title and body arrive already localized. `after` is drawn under the
- * card, and the whole thing scrolls once there is one: the offline route's
- * saved schedule is the only thing that uses it.
- */
 export function DeadEnd({
     glyph,
     title,

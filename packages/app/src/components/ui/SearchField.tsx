@@ -11,11 +11,6 @@ export type SearchFieldProps = Omit<TextInputProps, 'style' | 'placeholderTextCo
     onChangeText: (value: string) => void;
     variant?: 'inline' | 'sheet';
     onClear?: () => void;
-    /**
-     * The magnifier. Defaults to the `⌕` glyph because `ui/` may not import an
-     * icon library (§2's import rule) — a cluster that wants the designs' drawn
-     * magnifier passes its own, rather than this file growing a dependency.
-     */
     leading?: ReactNode;
 };
 

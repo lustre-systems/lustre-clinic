@@ -1,20 +1,3 @@
-/**
- * The "Last done" log: what this phone wrote, newest first, kept on the phone
- * and nowhere else.
- *
- * It holds patient names, so it is bounded twice — the last 30 actions or the
- * last seven days, whichever is fewer — and never leaves the device: nothing
- * here reaches a log, a breadcrumb or the server. A data reset (entering or
- * leaving the demo, a reseed) empties it, because the patients it names are no
- * longer the ones on the phone.
- *
- * `seenAt` is when the sheet was last opened. The button only draws attention
- * to itself for something newer than that.
- *
- * Storage is read on the first subscriber or the first write, whichever comes
- * first. A write can land before the Patients tab has ever been opened, and
- * writing it straight out would replace the stored log with a list of one.
- */
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LAST_DONE_KINDS, type LastDoneEntry } from './entry';
 
@@ -55,7 +38,6 @@ function parse(stored: string | null): { entries: LastDoneEntry[]; seenAt: numbe
     }
 }
 
-/** Newest first, no repeats, and nothing past either bound. */
 export function prune(entries: readonly LastDoneEntry[], now: number): LastDoneEntry[] {
     const seen = new Set<string>();
     return [...entries]
@@ -69,12 +51,10 @@ export function hasUnseen(state: LastDoneState): boolean {
     return newest !== undefined && newest.at > state.seenAt;
 }
 
-/** Exported for the tests, which need a cold launch and a clock they can move. */
 export function createLastDoneStore(key: string = KEY, now: () => number = Date.now) {
     let state: LastDoneState = { hydrated: false, entries: [], seenAt: 0 };
     const listeners = new Set<() => void>();
     let hydration: Promise<void> | null = null;
-    /** Cleared while the read was out: what it brings back is the log that was just thrown away. */
     let discarded = false;
 
     function emit(next: LastDoneState): void {
@@ -95,7 +75,6 @@ export function createLastDoneStore(key: string = KEY, now: () => number = Date.
                 const merged = [...state.entries, ...kept.entries];
                 const entries = prune(merged, now());
                 emit({ hydrated: true, entries, seenAt: Math.max(state.seenAt, kept.seenAt) });
-                // Past either bound on disk too: the lines it dropped name patients.
                 if (entries.length !== merged.length) persist();
             });
         return hydration;
@@ -110,7 +89,6 @@ export function createLastDoneStore(key: string = KEY, now: () => number = Date.
             };
         },
         getSnapshot: (): LastDoneState => state,
-        /** `current` is asked once storage has been read: a reset while it was out means the entry names another clinic. */
         async add(entry: LastDoneEntry, current: () => boolean = () => true): Promise<void> {
             await hydrate();
             if (!current()) return;
@@ -121,7 +99,6 @@ export function createLastDoneStore(key: string = KEY, now: () => number = Date.
             emit({ ...state, seenAt: Math.max(now(), state.entries[0]?.at ?? 0) });
             void hydrate().then(persist);
         },
-        /** A demo's opening log (`demo.ts`): only into an empty one, and all of it new. */
         async seedIfEmpty(
             entries: readonly LastDoneEntry[],
             current: () => boolean = () => true,

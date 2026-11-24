@@ -1,11 +1,3 @@
-/**
- * The CSS chevron: two borders on one box, rotated. `borderEndWidth` already
- * flips in Arabic, so the rotation has to flip with it — `forward` and `back`
- * mirror in Arabic; up and down do not.
- *
- * Between up and down it turns rather than snapping, so a dropdown's chevron
- * flips over as its menu opens and back as it closes.
- */
 // biome-ignore lint/style/noRestrictedImports: runs the flip's `Animated.timing` when the direction changes between up and down
 import { useEffect, useRef } from 'react';
 import { Animated, StyleSheet } from 'react-native';
@@ -55,7 +47,6 @@ export function Chevron({ direction = 'forward', size = 8, tone = 'muted' }: Che
         return () => animation.stop();
     }, [flip, direction, vertical, reducedMotion]);
 
-    // Down to up is half a turn: 135° → -45°, mirrored in Arabic.
     const down = ROTATION.down[isRTL ? 1 : 0];
     const up = ROTATION.up[isRTL ? 1 : 0];
     const rotate = vertical

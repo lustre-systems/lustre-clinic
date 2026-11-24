@@ -1,18 +1,3 @@
-// Lustre design tokens — the single source of truth for the app's visual system,
-// resolving the two design systems (Component Inventory §7.1). Components
-// consume these through `StyleSheet.create`; nothing writes a raw hex, size or
-// family.
-//
-// Invariants: `accent` never means "good", "paid" or "settled" and is not the
-// primary button fill (the designs draw those in `ink`); semantic colours are
-// status only, never interactive; `danger` is never used for money. `space` is
-// keyed by 4px steps (`space[3]` is 12) and measured odd sizes snap to the
-// grid. React Native selects a face by family name and never synthesises a
-// weight, so always set `fontFamily`, never `fontWeight`; DM Mono ships 400 and
-// 500 only, and heavier weights round down to 500. Letter-spacing is in px —
-// React Native has no em. Android has historically flattened multi-layer
-// `boxShadow` to a single elevation, so check `fab` on a physical device.
-
 export const color = {
     canvas: '#f4f4f6',
     surface: '#ffffff',
@@ -24,15 +9,9 @@ export const color = {
     ink: '#111114',
     ink2: '#3a3a40',
     muted: '#8b8b92',
-    // A second series beside `ink`: the other branch on the stats screen's bars.
     inkFaint: '#b4b4bc',
     inverse: '#ffffff',
 
-    // The money hero's ground, and the ramp that sits on it. Text on a dark
-    // card is `inverse` at an opacity, but a hairline, a bar track and a
-    // tinted figure each need their own value: an opacity on the card would
-    // dim its contents along with them, and `success` / `due` are tuned for
-    // white and go muddy on black.
     inkDeep: '#0e1116',
     onDarkLine: 'rgba(255,255,255,0.12)',
     onDarkHair: 'rgba(255,255,255,0.09)',
@@ -41,7 +20,6 @@ export const color = {
     successOnDark: '#8bf0b8',
     dueOnDark: '#ffb3b3',
     accentOnDark: '#a9bbff',
-    // The stats chart's change chip, a good or a bad move, on the dark card.
     successOnDarkSoft: 'rgba(139,240,184,0.12)',
     dueOnDarkSoft: 'rgba(255,179,179,0.12)',
     onDarkGuide: 'rgba(255,255,255,0.25)',
@@ -59,9 +37,6 @@ export const color = {
     dueSoft: '#fdeee7',
     dueText: '#b3411a',
 
-    // Money collected in this period against a visit charged in an earlier one.
-    // A second green, deliberately: `success` means "this is settled" and this
-    // means "this was settled late", which is the money screen's whole point.
     older: '#0e8a5c',
 
     danger: '#e5342a',
@@ -168,29 +143,12 @@ export const shadow = {
     hero: '0 16px 40px -10px rgba(0,0,0,0.45)',
     dock: '0 1px 2px rgba(17,17,20,0.05), 0 10px 28px -8px rgba(17,17,20,0.22)',
     fab: '0 8px 20px rgba(47,91,255,0.35)',
-    // A selected stats tile lifts in its own colour.
     tileProfit: '0 8px 20px -8px #12a150',
     tileRevenue: '0 8px 20px -8px #111114',
     tileCost: '0 8px 20px -8px #ef5f28',
     tileNewPatients: '0 8px 20px -8px #2f5bff',
 } as const;
 
-// Gradients are CSS strings because React Native takes them as `background-
-// image`, which is where the raw channel values have to live. Only the money
-// hero has one: a green cast at the top-left where the collected figure sits
-// and a warm one at the bottom-right by the due row, both far below the point
-// where they would read as a colour rather than as depth.
-//
-// The stats chart's glow takes the colour of the metric on the chart, in the
-// top-left and bottom-right corners, with the card's own ground between.
-/**
- * A corner glow at 135°: the colour at 0.22 in the top-left and bottom-right,
- * easing to nothing in the middle. The fall-off is a smoothstep written out as
- * stops, not two straight ramps meeting a flat band: a ramp's corners show as
- * lines across a dark card, and so does each step of an 8-bit low-alpha ramp
- * unless the slope keeps changing. Fading to the same colour at zero alpha,
- * rather than to transparent black, keeps the middle from going grey.
- */
 function glow(rgb: string): string {
     const PEAK = 0.22;
     const half = [0, 0.1, 0.2, 0.3, 0.4, 0.5].map((at) => {

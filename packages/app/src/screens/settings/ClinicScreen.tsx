@@ -1,32 +1,3 @@
-/**
- * Settings → Clinic: the name and number that identify the practice itself,
- * what kind of clinic it is, and where patient numbering carries on from.
- *
- * The hint under the first two says where the number shows up, because this is
- * the practice's number — the one on a receipt and at the top of a reminder
- * message — and not the number of any one branch. `branches` has no phone
- * column, so there is nothing to confuse it with yet.
- *
- * ## The patient number
- *
- * It is the number the **next new patient will be given**. It used to be the
- * last one handed out, labelled `Last patient number`, and a clinic that typed
- * 910 got 911 — because the field said "last" and everybody read it as "next".
- * It is only sent when it was changed: the server refuses a value at or below a
- * number a patient already has, and resending an untouched one would race a
- * registration made while the pane was open.
- *
- * An **old** patient never takes a number from this sequence — they keep the
- * one on their paper file (New patient → Old patient) — so this only ever moves
- * for a patient the clinic has genuinely not seen before.
- *
- * ## The clinic type
- *
- * Dental charts teeth: a procedure marked as done to a tooth asks which one.
- * General never asks, and the procedure editor stops showing the tooth flag.
- * Each procedure keeps its flag, so going back to Dental is as it was.
- */
-
 import type { ClinicType } from '@lustre/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
@@ -68,9 +39,6 @@ export function ClinicScreen({ onBack }: { onBack: () => void }) {
         }),
     );
 
-    // `undefined` means "not edited": the fields show what the server said
-    // until someone types, so a refetch landing behind an untouched pane is not
-    // overwritten by a stale draft.
     const [name, setName] = useState<string>();
     const [phone, setPhone] = useState<string>();
     const [patientNumber, setPatientNumber] = useState<string>();
@@ -88,11 +56,6 @@ export function ClinicScreen({ onBack }: { onBack: () => void }) {
     const phoneError = submitted && phoneValue.trim() === '' ? 'The clinic needs a phone number.' : undefined;
     const patientNumberIssue = patientNumberError(patientNumberValue);
 
-    /**
-     * The pane's one write, behind a ref the second tap cannot get past —
-     * `isPending` is state, and a Save pressed twice in a frame bumps
-     * `patientRefNext` on a pane whose draft has not been cleared yet.
-     */
     const write = usePendingAction((job: () => Promise<unknown>) => job());
 
     function onSave() {

@@ -8,17 +8,6 @@ import { buildRef } from '../src/util/ref.ts';
 import { setupDatabase, sql, truncateAll, uuid } from './helpers/db.ts';
 import { expectAppError, slot } from './helpers/factories.ts';
 
-/**
- * Whether a patient must carry an age, and a sex, is the clinic's choice
- * (`settings.require_age`, `settings.require_gender`). The defaults are how it
- * worked before the clinic could choose: age required, sex optional.
- *
- * Every rule is asked of the three ways a record is written — registering,
- * booking someone new in, and editing — with the setting on and off. An edit
- * is only refused for *clearing* a required field: turning a rule on must not
- * lock the records already on file without it.
- */
-
 beforeAll(async () => {
     await setupDatabase();
 });
@@ -194,8 +183,6 @@ describe('requireGender', () => {
     });
 });
 
-// --- the migrations ---------------------------------------------------------
-
 async function runMigrationFile(name: string): Promise<void> {
     const text = await Bun.file(new URL(`../src/db/migrations/${name}`, import.meta.url)).text();
     for (const statement of text.split('--> statement-breakpoint')) {
@@ -235,7 +222,6 @@ describe('0017_patient_requirements', () => {
     });
 });
 
-/** A patient row with a chosen registration instant, straight into the table. */
 async function insertPatientAt(createdAt: string, birthDate: string | null): Promise<string> {
     const id = uuid();
     let ref = '';
@@ -255,11 +241,6 @@ async function birthDateOf(id: string): Promise<string | null> {
 }
 
 describe('0018_clear_zero_ages', () => {
-    /**
-     * An age typed as N is stored as 1 January of (the year it was typed − N),
-     * so an age of 0 typed at registration is 1 January of the registration
-     * year — in Cairo, because that is where the phone was.
-     */
     const ROWS = [
         {
             why: 'age 0, typed this year',

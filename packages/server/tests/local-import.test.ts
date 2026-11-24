@@ -15,16 +15,6 @@ import { settingsService } from '../src/modules/settings/settings.service.ts';
 import { insertPatient, setupDatabase, sql, truncateAll, uuid } from './helpers/db.ts';
 import { expectAppError } from './helpers/factories.ts';
 
-/**
- * A clinic that ran on one phone, moved onto a server. The file is built the
- * way the phone writes it — `JSON.stringify` over rows whose timestamps are
- * `Date`s — and what is asserted is what the clinic would check first: the
- * patients are there under their numbers, what they owe is what they owed, and
- * the clinic's own setup came with them. The refusals matter as much: a server
- * that already has a clinic is never merged into, and a file that fails part
- * way leaves nothing behind.
- */
-
 const CHARGED = 150_000;
 const PAID = 50_000;
 const COST = 20_000;
@@ -57,7 +47,6 @@ function phoneClinic() {
             },
         ],
         procedureTypes: [
-            // The subtype first, as an array on a phone has no reason to order them.
             {
                 id: childId,
                 parentId,
@@ -158,7 +147,6 @@ function phoneClinic() {
     return { patientId, db };
 }
 
-/** The file as the phone writes it: gzipped SQLite, a row per record. */
 function fileOf(db: object, version: number = LOCAL_CLINIC_VERSION): Uint8Array {
     const snapshot = new Database(':memory:');
     snapshot.exec(LOCAL_CLINIC_TABLES_SQL);

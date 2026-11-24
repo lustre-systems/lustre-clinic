@@ -1,7 +1,3 @@
-// The stats screen's arithmetic, in a module with no React Native import so it
-// is testable under `bun test`. Every figure is the server's (`stats.trend`,
-// `stats.overview`); what happens here is choosing which periods to ask for,
-// comparing one point with the one before it, and laying points out.
 import { type Locale, localizeCopy, type PaymentMethod } from '@lustre/shared';
 import { getLocale } from '../../i18n/runtime';
 import { addDays, addMonths, keyParts, offsetForDate, weekdayOf } from '../day/time';
@@ -18,7 +14,6 @@ export const METRIC_LABEL: Record<Metric, string> = {
     newPatients: 'New patients',
 };
 
-/** Which metrics are money, and so drawn with the currency. */
 export function isMoney(metric: Metric): boolean {
     return metric !== 'newPatients';
 }
@@ -29,19 +24,14 @@ export function metricOf(figures: Figures, metric: Metric): number {
     return figures[metric];
 }
 
-/** A range as `stats.trend` takes it: whole days, optionally narrowed to minutes of the first and last. */
 export type StatsRange = DateRange & { fromMinute?: number; toMinute?: number };
 
-/** One point on the chart: the range it asks the server for and what to call it. */
 export type TrendSlot = {
     range: StatsRange;
-    /** Under the point on the chart and the branch bar. */
     axis: string;
-    /** In the chart's header: "Profit · September". */
     name: string;
 };
 
-/** The most years "All time" reaches back; empty ones before the first visit are dropped. */
 export const YEARS = 12;
 
 const DAYS = 7;
@@ -87,7 +77,6 @@ function rangeOf(
     to: string,
     minutes: { fromMinute?: number; toMinute?: number } = {},
 ): StatsRange {
-    // A slot never starts before the first record.
     const start = from < FIRST_RECORD ? FIRST_RECORD : from;
     return {
         from: start,
@@ -102,14 +91,6 @@ function monthEnd(key: string): string {
     return addDays(addMonths(`${key.slice(0, 7)}-01`, 1), -1);
 }
 
-/**
- * The points each pill draws, oldest first, the last one being the period the
- * pill names so far: "Today" is the last seven days (closed days at zero),
- * "This week" the last eight weeks from Sunday, "This month" the last six
- * months, "This year" and "All time" one point per year. Like for like, so the
- * bars stand side by side; only the last is cut short at today, and its change
- * chip compares with the same stretch the period before (`comparisonRange`).
- */
 export function trendSlots(period: Period, today: string, locale: Locale = getLocale()): TrendSlot[] {
     const say = (copy: string, vars?: Record<string, string | number>) => localizeCopy(locale, copy, vars);
     const month = (key: string) => say(MONTHS_SHORT[keyParts(key).month - 1] ?? '');
@@ -166,13 +147,6 @@ export function trendSlots(period: Period, today: string, locale: Locale = getLo
     });
 }
 
-/**
- * The same stretch one period back, for the header's change chip: today so far
- * against yesterday up to the same minute, this week so far against last week
- * to the same weekday, and so on. A whole previous month against half of this
- * one would read as a fall every month until the last week. Nothing for "All
- * time", which has nothing before it.
- */
 export function comparisonRange(
     period: Period,
     today: string,
@@ -207,11 +181,6 @@ export function comparisonRange(
 
 type Point = Figures & { branches: readonly unknown[] };
 
-/**
- * How many leading years to drop: the ones before the clinic's first visit or
- * registration, so "This year" starts where the clinic does rather than with a
- * decade of zeros. The current year always stays.
- */
 export function emptyLead(points: readonly Point[]): number {
     let lead = 0;
     while (
@@ -225,14 +194,8 @@ export function emptyLead(points: readonly Point[]): number {
     return lead;
 }
 
-/** `flat` when it rounds to 0%: neither direction, so neither good nor bad. */
 export type Delta = { percent: number; up: boolean; flat: boolean; good: boolean };
 
-/**
- * The selected point against the one before it, as a whole percentage. Nothing
- * when there is nothing before it or it was zero — a rise from nothing is not
- * a percentage. For cost, going down is the good direction.
- */
 export function deltaOf(current: number, previous: number | undefined, metric: Metric): Delta | null {
     if (previous === undefined || previous <= 0) return null;
     const percent = Math.round(((current - previous) / previous) * 100);
@@ -243,10 +206,6 @@ export function deltaOf(current: number, previous: number | undefined, metric: M
 
 type BranchPoint = { branches: readonly { branchId: string; name: string; profit: number }[] };
 
-/**
- * Every branch any point mentions, the biggest earner first — that one sits at
- * the bottom of each stacked bar, so the bars keep one order across the chart.
- */
 export function branchOrder(points: readonly BranchPoint[]): { branchId: string; name: string }[] {
     const total = new Map<string, { branchId: string; name: string; profit: number }>();
     for (const point of points) {
@@ -261,14 +220,11 @@ export function branchOrder(points: readonly BranchPoint[]): { branchId: string;
         .map(({ branchId, name }) => ({ branchId, name }));
 }
 
-/** The branch that brought most of a point's profit, and its share; nothing when there was no profit to share. */
 export function leadingShare(point: BranchPoint): { name: string; percent: number; alone: boolean } | null {
     const positive = point.branches.filter((row) => row.profit > 0);
     const total = positive.reduce((sum, row) => sum + row.profit, 0);
     if (total <= 0) return null;
     const lead = positive.reduce((best, row) => (row.profit > best.profit ? row : best));
-    // One branch open is not a split: a clinic day belongs to one branch, so a
-    // day's "100%" says nothing the bar does not.
     return {
         name: lead.name,
         percent: Math.round((lead.profit / total) * 100),
@@ -278,12 +234,6 @@ export function leadingShare(point: BranchPoint): { name: string; percent: numbe
 
 type WorkingBranch = { name: string; profit: number; workingDays: number };
 
-/**
- * Which branch earns more for each day it is open, and by how much, in whole
- * tens of pounds. Per working day because the branches open on different days
- * of the week: the one open more often brings more profit without being the
- * better day. Nothing unless at least two branches were open.
- */
 export function perDayLead(point: {
     branches: readonly WorkingBranch[];
 }): { best: string; other: string; amount: number } | null {
@@ -298,12 +248,6 @@ export function perDayLead(point: {
     return amount > 0 ? { best: best.name, other: worst.name, amount } : null;
 }
 
-/**
- * A point against the average of the others on the chart, as a whole
- * percentage. Points with no profit at all — a closed day, a year before the
- * clinic — are left out of the average, so a week with a Friday in it is not
- * dragged down by the day nobody worked.
- */
 export function versusAverage(
     points: readonly { profit: number }[],
     index: number,
@@ -317,18 +261,10 @@ export function versusAverage(
     return { percent: Math.abs(percent), up: percent >= 0 };
 }
 
-/** Whether any point has two branches in it, and so a split worth tapping for. */
 export function hasSplit(points: readonly BranchPoint[]): boolean {
     return points.some((point) => point.branches.length > 1);
 }
 
-/**
- * Where each value sits in a `width` × `height` box, left to right, with
- * `pad` kept clear at the sides and `top`/`bottom` for the tag above the
- * selected point and the labels under the axis. The scale is the values' own
- * spread, not zero-based: six months of similar profit drawn from zero is a
- * flat line. One value sits in the middle.
- */
 export function chartPoints(
     values: readonly number[],
     box: { width: number; height: number; pad: number; top: number; bottom: number },
@@ -346,7 +282,6 @@ export function chartPoints(
     return values.map((v, i) => ({ x: x(i), y: y(v) }));
 }
 
-/** The methods the payments card draws. "Other" is no longer a way to pay, so it is left off. */
 const SHOWN_METHODS: readonly PaymentMethod[] = ['cash', 'visa', 'instapay'];
 
 type Takings = {
@@ -354,7 +289,6 @@ type Takings = {
     byMethod: readonly { method: PaymentMethod; amount: number; count: number }[];
 };
 
-/** The takings without "other", totalled over what is left so the shares add up to 100%. */
 export function shownTakings<T extends Takings>(takings: T): T {
     const byMethod = takings.byMethod.filter((row) => SHOWN_METHODS.includes(row.method));
     return { ...takings, byMethod, total: byMethod.reduce((sum, row) => sum + row.amount, 0) };

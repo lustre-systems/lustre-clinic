@@ -1,9 +1,3 @@
-// One clinic question and its answer on the record: label on the start edge,
-// answer bold on the end edge. Nothing here knows what any question is — it
-// renders a label, a kind and whatever is stored, which is the point: a second
-// clinic's questionnaire is a different list. The label sets no face; `<Text>`
-// picks the script per string (§6). §7.9: an answer to a kind with no editor
-// (today `date`) is shown read-only.
 import { resolveLabel } from '@lustre/shared';
 import { StyleSheet, View } from 'react-native';
 import { Tag } from '../../../components/ui';
@@ -18,11 +12,6 @@ export type CustomAnswerRowProps = {
     gap?: QuestionnaireGapReason;
 };
 
-// Only the gap the row cannot show on its own. `unanswered` has a dash in the
-// answer column already, and a pill next to it saying the same thing twice was
-// the loudest object on a tab that is otherwise a quiet list; the count at the
-// top of the tab does the summarising. A stale answer is the other case: it
-// reads as a perfectly good answer, so nothing but a mark distinguishes it.
 const GAP_LABEL: Partial<Record<QuestionnaireGapReason, string>> = {
     answer_no_longer_valid: 'ASK AGAIN',
 };
@@ -53,17 +42,10 @@ export function CustomAnswerRow({ question, value, gap }: CustomAnswerRowProps) 
                     </Text>
                 ) : (
                     <Text variant="callout" weight="bold" style={styles.answer}>
-                        {/* Only a boolean's answer is the app's own word, so only
-                            that one is looked up. Everything else is what the desk
-                            typed or picked, and a stored answer that happened to
-                            read like a catalogue key would come back translated. */}
                         {question.kind === 'boolean' ? t(answer) : answer}
                     </Text>
                 )}
 
-                {/* `Tag` sets `alignSelf: flex-start`, which beats the column's
-                    `flex-end` and strands the pill mid-row. The wrapper takes
-                    the right edge and the tag aligns inside it. */}
                 {gapLabel !== undefined && (
                     <View>
                         <Tag tone={question.required ? 'due' : 'muted'} variant="filled">
@@ -83,9 +65,6 @@ export function CustomAnswerRow({ question, value, gap }: CustomAnswerRowProps) 
 }
 
 const styles = StyleSheet.create({
-    // No horizontal padding of its own: the record wraps each row in the page
-    // gutter, and a second inset here would step the questions in from the
-    // history rows they are ruled in line with.
     row: {
         flexDirection: 'row',
         alignItems: 'flex-start',

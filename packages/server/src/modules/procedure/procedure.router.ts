@@ -33,7 +33,6 @@ export const procedureRouter = router({
         .input(reorderProceduresInput)
         .mutation(({ input }) => procedureService.reorder(input)),
 
-    /** A visit that happened on a day that has passed and was never typed in. */
     addOldVisit: clinicProcedure
         .input(addOldVisitInput)
         .mutation(({ input }) => procedureHistoryService.addOldVisit(input)),

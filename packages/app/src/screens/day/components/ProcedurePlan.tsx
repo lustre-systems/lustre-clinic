@@ -1,21 +1,3 @@
-/**
- * What is going to be done, grouped by tooth — the same shape the visit screen
- * records afterwards, because a booking of "UL6 filling, plus a scaling" and
- * the visit that carries it out are the same list at two moments, and a
- * secretary who learns one has learned the other.
- *
- * Adding asks the tooth first and the procedure second. That order looks
- * backwards until you watch it used: the tooth is what the patient says on the
- * phone ("the back one on the top left hurts"), and the catalogue is long, so
- * choosing the tooth first turns the second question into "what are we doing to
- * *this*". A group's own "Add to UL6" skips the first question entirely, which
- * is the common case once a tooth is on screen.
- *
- * Prices are the clinic's, editable in place: a quoted price is a promise made
- * at the desk, and the catalogue's default is only where it starts. Whole
- * pounds in, integer piastres held (§7.12).
- */
-
 import type { Tooth } from '@lustre/shared';
 import { useState } from 'react';
 import { Pressable, StyleSheet, TextInput, View } from 'react-native';
@@ -44,23 +26,15 @@ export type ProcedurePlanProps = {
     loading: boolean;
     error: RequestError | null;
     onRetry: () => void;
-    /** The clinic is on general procedures: a line without a tooth is not missing one. */
     general?: boolean;
-    /**
-     * The words, for a caller that is not planning a booking. The record's Old
-     * visit is this same list about a day that has gone — nothing is "planned",
-     * nothing can be "decided in the chair", and the total is what is charged.
-     */
     copy?: PlanCopy;
 };
 
 export type PlanCopy = {
     heading: string;
-    /** Beside the heading while the list is empty. */
     emptyHint: string;
     emptyTitle: string;
     emptyBody: string;
-    /** In place of `emptyBody` when the catalogue never asks for a tooth. */
     emptyBodyNoTooth?: string;
     total: string;
 };
@@ -74,11 +48,6 @@ const BOOKING_COPY: PlanCopy = {
     total: 'Estimated total',
 };
 
-/**
- * Which question is open: the tooth, the catalogue, or neither — plus the tooth
- * asked the other way round, after a pick from the general sheet that turned
- * out to need one.
- */
 type Asking =
     | null
     | { step: 'tooth' }
@@ -107,11 +76,6 @@ export function ProcedurePlan({
         setAsking(toothFirst ? { step: 'tooth' } : { step: 'procedure', tooth: null });
     }
 
-    /**
-     * Both questions are `Modal`s, and presenting one while another is still
-     * dismissing is how iOS silently drops the second — so the catalogue waits
-     * out the tooth sheet's exit rather than racing it.
-     */
     function askProcedure(tooth: Tooth | null, afterSheet: boolean) {
         if (!afterSheet) {
             setAsking({ step: 'procedure', tooth });
@@ -121,11 +85,6 @@ export function ProcedurePlan({
         setTimeout(() => setAsking({ step: 'procedure', tooth }), duration.sheet);
     }
 
-    /**
-     * The general sheet offers the whole catalogue, so a pick can arrive owing
-     * a tooth. Ask for it before the line exists rather than after — a line
-     * with no tooth is one §5 refuses at confirm, with the plan already built.
-     */
     function pick(tooth: Tooth | null, picked: PickedProcedure) {
         if (tooth === null && picked.needsTooth) {
             setAsking(null);
@@ -221,9 +180,6 @@ export function ProcedurePlan({
                                     id: item.id,
                                     name: item.name,
                                     detail: item.variant,
-                                    // A field, not a figure: this is the plan being
-                                    // priced, and the price is what the doctor is
-                                    // here to change.
                                     money: (
                                         <>
                                             <Text variant="caption" tone="muted">
@@ -302,8 +258,6 @@ export function ProcedurePlan({
 
             <ToothSheet
                 visible={asking?.step === 'tooth' || asking?.step === 'toothFor'}
-                // The variant is what was tapped; the category alone reads as
-                // "Surgical is done to a tooth", which names nothing.
                 required={
                     asking?.step === 'toothFor' ? (asking.picked.variant ?? asking.picked.name) : undefined
                 }
@@ -359,8 +313,6 @@ const styles = StyleSheet.create({
     emptyBody: { textAlign: 'center' },
 
     groups: { gap: space[3] },
-    // See `VisitScreen`'s `cost`: a `TextInput` inherits nothing from
-    // `theme/Text`, so the family is named here and the weight is left off.
     price: {
         minWidth: 62,
         paddingVertical: space[1],

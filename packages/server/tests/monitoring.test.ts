@@ -2,11 +2,6 @@ import { describe, expect, test } from 'bun:test';
 import { type Alert, createAlerter, discordSender, formatAlert, scrub } from '../src/monitoring/alert.ts';
 import { startHeartbeat } from '../src/monitoring/heartbeat.ts';
 
-/**
- * SPEC §17. The two properties worth asserting are that alerts never carry
- * patient data and that a repeating failure cannot flood the channel.
- */
-
 interface Sent {
     alert: Alert;
     text: string;
@@ -262,8 +257,6 @@ describe('heartbeat', () => {
         }
     });
 
-    // The server stays up when Postgres is down; a heartbeat that kept going
-    // would hide exactly the outage the monitor exists to catch.
     test('stays silent while the server is unhealthy', async () => {
         let hits = 0;
         const beat = startHeartbeat({

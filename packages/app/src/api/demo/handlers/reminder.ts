@@ -1,12 +1,3 @@
-/**
- * `server/src/modules/reminder/reminder.service.ts`. Nothing is sent
- * automatically (§11): a row is created on booking, the screen lists what is
- * pending, and the user marks each one sent or skipped after opening WhatsApp.
- *
- * A cancelled appointment's reminder is marked skipped rather than removed —
- * the row is the record that no message was owed, and one reminder belongs to
- * one appointment, so a later reinstatement reuses it.
- */
 import { callerWallClock, pad2, reminderDueCutoff, renderReminderTemplate } from '@lustre/shared';
 import type { RouterInput, RouterOutput } from '../../types';
 import { type AppointmentRow, getDb, type ReminderRow, save } from '../db';
@@ -41,11 +32,6 @@ export function rescheduleReminder(appointmentId: string, startsAt: Date): void 
     if (row) row.dueAt = new Date(startsAt.getTime() - reminderLeadHours * 3_600_000);
 }
 
-/**
- * `reminderService.rescheduleAllPending`. A new lead time reaches the reminders
- * already booked, bounded the way the pending list is — still pending, on an
- * appointment still booked — and to appointments still ahead.
- */
 export function rescheduleAllPendingReminders(leadHours: number): void {
     const db = getDb();
     const now = Date.now();
@@ -105,8 +91,6 @@ export const reminderHandlers = {
                 const phone = patient?.phone ?? '';
                 const branch = db.branches.find((row) => row.id === appointment.branchId);
 
-                // `startsAt` is UTC, so the quoted date and time are read on
-                // the clinic's clock before they are formatted.
                 const wall = callerWallClock(appointment.startsAt, offsetMinutes);
 
                 const message = renderReminderTemplate(settings.reminderTemplate, {
@@ -155,8 +139,6 @@ export const reminderHandlers = {
     dismissToday(
         input: RouterInput['reminder']['dismissToday'],
     ): Dated<RouterOutput['reminder']['dismissToday']> {
-        // `dismissRemindersFor` broadcasts `SETTINGS_UPDATED` itself; saying it
-        // again here makes every subscriber refetch twice for one dismissal.
         return settingsHandlers.dismissRemindersFor(input.date);
     },
 

@@ -1,30 +1,3 @@
-/**
- * Every read and write this cluster makes, over TanStack Query. It replaces
- * `_LocalQuery.ts` — a hand-rolled pair of hooks written when TanStack was not
- * a dependency (F2) and shaped like it so the swap would be mechanical. It is,
- * and this is it: the names and the return shapes are the ones the screens
- * already destructure, so the three of them changed an import and a call
- * signature and nothing else.
- *
- * The one signature change is the key. `_LocalQuery` took a `deps` array, and
- * three separate reads on this cluster passed `[]` — fine for a hook with no
- * cache, and a collision the moment there is one. The key is explicit and
- * cluster-prefixed now, which is also what makes a targeted invalidation
- * possible later.
- *
- * What the screens get that they did not have: a cache, so reopening a record
- * paints from what is already known while the re-read is in flight, and
- * `refetch` on a query that is on screen rather than a fresh run of everything.
- *
- * `loading` stays "no data yet, and something is actually in flight" — TanStack's
- * `isLoading`, not `isPending`, because a disabled query is pending forever and
- * `PatientEditScreen` ors that into a spinner while registering a new patient.
- *
- * `error` is normalized to `undefined` rather than `null` so `errorText` and the
- * `!== undefined` checks in the editor keep reading the way they read. Errors
- * arrive as `PatientsRequestError`, carrying an `ERROR_CODE` — the client
- * localizes from the code and never parses the server's message (§4, §14).
- */
 import {
     type UseQueryResult,
     useInfiniteQuery,
@@ -37,7 +10,6 @@ import {
 import { useCallback, useEffect, useRef } from 'react';
 import { type Area, onServerChange } from '../../../api';
 
-/** Everything this cluster caches sits under one root, so a sign-out can drop it in one call. */
 const PATIENTS_KEY = 'patients';
 
 export interface QueryResult<T> {
@@ -70,7 +42,6 @@ function resultOf<T>(query: UseQueryResult<T, Error>): QueryResult<T> {
     };
 }
 
-/** One query per entry, in order — a read that has to be made once per loaded page. */
 export function useQueryEach<T>(
     queries: readonly { key: readonly unknown[]; run: () => Promise<T> }[],
     options: { enabled?: boolean } = {},
@@ -87,9 +58,7 @@ export function useQueryEach<T>(
 
 export interface PagedResult<T> {
     pages: T[] | undefined;
-    /** The first page, or a refresh, failed. */
     error: Error | undefined;
-    /** Only the next page failed; the pages already loaded stand. */
     moreError: Error | undefined;
     loading: boolean;
     loadingMore: boolean;
@@ -98,10 +67,6 @@ export interface PagedResult<T> {
     loadMore: () => void;
 }
 
-/**
- * Offset-paged reads. `nextOffset` answers `undefined` once `page` was the last.
- * A refetch re-reads every loaded page, so the list keeps its length and place.
- */
 export function usePagedQuery<T>(
     key: readonly unknown[],
     run: (offset: number) => Promise<T>,
@@ -125,7 +90,6 @@ export function usePagedQuery<T>(
         loadingMore: query.isFetchingNextPage,
         hasMore: query.hasNextPage,
         refetch: () => void query.refetch(),
-        // Not while a refresh is running: `fetchNextPage` would cancel it.
         loadMore: () => {
             if (query.hasNextPage && !query.isFetching) void query.fetchNextPage();
         },
@@ -139,27 +103,11 @@ export interface MutationResult<TInput, TOutput> {
     reset: () => void;
 }
 
-/**
- * A write, and the guarantee the screens depend on: a failure resolves to
- * `undefined` rather than throwing, so a caller can close a sheet on success
- * without standing in front of a rejection, and an overlapping call is refused
- * rather than queued — every write crosses Tailscale, and the second tap on a
- * payment is the one that takes the money twice.
- *
- * The in-flight flag is a ref, not `isPending`: the callback would close over
- * yesterday's value of a state field and let the second tap through.
- */
 export function useMutation<TInput, TOutput>(
     run: (input: TInput) => Promise<TOutput>,
 ): MutationResult<TInput, TOutput> {
     const invalidate = useInvalidatePatients();
 
-    // Every write this cluster makes moves more than the thing it wrote: a
-    // correction moves the record and the list's recent page, a payment moves
-    // the record, its history and the outstanding column. There are three of
-    // them, they all cross Tailscale anyway, and invalidating the root is
-    // cheaper than being right about which reads each one touched — and than
-    // discovering a year from now that one call site forgot.
     const mutation = useTanstackMutation({ mutationFn: run, onSuccess: invalidate });
     const inFlight = useRef(false);
 
@@ -184,17 +132,11 @@ export function useMutation<TInput, TOutput>(
     };
 }
 
-/**
- * Drop everything this cluster has cached. `useMutation` calls it on every
- * successful write; `PatientsCluster` calls it for the writes that happen
- * somewhere else and come back as a remount.
- */
 export function useInvalidatePatients(): () => void {
     const client = useQueryClient();
     return useCallback(() => void client.invalidateQueries({ queryKey: [PATIENTS_KEY] }), [client]);
 }
 
-/** Every router a record, the list or the outstanding column is drawn from. */
 const READS: readonly Area[] = [
     'patient',
     'visit',
@@ -203,16 +145,9 @@ const READS: readonly Area[] = [
     'procedure',
     'customQuestion',
     'branch',
-    // Whether an age and a sex are required, which the editor marks due from.
     'settings',
 ];
 
-/**
- * The other phone's writes, which `useMutation` never sees. This cluster's keys
- * are its own rather than tRPC's, so the refetch `live.ts` does by router
- * misses them, and they are dropped here instead — the same root invalidation
- * a write on this phone makes. Mounted once, by `PatientsCluster`.
- */
 export function useFollowServerChanges(): void {
     const invalidate = useInvalidatePatients();
     useEffect(

@@ -1,25 +1,3 @@
-/**
- * SPEC §4. The context is `{ db, token }`: the database, and the credential a
- * provisioned phone sends (`device.service.ts`). There are still no accounts —
- * the phone is the account, and its credential says which role it was granted.
- *
- * Services throw `AppError` and never import tRPC; the `errorMapper` middleware
- * is the one place that translates. It carries `code` through as
- * `shape.data.appCode` — the client switches on it and localizes from it, never
- * parsing `message` (§4). Expected domain failures are logged with IDs and codes
- * only (never patient data); anything else that escapes a procedure is logged
- * with its stack, reported (§17) with path and error name only, and returned to
- * the client as INTERNAL.
- *
- * Tailscale is still the outer boundary (§1). Inside it there are four
- * procedure kinds: `publicProcedure` for what a phone needs before it has a
- * role (health, the APK, redeeming a code); `clinicProcedure` for everything
- * else, which resolves the caller and refuses a revoked phone or, once the
- * clinic requires it, an unprovisioned one; and on top of that
- * `paymentProcedure`, which a doctor may not call, `statsProcedure` for the
- * clinic's own figures, which only an admin may see, `setupProcedure` for
- * setting the clinic up, which only an admin may, and `adminProcedure`.
- */
 import { ERROR_CODE, type ErrorCode } from '@lustre/shared';
 import { initTRPC, TRPCError } from '@trpc/server';
 import { ZodError } from 'zod';

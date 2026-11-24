@@ -1,12 +1,3 @@
-/**
- * Carries Done for today from the ringing alarm or a nudge to the server
- * (`dismissal.ts` has the rule). Sent when the app comes up or back, when the
- * press lands with the app running, and again every minute while the clinic PC
- * cannot be reached.
- *
- * The press as the native side holds it is a module store, so the nudge's plan
- * and the reminders tab read the same one.
- */
 import { todayKey } from '@lustre/shared';
 import { useQuery } from '@tanstack/react-query';
 // biome-ignore lint/style/noRestrictedImports: subscribes to the native Done press, `AppState` and `/ws`, and runs the retry timer
@@ -27,8 +18,6 @@ import { onNudgeDone } from './notifications';
 
 const RETRY_MS = 60_000;
 
-// Where the press is held. With no native side (iOS) it is only in memory: a
-// relaunch loses it, but a clinic PC out of reach does not.
 let unheld: AlarmDismissal | null = null;
 const hold = alarmsAvailable
     ? {
@@ -72,16 +61,11 @@ function subscribe(listener: () => void): () => void {
     };
 }
 
-/** Forgets this phone's press, for Turn back on: the native side would otherwise keep today quiet. */
 export function forgetAlarmDismissal(): void {
     hold.clear();
     reread();
 }
 
-/**
- * Sends a held press and returns it. `settings` is what this phone plans with
- * and when it was read; `rearm` re-reads it.
- */
 export function useAlarmDismissal(
     rearm: () => void,
     settings: { fetchedAt: number; dismissedOn: string | null },
@@ -140,7 +124,6 @@ export function useAlarmDismissal(
     return current;
 }
 
-/** Whether today's nudge is off: dismissed on the server, or by this phone's press on its way there. */
 export function useRemindersOffToday(): boolean {
     const trpc = useTRPC();
     const settings = useQuery(trpc.settings.get.queryOptions());

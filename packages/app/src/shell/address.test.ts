@@ -1,7 +1,3 @@
-// Setup writes down whatever `toBase` returns, and the app has no other way to
-// find the clinic, so a value mangled here is a phone that never connects
-// again. `bun test` has no renderer; this is the part of the screen that
-// decides an address.
 import { describe, expect, it } from 'bun:test';
 import { noAnswer, nothingEntered, toBase, toCandidate } from './address';
 

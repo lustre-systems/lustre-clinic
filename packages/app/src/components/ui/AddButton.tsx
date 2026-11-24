@@ -10,7 +10,6 @@ export type AddButtonProps = {
     onPress?: () => void;
     variant?: AddButtonVariant;
     disabled?: boolean;
-    /** `ui/Button`'s, at the same default and for its reason — see `usePressLock`. */
     pressLockMs?: number;
     testID?: string;
 };

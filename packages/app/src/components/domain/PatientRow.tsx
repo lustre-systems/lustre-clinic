@@ -1,30 +1,3 @@
-/**
- * One patient in a list (Component Inventory §5) — the patients list, search
- * results, and the debtors list. `patients-list.html`, followed structurally:
- * name, then phone · age sex in mono, an amount in `due` with a dot when there
- * is one, and a chevron.
- *
- * Full-bleed on the page ground with a hairline above every row — including the
- * first, which is what separates the list from the RECENT label. Not a card: the
- * design runs the register edge to edge, and a white rounded block per row
- * stripes the list and turns each patient into an object of their own.
- *
- * The name sets no face — `<Text>` detects the script per string (§6), so one
- * row works for Arabic and Latin names; the meta line is mono because it is
- * digits. Age and sex share one segment (`34 y F`) as the design draws them:
- * they are one fact about the person, and a third `·` reads as a third field.
- * The `y` is what stops a bare age reading as the tail of the phone number.
- *
- * `balance` is piastres and renders bare, no `EGP`, behind a banknote that says it
- * is money. It is a flag that something is owed, not a statement of the
- * balance — that is read in full on the record. It is not a failure state
- * either: partial payment is normal (PRD), and nothing here presents it as an
- * error. The row's label reads it out in full, with the phone and the age.
- *
- * The shape is the server's: `patient.search` returns it, and `Partial` on the
- * derived fields is what lets a balance row, which only knows a name and a
- * phone, use the same component with no mapping layer.
- */
 import { Pressable, StyleSheet, View } from 'react-native';
 import type { RouterOutput } from '../../api';
 import { useT } from '../../i18n';
@@ -50,8 +23,6 @@ export function PatientRow({ patient, balance = 0, onPress, testID }: PatientRow
     const { id, name, phone, age, gender } = patient;
     const t = useT();
 
-    // `gender` is free text on the server; the two spellings the app itself
-    // writes are the two the catalogue knows, anything else shows as typed.
     const person = [
         age === null || age === undefined ? null : t('{age} y', { age }),
         gender && t(gender.charAt(0).toUpperCase() + gender.slice(1)),
@@ -82,7 +53,6 @@ export function PatientRow({ patient, balance = 0, onPress, testID }: PatientRow
                 <Text variant="headline" weight="semibold" numberOfLines={1}>
                     {name}
                 </Text>
-                {/* DM Mono has no Arabic, so a localized sex takes the row off the mono face. */}
                 <Text
                     variant="footnote"
                     weight="medium"
@@ -124,9 +94,6 @@ const styles = StyleSheet.create({
         borderTopColor: color.hair,
     },
     pressed: { backgroundColor: color.surface2 },
-    // `flex-start`, not the default stretch: a stretched line aligns a Latin name
-    // by its own script, so in Arabic it sat against the chevron instead of the
-    // row's start edge. Shrunk to its content, the line goes where the row starts.
     text: { flex: 1, minWidth: 0, gap: space[0.5], alignItems: 'flex-start' },
     due: { flexDirection: 'row', alignItems: 'center', gap: space[1] },
 });
