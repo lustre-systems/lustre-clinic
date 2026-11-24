@@ -1,18 +1,3 @@
-/**
- * Settings — one screen, not two: the doctor's rows are simply absent for the
- * secretary, and the admin's for everyone else. Which rows is the phone's view
- * (`shell/useRole`); what the phone may actually do is the server's to say,
- * from the role code it scanned. There is no navigator yet, so this screen is
- * its own stack (`src/navigation`) drawn with `ui/PushView`; lifting the panes into a real
- * navigator is `push` → `navigate`. The index is the root, and every pane sits
- * one deep on top of it — a pane's own editors push again from inside it.
- *
- * The index is a summary, not a menu. `settings.html` fills every row's sub
- * with that row's current answer — "default 30 min", "2 active · 1 inactive" —
- * so most questions are answered without opening anything, which is why the
- * screen loads all six summaries up front and shows skeleton rows rather than
- * drawing labels with empty subs under them.
- */
 import { type ClientRole, leadDaysOf, managesClinic, type Role } from '@lustre/shared';
 import { useQuery } from '@tanstack/react-query';
 import { memo, useState } from 'react';
@@ -41,8 +26,6 @@ import {
     Toast,
     usePendingAction,
 } from '../../components/ui';
-// The store module directly, not the `shell` barrel: that barrel exports
-// `AppShell`, which imports this screen.
 import { setLocale, useLocale, useT } from '../../i18n';
 import { isOpen, rendered, useRouteStack } from '../../navigation';
 import { CRASH_REPORTS_ON, reportProblem } from '../../reporting';
@@ -84,7 +67,6 @@ import { RolesScreen } from './RolesScreen';
 import { ROLE_NAME, ScanCodeScreen } from './ScanCodeScreen';
 import { WorkingHoursScreen } from './WorkingHoursScreen';
 
-/** The panes over the index. The index itself is the root and is not one. */
 type Route =
     | 'about'
     | 'app'
@@ -103,26 +85,12 @@ type Route =
 const ROLE_INITIAL: Record<Role, string> = { admin: 'A', doctor: 'D', secretary: 'S' };
 
 type SettingsScreenProps = {
-    /**
-     * Bumped when the fourth tab is tapped while it is already up. Home is the
-     * index; the panes above it are all reads and settings already written, so
-     * there is nothing in flight to protect.
-     */
     goHome?: number;
 };
 
 function SettingsScreenView({ goHome = 0 }: SettingsScreenProps) {
     const [seenHome, setSeenHome] = useState(goHome);
 
-    /**
-     * The panes, and the hardware back with them. Nothing here answers back by
-     * hand: the hook makes it `pop`, which is the same function the headers'
-     * Back calls, so the two cannot come to disagree.
-     *
-     * What a pane has open inside itself stays the pane's own. An editor over
-     * `ProceduresScreen` mounted after this stack did, and a handler that
-     * mounted later is asked first, so it closes before this is reached.
-     */
     const routes = useRouteStack<Route>();
     const back = routes.pop;
 
@@ -132,15 +100,9 @@ function SettingsScreenView({ goHome = 0 }: SettingsScreenProps) {
     }
 
     const demo = useDemoMode();
-    // A clinic on this phone alone: no server to connect, no other phone to
-    // give a role, no backup job, and this phone is the desk.
     const local = useDeviceBackend().backend === 'local';
 
-    // From the store rather than from a prop, like the locale below it: the
-    // shell holds neither, and this screen is where both are changed.
     const { role, granted } = useRole();
-    // The role card names what the phone was granted; a phone with no code yet
-    // names the view it is still on.
     const shown: Role = granted ?? role;
     const locale = useLocale();
     const t = useT();
@@ -154,19 +116,10 @@ function SettingsScreenView({ goHome = 0 }: SettingsScreenProps) {
     const driveSignIn = useDriveSignIn();
     const [linkingDrive, setLinkingDrive] = useState(false);
 
-    /**
-     * The confirm closes the sheet before Google's screen opens, so `linking`
-     * — which only covers the last leg, the code exchange — is not what stops a
-     * second tap launching a second `AuthSession`. The guard's ref is: it holds
-     * from the tap to the account being linked, and clears on failure so the
-     * sign-in can be tried again.
-     */
     const link = usePendingAction(linkDrive);
 
     async function linkDrive() {
         setLinkingDrive(false);
-        // `usePendingAction` swallows a rejection, so one that escapes the
-        // sign-in is caught here and said, rather than clearing the spinner silently.
         const result = await driveSignIn
             .signIn()
             .catch(() => ({ kind: 'failed' as const, code: 'INTERNAL' }));
@@ -181,8 +134,6 @@ function SettingsScreenView({ goHome = 0 }: SettingsScreenProps) {
     }
 
     const isDoctor = role === 'doctor';
-    // Setting the clinic up is the admin's (`managesClinic`); a phone with no
-    // role code yet keeps what its view had before roles existed.
     const setsUp = granted ? managesClinic(granted) : isDoctor;
 
     const [toast, setToast] = useState<string | null>(null);
@@ -197,9 +148,6 @@ function SettingsScreenView({ goHome = 0 }: SettingsScreenProps) {
         );
     }
 
-    // The way back to the setup screen. The clinic is not touched: entering
-    // again opens it as it was. Not behind the summary, like `about`: a clinic
-    // file this phone cannot read must not also take away the way out of it.
     const leaveLocal = (
         <Group title={t('THIS PHONE ONLY')}>
             <SettingsRow
@@ -214,8 +162,6 @@ function SettingsScreenView({ goHome = 0 }: SettingsScreenProps) {
         </Group>
     );
 
-    // Not behind the summary either: the build is local, and it is what gets
-    // read out over the phone when the server is not answering.
     const about = (
         <Group title={t('ABOUT')}>
             <SettingsRow
@@ -228,8 +174,6 @@ function SettingsScreenView({ goHome = 0 }: SettingsScreenProps) {
         </Group>
     );
 
-    // Not behind the summary: a report is most wanted when the server is not
-    // answering and the summary never loads.
     const problem = (
         <Group title={t('HELP')}>
             <SettingsRow
@@ -263,10 +207,6 @@ function SettingsScreenView({ goHome = 0 }: SettingsScreenProps) {
 
             <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
                 {local ? <BackupsNudge onOpen={() => routes.push('driveBackups')} /> : null}
-                {/* A card in Settings, never a modal over the day: installing
-                    leaves the app, and that is the doctor's call to make
-                    between patients. The browser downloads it over the
-                    tailnet and Android's installer takes it from there. */}
                 {apkUpdate ? (
                     <Card padded style={styles.update} testID="settings-apk-update">
                         <View style={styles.updateText}>
@@ -289,12 +229,6 @@ function SettingsScreenView({ goHome = 0 }: SettingsScreenProps) {
                     </Card>
                 ) : null}
 
-                {/* Above the summary, like the APK banner: the dump still runs
-                    and still verifies when the grant dies, so nothing further
-                    down this screen would look wrong. Drawn for the doctor
-                    only — it is his Google account, and the CLINIC rows below
-                    are gated the same way (§1: the role hides rows, it does
-                    not guard anything). */}
                 {setsUp && !local && backups?.tone === 'reauthorize' ? (
                     <Card padded style={styles.backupAlert} testID="settings-backup-alert">
                         <View style={styles.backupIcon}>
@@ -311,8 +245,6 @@ function SettingsScreenView({ goHome = 0 }: SettingsScreenProps) {
                     </Card>
                 ) : null}
 
-                {/* Above the summary and outside it: the language is this
-                    phone's, so it answers whether or not the server does. */}
                 <LanguageBlock locale={locale} onChange={setLocale} />
 
                 {summary.loading ? <SkeletonRows count={3} /> : null}
@@ -328,7 +260,6 @@ function SettingsScreenView({ goHome = 0 }: SettingsScreenProps) {
                 {summary.data ? (
                     <>
                         <Group title={t('GENERAL')}>
-                            {/* A clinic on this phone has no server to report on. */}
                             {local ? null : (
                                 <>
                                     <SettingsRow
@@ -350,8 +281,6 @@ function SettingsScreenView({ goHome = 0 }: SettingsScreenProps) {
                                 onPress={() => routes.push('appointments')}
                                 testID="settings-appointments-row"
                             />
-                            {/* The desk's work: the doctor's and the admin's
-                                phones have no reminders. */}
                             {(isDoctor || granted === 'admin') && !local ? null : (
                                 <>
                                     <CardDivider />
@@ -395,7 +324,6 @@ function SettingsScreenView({ goHome = 0 }: SettingsScreenProps) {
                                     testID="settings-branches"
                                 />
                                 <CardDivider />
-                                {/* Not in `settings.html`, which never mentions opening hours; kept rather than delete a working screen. */}
                                 <SettingsRow
                                     icon={<SettingsIcon glyph="hours" />}
                                     label="Working hours"
@@ -403,8 +331,6 @@ function SettingsScreenView({ goHome = 0 }: SettingsScreenProps) {
                                     onPress={() => routes.push('hours')}
                                     testID="settings-hours"
                                 />
-                                {/* A clinic on this phone has no backup job on a server:
-                                    its backups go to its own Google Drive. */}
                                 {local ? (
                                     driveClientId() ? (
                                         <>
@@ -427,8 +353,6 @@ function SettingsScreenView({ goHome = 0 }: SettingsScreenProps) {
                                             sub={backups?.sub ?? 'Checking…'}
                                             onPress={() => {
                                                 if (!backups) return;
-                                                // Nothing to report on until Drive is linked, so
-                                                // the sign-in comes first when it can be run here.
                                                 if (backups.canSignIn && !backups.linked)
                                                     setLinkingDrive(true);
                                                 else routes.push('backups');
@@ -462,13 +386,8 @@ function SettingsScreenView({ goHome = 0 }: SettingsScreenProps) {
                             </Group>
                         ) : null}
 
-                        {/* A clinic on this phone is always on the desk's day
-                            (`useRole`) and has no other phone to give a role. */}
                         {granted === 'admin' && !local ? (
                             <Group title={t('ADMIN')}>
-                                {/* Which day this phone shows. Screens only: the
-                                    server still treats it as the admin, so Money
-                                    and these settings stay either way. */}
                                 <View style={styles.viewRow}>
                                     <Text variant="body" weight="semibold">
                                         {t('Day view')}
@@ -496,12 +415,6 @@ function SettingsScreenView({ goHome = 0 }: SettingsScreenProps) {
                             </Group>
                         ) : null}
 
-                        {/* Only in demo mode, and only here: a demo is given
-                            more than once, and the second run should not open
-                            on the first one's cancellations. `resetDemoData`
-                            reports the reseed to `api/dataReset`, which is what
-                            drops the clinic the query cache and the day view's
-                            own hooks are still holding. */}
                         {local ? (
                             leaveLocal
                         ) : demo.enabled ? (
@@ -516,10 +429,6 @@ function SettingsScreenView({ goHome = 0 }: SettingsScreenProps) {
                                     testID="settings-reset-demo"
                                 />
                                 <CardDivider />
-                                {/* The way back from the setup screen's demo
-                                    button. Without it a phone that took the
-                                    demo by mistake keeps writing into the fake
-                                    register until its app data is cleared. */}
                                 <SettingsRow
                                     icon={<LeaveDemoIcon />}
                                     label="Leave demo"
@@ -531,12 +440,6 @@ function SettingsScreenView({ goHome = 0 }: SettingsScreenProps) {
                                 />
                             </Group>
                         ) : allowsDemo(BUILD_VARIANT) ? (
-                            /* The setup screen's demo button, for a dev build
-                               that is already connected: setup never shows
-                               again once an address is saved, so this is the
-                               only way in. The saved address stays put and
-                               Leave demo above returns to it. A prod build
-                               allows no demo, so its Settings never has this. */
                             <Group title={t('DEMO')}>
                                 <SettingsRow
                                     icon={<EnterDemoIcon />}
@@ -575,10 +478,6 @@ function SettingsScreenView({ goHome = 0 }: SettingsScreenProps) {
                 onCancel={() => setLinkingDrive(false)}
             />
 
-            {/* Nine near-identical blocks before the stack, each repeating its
-                own route name three times. A popped pane stays in here until it
-                reports the slide finished (`onClosed`), which is the only reason
-                a route that is no longer open is still drawn. */}
             {rendered(routes.stack).map(({ id, route: pane }, index) => (
                 <PushView
                     key={id}
@@ -615,8 +514,6 @@ function SettingsScreenView({ goHome = 0 }: SettingsScreenProps) {
                 </PushView>
             ))}
 
-            {/* After the panes: a Drive sign-in started from the Backups pane
-                reports here, and a toast under the pane would never be seen. */}
             <Toast
                 visible={toast !== null}
                 message={toast ?? ''}
@@ -627,7 +524,6 @@ function SettingsScreenView({ goHome = 0 }: SettingsScreenProps) {
     );
 }
 
-/** Memoised for the reason the other three clusters are — see `shell/AppShell.tsx`. */
 export const SettingsScreen = memo(SettingsScreenView);
 
 function Group({ title, children }: { title: string; children: React.ReactNode }) {
@@ -639,22 +535,6 @@ function Group({ title, children }: { title: string; children: React.ReactNode }
     );
 }
 
-/**
- * Everything the index's subs are counted from. Four reads go out together over
- * one batched request; the panes below read the same cache, so an edit in a
- * pane is on the index the moment it lands and nothing has to be handed back up
- * on the way out.
- *
- * The identity card names the clinic rather than the branch this phone is
- * standing in: nothing on the server tracks that yet, and a card that says the
- * wrong branch is worse than one that does not claim to know.
- */
-/**
- * Polled rather than read once: the grant can die between two taps of the tab,
- * and the whole point of the card is that nothing else on the phone changes
- * when it does. Failure is silent — the connection card already says when the
- * server is not answering, and a second complaint about it is noise.
- */
 function useBackups(): BackupView | null {
     const trpc = useTRPC();
     const t = useT();
@@ -662,7 +542,6 @@ function useBackups(): BackupView | null {
     return status.data ? backupView(status.data, serverNow(), t) : null;
 }
 
-/** The status the card and the Backups row read, on a clinic kept on this phone. */
 function useLocalBackupLine(local: boolean): string {
     const trpc = useTRPC();
     const t = useT();
@@ -730,7 +609,6 @@ function summarize({ settings, schedule, branches, procedures, questions }: Summ
     };
 }
 
-// The release this launch runs, the OTA update's number included.
 const INSTALLED = installedVersion();
 
 const styles = StyleSheet.create({

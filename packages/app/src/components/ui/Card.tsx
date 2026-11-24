@@ -1,8 +1,3 @@
-/**
- * Solid or dashed card. `dashed` marks read-only or built-in content the clinic
- * cannot edit. `overflow: hidden` is what lets rows hairline-divide to the
- * card's own edge.
- */
 import type { ViewProps } from 'react-native';
 import { StyleSheet, View } from 'react-native';
 import { color, radius, shadow, space } from '../../theme';

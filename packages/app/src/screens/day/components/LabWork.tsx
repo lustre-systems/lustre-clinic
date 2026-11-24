@@ -1,10 +1,3 @@
-/**
- * Lab work a visit waits on: a crown, bridge or denture that has to be back
- * before the patient sits down. `labStatus` is null for no lab, `pending` while
- * the work is out and `ready` once it is back. Only `pending` is loud — the
- * agenda tags it and the reminder asks about it — because "is it back yet" is
- * the question that goes wrong. `ready` is quiet: the work is in the drawer.
- */
 import type { LabStatus } from '@lustre/shared';
 import { StyleSheet, View } from 'react-native';
 import { Switch } from '../../../components/ui';
@@ -12,11 +5,6 @@ import { useT } from '../../../i18n';
 import { color, radius, space, Text } from '../../../theme';
 import { LabIcon } from './icons';
 
-/**
- * The agenda's mark: a flask, not words, so the name keeps its width. The flask
- * already means lab on the booking switch and in Reminders, and the detail
- * sheet says it in full. Nothing once the work is back, and nothing without a lab.
- */
 export function LabTag({ status }: { status: LabStatus | null }) {
     const t = useT();
     if (status !== 'pending') return null;

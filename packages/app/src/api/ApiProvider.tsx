@@ -14,10 +14,6 @@ export { useTRPC };
 
 function ServerEvents({ children }: { children: ReactNode }) {
     useServerEvents();
-    // Repairs queries that failed while the clinic was unreachable, once it
-    // answers again. Mounted here rather than in the shell because it belongs
-    // to the query client, and it has to outlive whichever screen was up when
-    // the connection went.
     useEffect(startConnectionRecovery, []);
     return <>{children}</>;
 }

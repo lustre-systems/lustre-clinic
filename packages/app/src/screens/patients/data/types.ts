@@ -1,13 +1,3 @@
-// The payload shapes this cluster reads, hand-mirrored from the server's
-// `patient` and `customQuestion` services — hand-written because there is no
-// tRPC client yet, so `AppRouter` cannot be inferred here. When the client
-// lands this file is deleted and the types come from inference. `Date` columns
-// arrive as ISO strings over JSON, so they are typed as strings. Notable
-// invariants: `key` is the stable key into `patients.custom` and never changes
-// once answers exist; `active` is one verb — a question is deactivated, never
-// deleted, so its answers survive (§7.8); `age` and `balance` are derived,
-// never stored; `UpdatePatientInput.custom` is a partial patch — only the keys
-// sent are validated, a blank clears, and keys left out keep what is stored.
 import type { AppointmentStatus, ClientRole, PaymentMethod, Tooth } from '@lustre/shared';
 
 export type QuestionKind = 'text' | 'number' | 'boolean' | 'select' | 'date';
@@ -38,7 +28,6 @@ export interface QuestionnaireGap {
 
 export interface Patient {
     id: string;
-    /** This clinic's number for the patient — what goes on the top of their paper page (§5). */
     ref: string;
     name: string;
     phone: string;
@@ -47,31 +36,17 @@ export interface Patient {
     gender: string | null;
     custom: Answers;
     notes: string | null;
-    /**
-     * The old system's number for this patient. Null for anyone registered
-     * since the cutoff. For a patient registered as an old patient it equals
-     * `ref` — they were given one number and the record shows that one. Where
-     * the two differ, the record came across under the old data-entry flow,
-     * which allocated a second number on top of the real one.
-     */
     legacyRef: string | null;
     createdAt: string;
     age: number | null;
 }
 
-/** What was done at a visit, or — when the patient never reached the chair — what was going to be. */
 export interface HistoryProcedure {
     name: string;
     quantity: number;
     tooth: string | null;
 }
 
-/**
- * One row of the history: an appointment, and the visit it became if it became
- * one. A cancellation and a no-show never produce a visit and are still part of
- * what the record is read for, so `visitId` is null and the money is zero on
- * them rather than the row being absent.
- */
 export interface PatientHistoryEntry {
     appointmentId: string;
     visitId: string | null;
@@ -80,15 +55,11 @@ export interface PatientHistoryEntry {
     status: AppointmentStatus;
     checkedInAt: string | null;
     completedAt: string | null;
-    /** Debt carried over from the old system at migration, not a visit anyone attended. */
     isOpeningBalance: boolean;
-    /** Work the old system recorded. No visit behind it, so no money on it — prior history, nothing more. */
     isImported: boolean;
-    /** The file did not say when. The row carries the cutoff only because a date is required. */
     dateUnknown: boolean;
     computedTotal: number | null;
     chargedTotal: number | null;
-    /** Null on a phone whose role may not see payments (a doctor). */
     paidTotal: number | null;
     balance: number | null;
     procedures: HistoryProcedure[];
@@ -105,11 +76,6 @@ export interface PatientBalance {
     balance: number;
 }
 
-/**
- * Taking a payment. It names a patient and never a visit: the server spreads it
- * across their unsettled visits oldest-first, which is what the desk means by
- * paying off a balance. `amount` is integer piastres and must be positive.
- */
 export interface SettleInput {
     patientId: string;
     amount: number;
@@ -117,7 +83,6 @@ export interface SettleInput {
     methodNote?: string | null;
 }
 
-/** One visit's share of a payment. Absent means the money never reached it. */
 export interface SettledVisit {
     visitId: string;
     ref: string;
@@ -128,11 +93,6 @@ export interface SettledVisit {
     settled: boolean;
 }
 
-/**
- * What the payment did, per visit. The desk writes on the paper file per visit
- * and the ref is how the two are matched (§5), so the confirmation names the
- * split rather than just dismissing.
- */
 export interface SettleReport {
     patientId: string;
     amount: number;
@@ -142,23 +102,11 @@ export interface SettleReport {
     visits: SettledVisit[];
 }
 
-/**
- * One page of the register. `total` is the whole register, not `patients.length`
- * — the heading's count is "how many patients has this clinic".
- */
 export interface RecentPatients {
     patients: Patient[];
     total: number;
 }
 
-/**
- * Registering someone. `custom` is the whole form rather than a patch — the
- * server's `validateIntake` runs over it and every active required question has
- * to come back with an answer, which is what makes the editor's Save refuse
- * until they do. `birthDate` is `YYYY-MM-DD`, or null for no age; the editor
- * asks for an age and derives it (see `patientForm.ts`). Whether it and
- * `gender` may be left out is the clinic's setting.
- */
 export interface CreatePatientInput {
     name: string;
     phone: string;
@@ -167,52 +115,32 @@ export interface CreatePatientInput {
     gender?: string | null;
     custom?: Answers;
     notes?: string | null;
-    /** Present only when the **Old patient** switch is on. Its absence is what makes this a new registration. */
     old?: OldPatientInput;
 }
 
-/** One line off the paper file: what was done, and when if the file says. */
 export interface OldProcedureInput {
     procedureId: string;
     quantity: number;
     tooth?: Tooth | null;
-    /** `YYYY-MM-DD`, or absent — which the record draws as *before migration* rather than guessing a day. */
     performedOn?: string | null;
 }
 
-/**
- * What a patient who predates the cutoff brings with them. `ref` becomes their
- * patient ref: the desk was given one number for them and must not be handed a
- * second. `openingBalance` is piastres and is the single figure they carry —
- * imported procedures never add to it.
- */
 export interface OldPatientInput {
     ref: string;
     openingBalance?: number;
     procedures: OldProcedureInput[];
 }
 
-/** One line of an old visit: what was done, and what it is charged at. */
 export interface OldVisitLineInput {
     procedureId: string;
     quantity: number;
     tooth?: Tooth | null;
-    /** Piastres. Absent means the catalogue's current price, resolved server-side. */
     unitPrice?: number;
 }
 
-/**
- * A visit that happened on a day that has passed and was never entered.
- *
- * It **carries money**: it lands as an ordinary completed visit, charged and
- * paid on the day unless corrected. The date is required and there is no time of day — the desk is recording which
- * day it was, not which slot.
- */
 export interface AddOldVisitInput {
     patientId: string;
-    /** `YYYY-MM-DD`, and it has to be a day that has happened. */
     performedOn: string;
-    /** Absent lets the server use the clinic's first active branch. */
     branchId?: string | null;
     procedures: OldVisitLineInput[];
 }
@@ -220,15 +148,9 @@ export interface AddOldVisitInput {
 export interface AddedOldVisit {
     appointmentId: string;
     visitId: string;
-    /** Piastres charged — and paid, in cash on the day; corrected on the visit if not. */
     chargedTotal: number;
 }
 
-/**
- * A partial patch, throughout: a key left out keeps what is stored, and only
- * the keys sent are validated. `null` is an answer — it clears the column — so
- * a field the editor did not touch is `undefined` and never `null`.
- */
 export interface UpdatePatientInput {
     id: string;
     name?: string;
@@ -240,18 +162,12 @@ export interface UpdatePatientInput {
     notes?: string | null;
 }
 
-/**
- * Correcting the number a record is known by — its own call, not a field on the
- * patch above. `editedBy` is the role this handset is on; the server decides
- * whether that role may edit at all, and records it beside the change.
- */
 export interface UpdatePatientRefInput {
     id: string;
     ref: string;
     editedBy: ClientRole;
 }
 
-/** One correction to a record's ref, as the record reads it back. */
 export interface RefEdit {
     previousRef: string;
     newRef: string;

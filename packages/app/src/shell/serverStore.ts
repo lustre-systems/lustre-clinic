@@ -16,38 +16,22 @@ import {
 } from '../api';
 import { hydratingSubscribe } from './hydratingSubscribe';
 
-// Where the addresses collected by setup are kept. `api/config` holds no
-// storage of its own by design (§14, "persisting what onboarding collected
-// belongs with onboarding"), so this is the only thing that survives a launch.
-//
-// Two plain string keys rather than one JSON blob: a half-written value then
-// comes back as a bad address the probe rejects, instead of a parse that throws
-// on the boot path. Hydration is started by the first subscriber rather than at
-// import, so nothing touches the native module until something renders.
 const STORAGE_PREFIX =
     BUILD_VARIANT === 'dev' && Updates.isEnabled ? 'lustre.ota-dev.server' : 'lustre.server';
 const LAN_KEY = `${STORAGE_PREFIX}.lan`;
 const TAILSCALE_KEY = `${STORAGE_PREFIX}.tailscale`;
 
-// What the boot sequence is waiting on. A default is probed rather than
-// trusted: one address is shipped to every clinic, so it is right for the one
-// it was written for and wrong everywhere else, and the only honest way to
-// tell the two apart is to ask the network. The shipped `app.json` sets none,
-// which is not a probe that failed but a question nobody has answered yet —
-// `hydrate` skips the network for it and goes straight to setup.
 type DefaultProbe = 'probing' | 'reachable' | 'unreachable';
 
 export interface SetupState {
     hydrated: boolean;
     addresses: ServerAddresses;
-    /** True once an address has come back from storage — a real setup, not a default. */
     stored: boolean;
     defaultProbe: DefaultProbe;
     reconfiguring: boolean;
 }
 
 export interface ServerSetup extends SetupState {
-    /** Nothing may render before this: the alternative is a flash of the wrong screen. */
     ready: boolean;
     showSetup: boolean;
 }
@@ -66,9 +50,6 @@ function emit(next: SetupState): void {
     for (const listener of listeners) listener();
 }
 
-// `setServerAddresses` merges each side with `??`, so passing `null` leaves the
-// old value in place and only an empty string can clear one. Every write goes
-// through here so that lives in one spot.
 export function applyAddresses(next: ServerAddresses): void {
     setServerAddresses({ lan: next.lan ?? '', tailscale: next.tailscale ?? '' });
 }
@@ -82,22 +63,11 @@ async function hydrate(): Promise<void> {
         if (key === TAILSCALE_KEY) restored.tailscale = value || null;
     }
 
-    // A LAN address saved by an earlier dev install is not this phone's answer
-    // on a prod build: it can never be probed, and counting it as stored would
-    // skip setup for a phone that has no Tailscale address at all.
     if (!allowsLan(BUILD_VARIANT)) {
         restored.lan = null;
         await AsyncStorage.removeItem(LAN_KEY).catch(() => undefined);
     }
 
-    // A stored pair is this phone's own answer and is never second-guessed: if
-    // it stops working that is the offline screen's business, not setup's.
-    // Re-running the probe here would send a phone whose clinic is merely
-    // switched off back to a screen asking it to retype an address that was
-    // already right.
-    //
-    // A prod build also drops a stored address that is not on the tailnet
-    // (`api/variant.ts`), and one that leaves nothing behind is not a setup.
     if (restored.lan || restored.tailscale) {
         applyAddresses(restored);
         const kept = serverAddresses();
@@ -107,15 +77,11 @@ async function hydrate(): Promise<void> {
         }
     }
 
-    // Nothing stored is an install that has never reached a clinic — one made
-    // since roles existed — so it will ask for a role code once it can.
     void markFreshInstall();
 
     const fallback = serverAddresses();
     emit({ ...state, hydrated: true, addresses: fallback, stored: false });
 
-    // The shipped build's own path: nothing to probe, so setup opens on empty
-    // fields rather than on a failure report for an address nobody chose.
     if (!fallback.lan && !fallback.tailscale) {
         emit({ ...state, defaultProbe: 'unreachable' });
         return;
@@ -127,29 +93,10 @@ async function hydrate(): Promise<void> {
         return;
     }
 
-    // The shipped default answered, so this phone is configured without anyone
-    // having touched it: write down the address that worked, along with the
-    // tailnet address the server reports, and it is set up for good.
-    //
-    // The cost of writing it down is that a later build shipping a different
-    // default will not be probed on a phone that already stored one — moving
-    // the clinic server means the handsets go offline and are pointed at the
-    // new address through "Change server address", not by an app update.
     await saveServerAddresses({ lan: fallback.lan, tailscale: await learnTailnetAddress() });
     emit({ ...state, defaultProbe: 'reachable' });
 }
 
-// The clinic server knows its own tailnet address (§14) and reports it on
-// `health.check`, so nobody types it into a handset. It is re-read on every
-// successful connection rather than only at setup: that is what makes moving
-// the server one change on the clinic PC instead of a visit to every phone.
-//
-// A server that reports nothing leaves whatever is already stored alone — an
-// older build that does not send the field must not wipe an address that works.
-//
-// A prod build keeps it only if it is a tailnet address: the server's report is
-// configuration on the clinic PC, and it must not be able to point a phone
-// back at the wifi.
 export async function learnTailnetAddress(): Promise<string | null> {
     const report = await trpcClient.health.check.query().catch(() => null);
     const reported = report?.tailscale?.trim();
@@ -167,16 +114,9 @@ export function useServerSetup(): ServerSetup {
     const current = useSyncExternalStore(subscribe, getSnapshot);
     const device = useDeviceBackend();
 
-    // A demo or a clinic on this phone has no address to collect and no server
-    // to reach, so it skips setup entirely. The flag has to have come back from
-    // storage first: deciding before it does would put the setup screen up for
-    // the moment it takes to read, on the launch after somebody chose either.
     if (!device.hydrated) return { ...current, ready: false, showSetup: false };
     if (device.backend) return { ...current, ready: true, showSetup: false };
 
-    // Setup is for a phone that has never reached this clinic. One that has —
-    // by its own stored address or by the shipped default answering — goes to
-    // the app, and a server that is down from there is the offline screen.
     const settled = current.stored || current.defaultProbe !== 'probing';
     return {
         ...current,
@@ -185,17 +125,10 @@ export function useServerSetup(): ServerSetup {
     };
 }
 
-// The way back to setup from the offline dead end. Without it a saved typo is
-// unrecoverable: every launch resolves the bad address, fails, and lands on a
-// screen whose only control is Try again. The stored values are left alone so
-// setup opens on them and the user edits rather than retypes.
 export function requestReconfigure(): void {
     emit({ ...state, reconfiguring: true });
 }
 
-// Settings → App's way off a server, for the clinic that is leaving it — for
-// another server, or for local mode, which only the setup screen offers. Unlike
-// `requestReconfigure`, nothing is left to come back to on the next launch.
 export async function disconnectServer(): Promise<void> {
     applyAddresses({ lan: null, tailscale: null });
     forgetServerCredential();
@@ -221,8 +154,6 @@ export async function saveServerAddresses(next: ServerAddresses): Promise<void> 
         reconfiguring: false,
     });
 
-    // A failed write costs the user one re-entry on the next launch, which is
-    // not worth refusing a connection that has just been proven to work.
     await AsyncStorage.multiSet([
         [LAN_KEY, addresses.lan ?? ''],
         [TAILSCALE_KEY, addresses.tailscale ?? ''],

@@ -57,9 +57,6 @@ describe('createBackStack', () => {
         expect(stack.run()).toBe(false);
     });
 
-    // Popping a screen unmounts it, which takes its handler with it. Whether
-    // that lands inside the press or after it, the walk must neither skip the
-    // handler underneath nor ask the one that has gone.
     it('skips a handler unregistered mid-press without losing the one below', () => {
         const stack = createBackStack();
         const asked: string[] = [];

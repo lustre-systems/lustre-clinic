@@ -9,19 +9,6 @@ import { settingsService } from '../src/modules/settings/settings.service.ts';
 import { setupDatabase, sql, truncateAll } from './helpers/db.ts';
 import { bookedAppointment, clinic, expectAppError, slot } from './helpers/factories.ts';
 
-/**
- * SPEC §11. "Remind before" used to reach only the appointments booked after it
- * was changed: a clinic that shortened 48h to 24h kept getting yesterday's
- * schedule for everything already on the books, with nothing on the pane saying
- * so. `settings.update` now moves the pending reminders with the setting.
- *
- * What is bounded is which reminders move. Only the ones the pending list is
- * made of — still pending, on an appointment still booked — and only where the
- * appointment is still ahead. A message that was owed at the old lead and has
- * been sent, skipped, or simply missed is history, and a lead time is not a way
- * to rewrite it.
- */
-
 const HOUR = 3_600_000;
 
 async function reminderFor(appointmentId: string) {
@@ -43,14 +30,6 @@ async function backendsWaitingOnALock(): Promise<number> {
     return row?.waiting ?? 0;
 }
 
-/**
- * Runs `contenders` against a settings row another transaction is holding.
- * Each is started only once the one before it is seen waiting on the lock, so
- * they queue on it in this order; then the row is let go and they run back to
- * back. Every one of them has taken whatever it reads before its transaction,
- * and none has written, so the interleaving is the same on every run rather
- * than whatever `Promise.all` happened to produce.
- */
 async function queuedOnTheSettingsRow<T>(contenders: Array<() => Promise<T>>): Promise<T[]> {
     let held!: () => void;
     let release!: () => void;
@@ -124,11 +103,9 @@ describe('changing the reminder lead time', () => {
         const { appointment } = await bookedAppointment();
         const hoursAway = Math.ceil((appointment.startsAt.getTime() - Date.now()) / HOUR);
 
-        // Short of the appointment, so nothing is due yet.
         await settingsService.update({ reminderLeadHours: 1 });
         expect(await reminderService.pending({ dueOnly: true, limit: 100, offsetMinutes: 0 })).toEqual([]);
 
-        // Past it, so the same reminder is now owed.
         await settingsService.update({ reminderLeadHours: hoursAway + 1 });
         const due = await reminderService.pending({ dueOnly: true, limit: 100, offsetMinutes: 0 });
         expect(due.map((row) => row.appointmentId)).toEqual([appointment.id]);
@@ -215,13 +192,6 @@ describe('what a new lead time leaves alone', () => {
 });
 
 describe('a booking taken while the lead time is changing', () => {
-    /**
-     * The booking reads the lead time and writes its reminder from it. If it
-     * read outside the settings lock, it could take the old lead, miss the
-     * reschedule because its reminder did not exist yet, and commit the one row
-     * the new setting never reaches. Both orderings are run: the result has to
-     * be the same either way, because both are the same race.
-     */
     async function raceABooking(first: 'booking' | 'settings') {
         const fixtures = await clinic();
         const startsAt = slot(first === 'booking' ? 0 : 30);
@@ -282,14 +252,6 @@ describe('a booking taken while the lead time is changing', () => {
 });
 
 describe('two saves of the lead time at once', () => {
-    /**
-     * Both read the row before either writes, and the one changing the lead
-     * goes first. If the comparison that decides whether to reschedule used
-     * that pre-transaction read, the second save — writing the lead it had
-     * already seen — would conclude nothing had changed and skip the
-     * reschedule, leaving its own number on the row and the first save's on
-     * every reminder. The two have to agree.
-     */
     test('leave the setting and the reminders agreeing', async () => {
         const { appointment } = await bookedAppointment();
         const { reminderLeadHours: before } = await settingsService.get();

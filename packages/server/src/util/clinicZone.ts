@@ -1,12 +1,3 @@
-/**
- * The clinic zone's offsets, off this machine's ICU, which the server keeps
- * current and a phone's OS image does not. Installed as `clinicTime`'s table
- * for the server's own day arithmetic, and sent to the phones by
- * `health.clock`. Ten years back covers the history a record shows; three
- * ahead covers anything bookable. Rebuilt once a day, so a long-running server
- * never runs off the end. `config.ts` installs it on load, so nothing reads a
- * clinic day before it is in place.
- */
 import { type ClinicZone, setClinicZone } from '@lustre/shared';
 import { zoneSpans } from '@lustre/shared/zoneSpans';
 

@@ -1,8 +1,3 @@
-/**
- * SPEC §4: do not log patient names, phone numbers, notes, or amounts. IDs and
- * error codes only. The redaction list below is a backstop, not a licence to
- * pass patient data to the logger.
- */
 import { pino } from 'pino';
 import { config } from './config.ts';
 

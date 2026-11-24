@@ -1,11 +1,3 @@
-/**
- * Settings → Backups, for a clinic kept on this phone: link the
- * account, back up now, bring a backup back, and take it all away again.
- *
- * The backups sit in Drive's hidden app folder, which nobody can open by hand.
- * So everything that can be done to them has to be here, and deleting comes
- * before unlinking: once unlinked, this app cannot reach them either.
- */
 import { dateKey } from '@lustre/shared';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
@@ -63,7 +55,6 @@ export function DriveBackupsScreen({ onBack }: { onBack: () => void }) {
         setMessage(null);
         const result = await signInToDrive();
         if (result === 'failed') setMessage('Could not sign in to Google Drive.');
-        // The first backup, now rather than the next time the app comes to the front.
         if (result === 'linked') await backUpIfDue().catch(() => undefined);
         await refresh();
     });

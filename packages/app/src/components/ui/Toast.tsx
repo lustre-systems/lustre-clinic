@@ -1,18 +1,3 @@
-/**
- * Ink pill at the top of the screen, slides down 16px, leaves on a timer. The
- * top rather than the bottom, because every screen's action buttons are at the
- * bottom and a toast over them blocked the next press for as long as it lived.
- *
- * Swiping it up or to either side dismisses it early: it follows the finger,
- * fading as it goes, and is thrown on the way it was going; let go short and it
- * springs back. The pan only claims a move past a few points, so a tap still
- * reaches the action.
- *
- * The timer is restarted on every change of message — so two toasts in a row
- * do not share one deadline: `message` is a real dependency even though it is
- * not read in the effect, and a second toast replacing a first without a gap
- * gets its own full life, not the remainder of the one it displaced.
- */
 // biome-ignore lint/style/noRestrictedImports: two of them, both external — the slide `Animated.timing` with its unmount callback, and the `setTimeout` that dismisses the toast
 import { useEffect, useRef, useState } from 'react';
 import { Animated, PanResponder, Pressable, StyleSheet, useWindowDimensions } from 'react-native';
@@ -28,19 +13,14 @@ export type ToastProps = {
     onAction?: () => void;
     onDismiss: () => void;
     duration?: number;
-    /** Distance from the top of the screen it is drawn in. */
     offset?: number;
     testID?: string;
 };
 
-/** How far a drag has to travel, up or sideways, to count as a dismissal. */
 const SWIPE_UP = 20;
 const SWIPE_SIDE = 56;
-/** A flick short of the distance still dismisses at this speed, in px/ms. */
 const FLICK = 0.4;
-/** A downward drag moves a sixth as far as the finger, up to this. */
 const PULL_DOWN = 8;
-/** Up is the short way out: fully faded by here, and flung to twice it. */
 const FADE_UP = 48;
 
 export function Toast({
@@ -61,13 +41,8 @@ export function Toast({
     const reducedMotion = useReducedMotion();
     const life = duration ?? (actionLabel ? 5000 : 2400);
 
-    // The responder is made once, so everything it reads that can change
-    // between renders goes through a ref.
     const latest = useRef({ onDismiss, reducedMotion, width });
     latest.current = { onDismiss, reducedMotion, width };
-    // `leaving` makes a swipe dismiss once; `held` keeps the timer from pulling
-    // the toast out from under a finger, and `expired` is the timer having
-    // tried to — a swipe let go short of dismissing then dismisses anyway.
     const gesture = useRef({ leaving: false, held: false, expired: false }).current;
 
     function restore() {
@@ -88,7 +63,6 @@ export function Toast({
         }).start();
     }
 
-    /** Carries on the way it was thrown, then hands over to the fade-out. */
     function leave(x: number, y: number) {
         gesture.leaving = true;
         gesture.held = false;
@@ -112,8 +86,6 @@ export function Toast({
                 !gesture.leaving && (Math.abs(g.dx) > 6 || Math.abs(g.dy) > 6),
             onPanResponderGrant: () => {
                 gesture.held = true;
-                // Caught mid-spring, it carries on from where it is rather
-                // than jumping to under the finger.
                 drag.stopAnimation();
                 drag.extractOffset();
             },
@@ -177,9 +149,6 @@ export function Toast({
     return (
         <Animated.View
             accessibilityLiveRegion="polite"
-            // The action dismisses the toast and the toast then slides out, so
-            // it is still under the finger after it has been answered. Dead
-            // once it is leaving, or Undo runs twice.
             pointerEvents={visible ? 'auto' : 'none'}
             testID={testID}
             {...pan.panHandlers}
@@ -187,8 +156,6 @@ export function Toast({
                 styles.toast,
                 { top: offset },
                 {
-                    // Fades with the distance it has been dragged, so how far
-                    // is left to go shows under the finger.
                     opacity: Animated.multiply(
                         progress,
                         Animated.multiply(

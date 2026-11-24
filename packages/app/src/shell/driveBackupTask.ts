@@ -1,11 +1,3 @@
-/**
- * The daily Drive backup with the app closed. Android runs this when it suits
- * the battery, so the task asks every six hours and `backUpIfDue` decides: asking
- * only once a day would let each late run push the next one later still.
- *
- * Defined on import from the app's entry point, because Android may start the JS
- * for this alone and the task must exist by the time it asks for it.
- */
 import * as BackgroundTask from 'expo-background-task';
 import * as TaskManager from 'expo-task-manager';
 import { backUpIfDue } from '../api';

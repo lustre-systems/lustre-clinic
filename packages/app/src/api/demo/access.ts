@@ -1,17 +1,9 @@
-/**
- * Who may call what, and what they are shown — the server's procedure kinds
- * (`server/src/trpc/init.ts`) and its `viewer` arguments, applied here in one
- * place rather than in every handler. The lists below are the server's routers
- * read off by kind, and have to be changed with them.
- */
 import { ERROR_CODE, managesClinic, seesPayments, seesStats, viewOf } from '@lustre/shared';
 import { authorizeDemo, type DemoCaller } from './handlers/device';
 import { DemoError } from './rules';
 
-/** `publicProcedure`: reachable by a phone the server does not let in. */
 const PUBLIC = new Set(['health.check', 'health.clock', 'release.latestApk', 'device.me', 'device.redeem']);
 
-/** `paymentProcedure`: refused to a doctor. */
 const PAYMENT = new Set([
     'balance.outstanding',
     'balance.byPatient',
@@ -22,7 +14,6 @@ const PAYMENT = new Set([
     'visit.deletePayment',
 ]);
 
-/** `statsProcedure`: the clinic's own figures, which only an admin may see. */
 const STATS = new Set([
     'balance.summary',
     'balance.takings',
@@ -31,7 +22,6 @@ const STATS = new Set([
     'stats.trend',
 ]);
 
-/** `setupProcedure`: setting the clinic up, which only an admin may. */
 const SETUP = new Set([
     'branch.create',
     'branch.update',
@@ -47,7 +37,6 @@ const SETUP = new Set([
     'backup.linkDrive',
 ]);
 
-/** The fields of `settings.update` that set the clinic up (`settingsService.update`). */
 const CLINIC_FIELDS = [
     'clinicName',
     'clinicPhone',
@@ -57,10 +46,8 @@ const CLINIC_FIELDS = [
     'clinicType',
 ];
 
-/** `adminProcedure`. */
 const ADMIN = new Set(['device.grants', 'device.issue', 'device.revoke', 'device.setRequireProvisioning']);
 
-/** Procedures that answer with a whole visit, whose payment fields a doctor is not shown. */
 const VISIT_ANSWERS = new Set([
     'visit.byId',
     'visit.byAppointment',
@@ -74,7 +61,6 @@ function forbidden(what: string): DemoError {
     return new DemoError(ERROR_CODE.ROLE_FORBIDDEN, `this role may not ${what}`, 403);
 }
 
-/** The caller behind `token`, or the refusal the server would send for `path` with `input`. */
 export function admit(path: string, token: string | null, input?: unknown): DemoCaller {
     if (PUBLIC.has(path)) return { token, deviceId: null, role: null };
     const caller = authorizeDemo(token);
@@ -94,7 +80,6 @@ export function admit(path: string, token: string | null, input?: unknown): Demo
     return caller;
 }
 
-/** A provisioned phone edits a ref as its credential's view, whatever it claims (`patientService.updateRef`). */
 export function inputFor(path: string, input: unknown, caller: DemoCaller): unknown {
     if (path !== 'patient.updateRef' || !caller.role || !input || typeof input !== 'object') return input;
     return { ...input, editedBy: viewOf(caller.role) };
@@ -104,7 +89,6 @@ function withheld<T extends object>(row: T, fields: readonly string[]): T {
     return { ...row, ...Object.fromEntries(fields.map((field) => [field, null])) };
 }
 
-/** A finished visit's amounts, which a doctor is not shown either (`visitService.byId`). */
 function withheldVisit(visit: { completedAt: unknown; procedures: object[] }): object {
     const unpaid = withheld(visit, ['payments', 'paidTotal', 'balance']);
     if (visit.completedAt === null) return unpaid;
@@ -120,7 +104,6 @@ interface HistoryEntry {
     isOpeningBalance: boolean;
 }
 
-/** What a procedure costs the clinic, which only a role that sees the stats is shown (`procedureService.tree`). */
 function withheldCost(path: string, output: object): object {
     if (path === 'procedure.list') return (output as object[]).map((row) => withheld(row, ['cost']));
     if (path === 'procedure.tree') {
@@ -132,7 +115,6 @@ function withheldCost(path: string, output: object): object {
     return output;
 }
 
-/** What `path` answered, less what the caller's role may not see. */
 export function shownTo(path: string, answer: unknown, caller: DemoCaller): unknown {
     if (!answer || typeof answer !== 'object') return answer;
     const output = seesStats(caller.role) ? answer : withheldCost(path, answer);

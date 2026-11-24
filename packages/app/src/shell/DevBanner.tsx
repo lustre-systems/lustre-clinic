@@ -5,19 +5,6 @@ import { color, size, space, Text } from '../theme';
 import { DEV_LABEL, serverLabel } from './serverLabel';
 import { useServerSetup } from './serverStore';
 
-/**
- * The strip that says this is not the clinic's app. It stands above every
- * screen — setup, the shell, the offline dead end — because the moment it is
- * needed is the one where a dev build and a real one look alike.
- *
- * `BUILD_VARIANT` rather than anything in `app.json`: Metro sets `__DEV__`
- * false in every release bundle whatever the config says (`api/variant.ts`), so
- * a clinic's APK cannot carry this by somebody forgetting to flip a flag, and a
- * dev build cannot lose it by the same mistake.
- *
- * It takes its own row rather than floating over one. An overlay obvious enough
- * to be worth having is an overlay over a control.
- */
 export function DevBanner() {
     const t = useT();
     const { baseUrl } = useConnection();

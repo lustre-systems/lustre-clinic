@@ -13,14 +13,6 @@ import {
     todaySlot,
 } from './helpers/factories.ts';
 
-/**
- * Editing the money on a visit that was already checked out, the way the
- * phone does it: reopen, rewrite the lines as they were, `setPaid` the new
- * total, and close again taking nothing of its own. The figure the desk reads
- * back is the patient's outstanding, so every step asserts it as well as the
- * visit's own balance.
- */
-
 beforeAll(async () => {
     await setupDatabase();
 });
@@ -29,7 +21,6 @@ beforeEach(async () => {
     await truncateAll();
 });
 
-/** A root canal with a checkup on the same visit — the checkup is waived (§9). */
 async function checkedOutUnpaid(f: Clinic) {
     const appointment = await appointmentService.create({
         patient: { kind: 'existing', patientId: f.patient.id },
@@ -83,8 +74,6 @@ describe('editing the payment on a checked-out visit', () => {
         const f = await fixtures();
         const { visitId, charged } = await checkedOutUnpaid(f);
 
-        // The checkup is waived beside the root canal, and correcting the money
-        // must not bring it back.
         expect(charged).toBe(ROOT_CANAL_PRICE);
         expect(await outstandingOf(f.patient.id)).toBe(charged);
 
@@ -104,7 +93,6 @@ describe('editing the payment on a checked-out visit', () => {
         expect(await outstandingOf(f.patient.id)).toBe(0);
         expect(await recordBalance(f.patient.id, visitId)).toBe(0);
 
-        // Append-only: each correction is a row of its own.
         expect((paid.payments ?? []).map((p) => p.amount)).toEqual([half, charged - half]);
     });
 
@@ -170,7 +158,6 @@ describe('saying again how a checked-out visit was paid', () => {
         expect(restated.paidTotal).toBe(charged);
         expect(restated.balance).toBe(0);
         expect(await outstandingOf(f.patient.id)).toBe(0);
-        // Append-only: the cash stays on the record, given back, and the card takes it.
         expect((restated.payments ?? []).map((p) => [p.method, p.amount])).toEqual([
             ['cash', charged],
             ['cash', -charged],

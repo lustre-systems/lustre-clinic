@@ -1,17 +1,3 @@
-/**
- * Every amount on screen (Component Inventory §7.12): integer piastres in,
- * whole EGP out — piastres are never shown. Latin numerals are pinned to Latin
- * in both languages because DM Mono has no Arabic-Indic coverage and the money
- * screens depend on tabular alignment (§7.11); in Arabic the symbol is `ج.م`
- * and trails the figure (§7.13). Until the localization scaffold lands (F4),
- * the language is inferred from the layout direction.
- *
- * The arithmetic is in `./money`, which imports no `react-native` so the logic
- * suites can format an amount without a renderer. This file adds the two things
- * that need React Native: the markup, and reading the layout direction. The
- * `formatMoney`/`formatAmount` re-exported here are that direction-aware pair —
- * they are what `components/domain` exports and what a screen should use.
- */
 import type { Locale } from '@lustre/shared';
 import { StyleSheet, View } from 'react-native';
 import { useLocale } from '../../i18n';
@@ -26,7 +12,6 @@ export type MoneyValueProps = {
     variant?: TextVariant;
     weight?: TextWeight;
     tone?: TextTone;
-    /** Off for a column that has already said it holds money; a number in running text keeps it. */
     showCurrency?: boolean;
     language?: Locale;
     testID?: string;
@@ -65,9 +50,6 @@ export function MoneyValue({
         </Text>
     ) : null;
 
-    // `script="mono"` is explicit rather than left to detection: the Arabic
-    // symbol would otherwise pull the whole string — digits included — onto the
-    // Naskh face and out of tabular alignment.
     const figure = (
         <Text variant={variant} weight={weight} tone={tone} script="mono">
             {amount}

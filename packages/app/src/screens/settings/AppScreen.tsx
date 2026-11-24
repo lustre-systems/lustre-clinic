@@ -1,17 +1,3 @@
-/**
- * Settings → App: which way this phone is reaching the clinic server. The
- * language sits on the index itself and the build under About.
- *
- * There is no server picker, and that is the design's point, not an omission:
- * the clinic has one server. A prod build reaches it over Tailscale only; a dev
- * build decides for itself between the LAN address and the tailnet one
- * (`api/connection.ts` probes LAN first). So the card reports the route and
- * offers a re-probe — the one useful action when the phone has stayed on a
- * stale answer.
- *
- * Disconnecting is for the clinic leaving that server, for another one or for
- * local mode. It goes back to the setup screen, which is where both start.
- */
 import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { allowsLan, BUILD_VARIANT } from '../../api';

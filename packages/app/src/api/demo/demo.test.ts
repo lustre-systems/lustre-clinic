@@ -1,19 +1,3 @@
-/**
- * The demo backend is the app's server when there is no server, so what is
- * tested here is that it *is one*: that seeding produces a clinic in a state
- * the real one could actually be in, and that the flow a demo walks through —
- * book, check in, take the money — leaves the same rows behind that
- * `packages/server` would.
- *
- * The states that mean "right now" get the most attention, because they are
- * the ones a seed can quietly invent: two patients in the chair at once, a
- * queue nobody is at the front of, a bar measuring from the wrong stamp. Those
- * are the failures that only show up in front of an audience.
- *
- * AsyncStorage is a native module and there is no device under `bun test`, so
- * it is mocked to nothing — persistence is the one part of `db.ts` this cannot
- * reach.
- */
 import { afterEach, beforeEach, describe, expect, it, mock, setSystemTime } from 'bun:test';
 import {
     instantAt,
@@ -56,7 +40,6 @@ function today(): string {
     return todayKey();
 }
 
-/** The offset the app sends: minutes east of UTC for the day being asked about. */
 function offsetMinutes(): number {
     return offsetForDate(today());
 }
@@ -79,19 +62,10 @@ describe('the seeded day', () => {
 
         const minutes = minutesOfDay(Date.now());
         const now = `${pad2(Math.floor(minutes / 60))}:${pad2(minutes % 60)}`;
-        // Zero-padded `HH:MM`, so a string comparison orders them by time.
         expect(day.opensAt <= now).toBe(true);
         expect(day.closesAt >= now).toBe(true);
     });
 
-    /**
-     * The branch, not just the row. `clinic_days.weekday` is the primary key, so
-     * one weekday names one branch, and the day view opens on the first branch
-     * in the register — assigning today to the other one is a demo that opens on
-     * "Closed on Tuesdays" with its whole day filed under "booked anyway". The
-     * original check only asserted a row existed for today, which that bug
-     * passed.
-     */
     it('holds today at the branch the day view opens on', () => {
         const opensOn = branchHandlers.list({ includeInactive: false })[0];
         if (!opensOn) throw new Error('the seed registered no branches');
@@ -99,8 +73,6 @@ describe('the seeded day', () => {
         const day = settingsHandlers.schedule().find((row) => row.weekday === weekdayOf(today()));
         expect(day?.branchId).toBe(opensOn.id);
 
-        // And the day's own appointments are at that branch, or they draw as
-        // booked on a day the clinic is somewhere else.
         const appointments = appointmentHandlers.byDate({
             date: today(),
             offsetMinutes: offsetMinutes(),
@@ -110,15 +82,6 @@ describe('the seeded day', () => {
         expect(appointments.every((row) => row.branchId === opensOn.id)).toBe(true);
     });
 
-    /**
-     * The demo was seeded on a five-minute grid, so it booked people at 10:25
-     * and 11:35 — legal, but nothing like a clinic's book, and the first thing
-     * anyone sees. Every seeded start now lands on a ten.
-     *
-     * The whole table, not just today's: the same grid draws the fortnight of
-     * history behind the day view and the week ahead of it, and the opening
-     * balance is the row that was written by hand and forgot.
-     */
     it('books every appointment on a ten-minute boundary', () => {
         const offGrid = getDb()
             .appointments.filter((row) => minutesOfDay(row.startsAt) % 10 !== 0)
@@ -127,13 +90,6 @@ describe('the seeded day', () => {
         expect(offGrid).toEqual([]);
     });
 
-    // The picker steps from opening, so an open on a :45 puts every slot it
-    // offers back on a five however tidy the seeded rows are.
-    //
-    // `23:59` is the one close allowed off the grid: between 23:50 and midnight
-    // the next ten is 24:00, which `HH:MM` cannot say, and the seed keeps the
-    // clinic open past now over keeping the close tidy. CI runs in UTC, so
-    // that window is 02:50 in Cairo and it did come up.
     it('opens and closes the clinic on the same boundary', () => {
         for (const day of settingsHandlers.schedule()) {
             expect(Number(day.opensAt.slice(3)) % 10).toBe(0);
@@ -171,8 +127,6 @@ describe('the seeded day', () => {
         expect(atDesk).toHaveLength(1);
 
         const visit = db.visits.find((row) => row.appointmentId === atDesk[0]?.id);
-        // They were in the chair before they went to the desk, so the stamp is
-        // set and it is in the past — the case a hand-written row gets wrong.
         expect(visit?.inChairAt).toBeInstanceOf(Date);
         expect(visit?.inChairAt?.getTime()).toBeLessThan(Date.now());
     });
@@ -186,24 +140,16 @@ describe('the seeded day', () => {
             );
             if (planned.length === 0) continue;
 
-            // Identities, not counts: a visit whose lines are entirely
-            // unrelated to its booking satisfies any comparison of lengths,
-            // and that is the case this file exists to catch.
             const performed = db.visitProcedures.filter((line) => line.visitId === visit.id);
             const performedIds = performed.map((line) => line.procedureId);
             for (const line of planned) {
                 expect(performedIds).toContain(line.procedureId);
             }
 
-            // Check-in adds nothing of its own, so a booked visit carries exactly
-            // its plan. A line check-in slipped in again would fail here.
             expect(performed.length).toBe(planned.length);
         }
     });
 
-    // At midday, because the rest of today is placed after now: seeded at 23:50,
-    // most of it lands on tomorrow and today holds three rows, which is right
-    // for that hour and not what this checks.
     it('draws a day, a register, a catalogue and money', () => {
         setSystemTime(new Date(instantAt('2030-01-15', 12 * 60)));
         setDb(seedDemoDb());
@@ -279,8 +225,6 @@ describe('a visit, end to end', () => {
         const cleaning = db.procedureTypes.find((row) => row.name === 'Scaling & polishing');
         if (!branch || !patient || !cleaning) throw new Error('the seed is missing its fixtures');
 
-        // Past the six days the seed books ahead, so this cannot land on one of
-        // its slots and be refused for a reason the test is not about.
         const startsAt = new Date(Date.now() + 9 * 24 * 3_600_000);
 
         const appointment = appointmentHandlers.create({
@@ -295,13 +239,10 @@ describe('a visit, end to end', () => {
         expect(appointment.status).toBe('booked');
         expect(appointment.ref).toMatch(/^\d{6}-[A-Z0-9]{4}$/);
 
-        // Check-in is refused off the appointment's own day. Booked clear of the
-        // seed's week above, then brought to now by hand for the visit.
         appointment.startsAt = new Date();
         const visit = visitHandlers.checkIn({ appointmentId: appointment.id });
         const detail = visitHandlers.byId({ id: visit.id });
 
-        // The cleaning, and nothing else: check-in adds no consultation.
         expect(detail.procedures).toHaveLength(1);
         expect(detail.chargedTotal).toBe(cleaning.defaultPrice);
 
@@ -339,8 +280,6 @@ describe('a visit, end to end', () => {
             offsetMinutes: 0,
         });
 
-        // Check-in is refused off the appointment's own day. Booked clear of the
-        // seed's week, then brought to now by hand, as the visit above does.
         appointment.startsAt = new Date();
         const startsAt = appointment.startsAt;
         visitHandlers.checkIn({ appointmentId: appointment.id });
@@ -359,9 +298,6 @@ describe('a visit, end to end', () => {
         );
     });
 
-    // The visit editor writes the note onto the appointment, and it is opened
-    // on a patient who is already checked in — the one status a move is refused
-    // on. A note is not a move, so it lands, and clearing it writes null.
     it('takes a note on a visit that is already checked in, and clears it again', () => {
         const db = getDb();
         const branch = db.branches[0];
@@ -387,8 +323,6 @@ describe('a visit, end to end', () => {
             appointmentHandlers.update({ id: appointment.id, note: 'Anxious about the drill.' }).note,
         ).toBe('Anxious about the drill.');
 
-        // The plan is untouched by a note-only write: the editor sends the two
-        // separately, and an absent `procedures` must not read as an empty one.
         expect(appointmentHandlers.byId({ id: appointment.id }).procedures).toHaveLength(1);
 
         expect(appointmentHandlers.update({ id: appointment.id, note: null }).note).toBeNull();
@@ -415,8 +349,6 @@ describe('a visit, end to end', () => {
 
         appointmentHandlers.awaitPayment({ id: seatedBefore.appointmentId, offsetMinutes: offsetMinutes() });
 
-        // The one who had been waiting longest is now the one in the chair, and
-        // their bar starts here rather than at the time they arrived.
         expect(next.inChairAt).toBeInstanceOf(Date);
         expect(next.inChairAt?.getTime()).toBeGreaterThan(next.checkedInAt.getTime());
     });
@@ -427,9 +359,6 @@ describe('a walk-in, when the queue runs past midnight', () => {
         setSystemTime();
     });
 
-    // The clock is pinned to a night past anything the seed booked, so the
-    // only rows in the way are the two written here, and the test fails the
-    // same way whatever time it is run.
     it('pushes a booking already past midnight instead of landing on it', () => {
         setSystemTime(new Date('2030-01-15T23:40:00.000Z'));
 
@@ -484,18 +413,11 @@ describe('the chair, when someone leaves the queue by another door', () => {
 
         expect(seated()).toBe(1);
 
-        // Sending a waiting patient to the desk does not empty the chair, so
-        // nothing may be seated off it. Seating anyway leaves two visits
-        // answering "in the chair" and the day view drawing two running bars.
         appointmentHandlers.awaitPayment({ id: waiting.appointmentId, offsetMinutes: offsetMinutes() });
 
         expect(seated()).toBe(1);
     });
 
-    // Deleting the visit in the chair is the third way out of it, and the one
-    // where the appointment is rewritten on the way. The handler reads the row
-    // it is about to set back to `booked`, so the chair check has to be taken
-    // before that — or a desk booking empties the chair and seats nobody.
     it('seats the next patient when the one in the chair is deleted', () => {
         const db = getDb();
 
@@ -516,8 +438,6 @@ describe('the chair, when someone leaves the queue by another door', () => {
 
         expect(getDb().visits.find((row) => row.id === inChair.id)).toBeUndefined();
         expect(getDb().visits.find((row) => row.id === waiting.id)?.inChairAt).not.toBeNull();
-        // The booking itself survives: they were expected, and whether they
-        // came is the desk's to say with cancel or no-show.
         expect(getDb().appointments.find((row) => row.id === inChair.appointmentId)?.status).toBe('booked');
     });
 
@@ -533,15 +453,10 @@ describe('the chair, when someone leaves the queue by another door', () => {
 
         appointmentHandlers.awaitPayment({ id: inChair.appointmentId, offsetMinutes: offsetMinutes() });
 
-        // The chair emptied, so the longest-waiting visit takes it.
         expect(seated()).toBe(1);
         expect(getDb().visits.find((row) => row.id === inChair.id)?.inChairAt).not.toBeNull();
     });
 
-    // The seed books the chair fifty minutes back and the queue around now, so
-    // just after midnight UTC the two straddle a UTC date. The clinic's day is
-    // what counts, and the app always sends its offset: these tests used to
-    // leave it off, fell back to UTC, and failed in CI's first hour of the day.
     it('seats the next patient just after midnight UTC, on the clinic’s day', () => {
         setSystemTime(new Date('2026-10-10T00:20:00.000Z'));
         try {
@@ -631,10 +546,6 @@ describe('the refusals a demo runs into', () => {
         const owing = balanceHandlers.outstanding().patients[0];
         if (!owing) throw new Error('the seed left nobody owing');
 
-        // The demo link hands the handler its input with none of the router's
-        // schema in front of it, so the bound is this handler's to hold. Zero
-        // would otherwise write no payment row and still report a balance the
-        // stored rows do not produce.
         for (const amount of [0, -500]) {
             expect(() =>
                 balanceHandlers.settle({ patientId: owing.patientId, amount, method: 'cash' }),
@@ -645,7 +556,6 @@ describe('the refusals a demo runs into', () => {
     it('refuses a tooth on a procedure that is not done on one', () => {
         const db = getDb();
         const cleaning = db.procedureTypes.find((row) => row.name === 'Scaling & polishing');
-        // An open visit: a closed one is refused earlier, for a different reason.
         const visit = db.visits.find((row) => row.completedAt === null);
         if (!cleaning || !visit) throw new Error('the seed is missing its fixtures');
 
@@ -672,7 +582,6 @@ describe('what the clinic requires on a patient', () => {
         patientHandlers.create({
             name: 'Nadia Hassan',
             phone: '01012345678',
-            // The seed's one required question, so the questionnaire is not what refuses.
             custom: { diabetic: false },
             ...details,
         });
@@ -758,7 +667,6 @@ describe('moving an appointment', () => {
         const ref = booked.ref;
         expect(db.reminders.some((row) => row.appointmentId === booked.id)).toBe(true);
 
-        // Into its own span: the row does not clash with itself.
         const later = new Date(startsAt.getTime() + 15 * 60_000);
         const moved = appointmentHandlers.update({ id: booked.id, startsAt: later.toISOString() });
 
@@ -777,8 +685,6 @@ describe('moving an appointment', () => {
         expect(reminder?.dueAt.getTime()).toBe(later.getTime() - reminderLeadHours * 3_600_000);
     });
 
-    // As the server: a quote is kept per line, a plan sent without it follows
-    // the catalogue again, and check-in bills whichever the line holds.
     it('keeps a quoted price through a repricing and bills it at check-in', () => {
         const { db, branch, patient, procedure } = fixtures();
         const startsAt = new Date(Date.now() + 14 * 24 * 3_600_000);
@@ -804,7 +710,6 @@ describe('moving an appointment', () => {
         appointmentHandlers.update({ id: booked.id, note: 'moved rooms' });
         expect(quoteOf()).toEqual([12_300]);
 
-        // Brought to now by hand: check-in is refused off the appointment's day.
         const row = db.appointments.find((candidate) => candidate.id === booked.id);
         if (!row) throw new Error('the booking went missing');
         row.startsAt = new Date();
@@ -840,15 +745,10 @@ describe('moving an appointment', () => {
 
 describe('the dispatch table', () => {
     it('answers every procedure the app can call', () => {
-        // A spot check that the table is wired to real functions rather than a
-        // shape that merely typechecks.
         expect(hasHandler('appointment.byDate')).toBe(true);
         expect(hasHandler('visit.checkOut')).toBe(true);
         expect(hasHandler('nope.missing')).toBe(false);
 
-        // Inherited members are not procedures. Answering `true` here would
-        // have `resolve` call the prototype method and return its value, where
-        // `link.ts` is expecting the refusal it turns into NOT_FOUND.
         expect(hasHandler('toString')).toBe(false);
         expect(hasHandler('constructor')).toBe(false);
 
@@ -873,11 +773,6 @@ describe('the dispatch table', () => {
     });
 });
 
-/**
- * The lead time is retroactive on the server, so it has to be here too: a demo
- * that shortened "Remind before" and watched nothing move would be showing the
- * bug the real backend no longer has.
- */
 describe('changing the reminder lead time', () => {
     function book(daysAway: number) {
         const db = getDb();
@@ -929,7 +824,6 @@ describe('changing the reminder lead time', () => {
     });
 });
 
-/** As `packages/server/tests/lab-status.test.ts`. */
 describe('lab work', () => {
     let daysAway = 23;
 
@@ -987,13 +881,6 @@ describe('lab work', () => {
     });
 });
 
-/**
- * The demo sends nothing, but it renders the same message the server does, and
- * it is the backend a demo walks the settings pane against. It substituted the
- * double-brace tokens while the pane's chips inserted single ones, so a demo
- * built a template from the chips and previewed braces it could not resolve.
- * Both senders now share `renderReminderTemplate`; this holds the demo to it.
- */
 describe('the reminder message the demo renders', () => {
     function firstPending() {
         const [reminder] = reminderHandlers.pending({ dueOnly: false, limit: 100, offsetMinutes: 0 });
@@ -1046,7 +933,6 @@ describe('the reminder message the demo renders', () => {
         expect(reminder.message).toBe(`See you at ${branch?.name}.`);
     });
 
-    // A demo database seeded before the chips were fixed still holds one.
     it('still resolves a template saved in the old single braces', () => {
         settingsHandlers.update({ reminderTemplate: 'See you at {time}.' });
 
@@ -1166,14 +1052,8 @@ describe('roles', () => {
     });
 });
 
-/**
- * As `packages/server/tests/reminder-cutoff.test.ts`: from the notify time the
- * due list is the rest of the clinic day, and the arm counts that list from the
- * morning so the notify time is not left silent.
- */
 describe('the reminders due from the notify time', () => {
     const HOUR = 3_600_000;
-    // Past the seed's appointments and the other describes' bookings.
     const DAY = (() => {
         const at = new Date();
         at.setUTCDate(at.getUTCDate() + 40);
@@ -1216,7 +1096,6 @@ describe('the reminders due from the notify time', () => {
     beforeEach(() => {
         settingsHandlers.update({ reminderLeadHours: 24, reminderNotifyAt: '17:00' });
         for (const reminder of getDb().reminders) reminder.status = 'skipped';
-        // Due today at 10:00 and 20:00, and tomorrow at 01:00.
         morning = book(onDay(24 + 10));
         evening = book(onDay(24 + 20));
         booked = [morning, evening, book(onDay(48 + 1))];

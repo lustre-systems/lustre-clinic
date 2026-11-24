@@ -22,7 +22,6 @@ beforeEach(async () => {
     await truncateAll();
 });
 
-/** `count` patients named `<prefix> 0…`, half of them sharing one `created_at` so ties are exercised. */
 async function register(count: number, prefix = 'Page Patient'): Promise<string[]> {
     const ids: string[] = [];
     for (let i = 0; i < count; i++) ids.push(await insertPatient(`${prefix} ${i}`));
@@ -115,7 +114,6 @@ describe('patient.search — paging', () => {
     });
 });
 
-/** Checkout refuses a visit with no work on it, so each debt is a booked root canal charged at `amount`. */
 async function owes(f: Clinic, patientId: string, startsAt: string, amount: number): Promise<void> {
     const appointment = await appointmentService.create({
         patient: { kind: 'existing', patientId },

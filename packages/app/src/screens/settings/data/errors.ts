@@ -1,14 +1,3 @@
-/**
- * What a failure says in this cluster. §4/§14: the sentence is chosen from the
- * `ERROR_CODE` the server sent, never from its message text, which stays
- * English for the logs.
- *
- * Offline comes first and is not a code: the clinic server is a PC that is off
- * during a power cut, and "couldn't reach it" is a different thing to tell
- * someone than "it refused". Panes that can say something more useful than the
- * general sentence for one code pass it in — a `NOT_FOUND` on a branch picker
- * is worth naming, and the pane is the only thing that knows it was a branch.
- */
 import { ERROR_CODE, type ErrorCode, localizeCopy } from '@lustre/shared';
 import { classifyError } from '../../../api';
 import { getLocale } from '../../../i18n/runtime';

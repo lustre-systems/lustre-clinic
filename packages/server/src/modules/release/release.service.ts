@@ -1,31 +1,3 @@
-/**
- * SPEC §15. What the operator's release script (`packages/app/scripts/release.ts`)
- * stages in `RELEASES_DIR`, and `scripts/pushReleases.ts` copies to the clinic:
- *
- *   android/latest.json                 { versionCode, version, size, … }
- *   android/lustre.apk
- *   updates/<runtime>/latest.json       { id } — the update that runtime gets
- *   updates/<runtime>/<id>/manifest.json, signature, and the exported files
- *
- * The manifest is signed on the operator's machine when it is published, so the
- * private key never reaches this server, and it is served byte for byte because
- * the signature covers those bytes.
- *
- * The copy renames each file into place with the pointers last, but it lands
- * file by file and can be interrupted, and a releases directory may have come
- * by other means. So nothing is offered until everything it needs is here: an
- * APK whose size matches its metadata, and an update whose signature and every
- * file its manifest names are present. Offered early, a phone would download
- * the previous APK under the new build number, or fail an update's download on
- * every launch.
- *
- * The APK and the latest update need not be the same release: an OTA update
- * leaves the staged APK as it was, and a fresh install takes the update on its
- * first launch. Each is read on its own.
- *
- * Nothing here throws. No releases at all is where every fresh install starts,
- * and a phone reads "nothing newer" and "no answer" the same way.
- */
 import { join, resolve } from 'node:path';
 import { UPDATES_ASSETS_PATH } from '@lustre/shared';
 import type { BunFile } from 'bun';
@@ -37,8 +9,6 @@ const APK_FILE = 'lustre.apk';
 const apkMetadata = z.object({
     versionCode: z.number().int().positive(),
     version: z.string().min(1),
-    // What the APK's native code is. An APK on a runtime a phone already runs
-    // brings it nothing an OTA update has not, so the phone is not offered it.
     runtimeVersion: z.string().min(1).optional(),
     size: z.number().int().positive().optional(),
 });
@@ -58,9 +28,6 @@ interface PublishedUpdate {
     signature: string;
 }
 
-// Runtime versions are fingerprint hashes, ids are UUIDs and asset paths are
-// what `expo export` writes, so a segment outside this pattern is refused before
-// it reaches the filesystem. `.` and `..` fit the pattern and are refused by name.
 function isSafeSegment(segment: string): boolean {
     return /^[A-Za-z0-9._-]+$/.test(segment) && segment !== '.' && segment !== '..';
 }
@@ -79,7 +46,6 @@ async function readJson(path: string): Promise<unknown> {
     return file ? file.json().catch(() => null) : null;
 }
 
-/** Whether every file the manifest points at is in `updateDir`, under the URL prefix it was published with. */
 async function allFilesPresent(updateDir: string, prefix: string, manifest: unknown): Promise<boolean> {
     const parsed = manifestFiles.safeParse(manifest);
     if (!parsed.success) return false;
@@ -132,8 +98,6 @@ export const releaseService = {
         ]);
         if (!manifest || !signatureFile) return null;
 
-        // Release builds refuse a manifest without a valid signature, so an
-        // unsigned one is no update rather than a failed download every launch.
         const signature = (await signatureFile.text()).trim();
         if (!signature) return null;
 
@@ -143,7 +107,6 @@ export const releaseService = {
         return { id, manifest: await manifest.text(), signature };
     },
 
-    /** `segments` is `<runtime>/<id>/<path inside the export>`. */
     async updateAsset(segments: string[]): Promise<BunFile | null> {
         if (segments.length < 3 || !segments.every(isSafeSegment)) return null;
         return existing(join(releasesDir(), 'updates', ...segments));

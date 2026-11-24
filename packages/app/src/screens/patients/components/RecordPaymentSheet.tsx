@@ -1,23 +1,3 @@
-// The app's only payment entry point. Two questions — how much, and how — and
-// the server allocates the money across the patient's unsettled visits
-// oldest-first (`balance.settle`). Nothing here names a visit, and nothing here
-// does arithmetic on a balance beyond turning typed pounds into piastres: §10's
-// rule is that balances are derived, and the split this sheet reads back is the
-// server's, not a local guess at what it will be.
-//
-// It was `visitId`-shaped until the allocation landed, which is why the desk had
-// to pick a visit off a list before it could take money. That list is gone.
-//
-// Overpayment is refused rather than parked, because a credit balance is not a
-// concept the model has. The entry caps at the amount due and names the real
-// total when it does — "They owe 9,550" is the sentence the desk needs, not
-// "invalid amount". The cap is against piastres, never the rounded pound figure:
-// a 120.50 balance displays as a due of 121, and 121 pounds is more than is owed.
-//
-// The notice lives inside the sheet because `ui/Sheet` is a native Modal and a
-// screen-level toast renders beneath it. The sheet refuses to dismiss mid-write:
-// the write crosses Tailscale, and a sheet closed while it is in flight leaves
-// the outcome unknowable to the person who took the money.
 import { PAYMENT_METHODS, type PaymentMethod } from '@lustre/shared';
 import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
@@ -32,10 +12,8 @@ export type RecordPaymentSheetProps = {
     visible: boolean;
     onClose: () => void;
     patientId: string;
-    /** What the patient owes across every unsettled visit, in piastres. */
     outstanding: number;
     isPending: boolean;
-    /** Localized from `ERROR_CODE`, never parsed from the server's message (§4). */
     error: string | null;
     onSubmit: (input: SettleInput) => void;
 };
@@ -57,10 +35,6 @@ export function RecordPaymentSheet({
     const [note, setNote] = useState('');
     const [notice, setNotice] = useState<string | null>(null);
 
-    // Opening is what resets it, not closing: a sheet that failed keeps what was
-    // typed on screen while the failure is being read. Adjusted during render
-    // against the last `visible` seen, which is React's answer to resetting on a
-    // prop change without remounting — a `key` here would cut the exit animation.
     const [wasVisible, setWasVisible] = useState(visible);
     if (visible !== wasVisible) {
         setWasVisible(visible);
@@ -115,8 +89,6 @@ export function RecordPaymentSheet({
             dismissable={!isPending}
             testID="record-payment-sheet"
             footer={
-                // `ui/Button` swallows a repeat press for 500ms, which on this
-                // screen is the difference between one payment and two.
                 <Button
                     label="Record payment"
                     onPress={submit}
@@ -139,8 +111,6 @@ export function RecordPaymentSheet({
                 variant="display"
                 prefix={t('EGP')}
                 placeholder="0"
-                // No decimal key: the column is integer piastres and piastres
-                // are never entered.
                 keyboardType="number-pad"
                 value={amount}
                 onChangeText={changeAmount}
@@ -159,8 +129,6 @@ export function RecordPaymentSheet({
             ) : null}
 
             <View style={styles.quick}>
-                {/* Full is "settle everything", which is now the common case —
-                    it clears the whole balance rather than one visit's share. */}
                 <Chip
                     label="Full"
                     selected={enteredPounds === duePounds && duePounds > 0}

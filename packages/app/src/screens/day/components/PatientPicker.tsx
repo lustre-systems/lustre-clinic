@@ -1,28 +1,3 @@
-/**
- * Who the booking is for — what `BookPatientSheet` asks, and a component rather
- * than part of it because the same question is asked from the patient record,
- * where the answer is already known and the sheet is skipped entirely
- * (`draftFor`).
- *
- * The search is debounced because every keystroke is otherwise a round trip to
- * a clinic PC over Tailscale, and debouncing keeps the answers arriving in the
- * order they were asked. The state lives in the caller (`PatientDraft`, in
- * `patientDraft.ts` with the rules that judge it) because the answer outlives
- * this component: it is what gets carried to the booking page after the sheet
- * closes.
- *
- * Registering someone is no longer asked here. It used to be the other half of
- * a segmented control — the whole patient record, every field of it, inside a
- * bottom sheet sitting on top of the keyboard. It is a page-sized form and there
- * is already a page for it, so `onRegisterNew` hands the question to
- * `PatientEditScreen` and the answer comes back as a patient on file like any
- * other. What that changes, and it is not nothing: the record is now written
- * when the editor saves rather than with the booking, so a secretary who
- * registers someone and then abandons the booking leaves a patient behind with
- * no appointment. That is the accepted cost of reusing the real editor; the
- * booking's own `{ kind: 'new' }` path is still in `patientRefOf` and is what
- * the walk-in contract is written against.
- */
 import { Pressable, StyleSheet, View } from 'react-native';
 import { phoneText } from '../../../components/domain';
 import { Button, SearchField } from '../../../components/ui';
@@ -35,9 +10,7 @@ import { useDebounced } from '../useDebounced';
 export type PatientPickerProps = {
     value: PatientDraft;
     onChange: (next: PatientDraft) => void;
-    /** The sheet is open — the search does not run behind a closed one. */
     active: boolean;
-    /** Leave for the patient editor. The sheet closes; the draft does not survive it. */
     onRegisterNew: () => void;
 };
 
@@ -162,8 +135,6 @@ function PatientResults({
 const styles = StyleSheet.create({
     step: { gap: space[4] },
     section: { gap: space[3] },
-    // Sits under the results rather than beside the search, so it reads as what
-    // to do when the search has failed to find them — which is when it is wanted.
     register: {
         paddingTop: space[2],
         borderTopWidth: border.hair,

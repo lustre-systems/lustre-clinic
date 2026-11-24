@@ -1,8 +1,3 @@
-// The cluster's logic lives in three places — money formatting, answer
-// draft↔wire conversion, and patch semantics — and there is no renderer in
-// `bun test`, so the components are verified on a device and this covers what
-// would fail silently.
-
 import { describe, expect, it } from 'bun:test';
 import { setRuntimeLocale } from '../../i18n/runtime';
 import {
@@ -20,7 +15,6 @@ import { PatientsRequestError } from './data/requestError';
 import type { CustomQuestion, Patient } from './data/types';
 import type { PatientForm } from './patientForm';
 
-/** The wording, without the isolates `localizeCopy` puts around each value in Arabic. */
 const plain = (text: string) => text.replace(/[\u2068\u2069]/g, '');
 
 import {
@@ -79,7 +73,6 @@ const patient = (over: Partial<Patient> = {}): Patient => ({
     ...over,
 });
 
-/** A form that would be accepted, so a test can break exactly one thing about it. */
 const sound = (over: Partial<PatientForm> = {}): PatientForm => ({
     name: 'Nour El-Sayed',
     phone: '0100 224 8891',
@@ -93,7 +86,6 @@ const sound = (over: Partial<PatientForm> = {}): PatientForm => ({
     ...over,
 });
 
-/** The old-patient block, switched on and filled the way the desk would fill it. */
 const oldOn = (over: Partial<PatientForm['old']> = {}): PatientForm['old'] => ({
     on: true,
     ref: '710',
@@ -125,11 +117,6 @@ describe('money (§7.12, §7.13)', () => {
     });
 });
 
-/**
- * The payment sheet's entry rules. Everything else about a payment — how it
- * splits, whether it is allowed — is the server's; this is only what stands
- * between the keypad and the wire.
- */
 describe('taking a payment — what the field accepts', () => {
     it('accepts digits and an empty field', () => {
         expect(isWholePounds('6000')).toBe(true);
@@ -140,7 +127,6 @@ describe('taking a payment — what the field accepts', () => {
         expect(isWholePounds('12.50')).toBe(false);
         expect(isWholePounds('12.')).toBe(false);
         expect(isWholePounds('12,50')).toBe(false);
-        // Arabic-Indic digits: §7.11 keeps numerals Latin in both languages.
         expect(isWholePounds('١٢')).toBe(false);
         expect(isWholePounds('-5')).toBe(false);
         expect(isWholePounds('1e3')).toBe(false);
@@ -158,12 +144,6 @@ describe('taking a payment — what the field accepts', () => {
         expect(toPounds(12_050)).toBe(121);
     });
 
-    /**
-     * The clamp is against piastres, never the pound figure on screen. An
-     * outstanding of 12,050 displays as a due of 121 pounds, and 121 pounds is
-     * 50 piastres more than is owed — which `balance.settle` now refuses
-     * outright rather than quietly accepting.
-     */
     it('never sends more than the real balance, even when the display rounds up', () => {
         expect(clampToOutstanding(121, 12_050)).toBe(12_050);
         expect(clampToOutstanding(60, 955_000)).toBe(6_000);
@@ -177,19 +157,11 @@ describe('taking a payment — what the field accepts', () => {
         expect(clampToOutstanding(10.7, 955_000)).toBe(1_000);
     });
 
-    // The strip is absent at zero, so the sheet cannot be opened here — this is
-    // the belt to that brace, and `balance.settle` refuses it a third time.
     it('allows nothing against a patient who owes nothing', () => {
         expect(clampToOutstanding(500, 0)).toBe(0);
     });
 });
 
-/**
- * The paper book is one page per patient, so the desk posts one line against one
- * page: what came in, and what is left. The confirmation says exactly that and
- * names no visits — the per-visit split is the server's bookkeeping and matches
- * nothing anyone is holding.
- */
 describe('what a recorded payment says it did', () => {
     it('says what came in and what is still owed', () => {
         expect(plain(paymentReceipt({ amount: 600_000, outstandingAfter: 355_000 }))).toBe(
@@ -197,8 +169,6 @@ describe('what a recorded payment says it did', () => {
         );
     });
 
-    // "EGP 0 still owed" is a true sentence nobody wants to read: closing a page
-    // is a different mark from writing a balance on it.
     it('says paid in full rather than nothing owed', () => {
         expect(plain(paymentReceipt({ amount: 955_000, outstandingAfter: 0 }))).toBe(
             'EGP 9,550 recorded — paid in full',
@@ -210,10 +180,6 @@ describe('what a recorded payment says it did', () => {
         expect(line).not.toMatch(/\d{6}-/);
     });
 
-    // The line is posted from an event handler, so it reads the locale itself
-    // rather than being localized by whatever draws it. The currency goes with
-    // it: `EGP` left in an Arabic sentence is an untranslated string like any
-    // other, and the catalogue test cannot see a sentence built this way.
     it('reads the locale itself, currency included', () => {
         setRuntimeLocale('ar');
         try {
@@ -278,10 +244,6 @@ describe('answers', () => {
         }
     });
 
-    // The reason a boolean draft is a string. `patient-edit.html` draws Yes/No
-    // with neither half filled, and the record counts an absent key as a gap —
-    // so "never asked" has to survive a round trip through the editor without
-    // becoming "No".
     it('keeps a boolean question that was never asked apart from one answered no', () => {
         const yesno = question({ kind: 'boolean' });
 
@@ -317,9 +279,6 @@ describe('the patient form — age is a date of birth (BLOCKED.md)', () => {
         expect(form.age).toBe('41');
     });
 
-    // The guard the whole approximation rests on: a record booked in through
-    // the day cluster carries a real date of birth, and an editor opened to fix
-    // a phone number must not flatten it to 1 January.
     it('never rewrites a real date of birth when the age was not touched', () => {
         const initial = formOf(patient({ age: 34, birthDate: '1992-03-14' }), []);
         const patch = updateInputOf(
@@ -390,8 +349,6 @@ describe('the patient form — what the clinic requires (Settings → Patient fi
         expect(updateInputOf('id', { ...initial, gender: '' }, initial, [], BOTH_ON, TODAY)).toBeNull();
     });
 
-    // A record from before the rule was turned on: it reads fine and is only
-    // asked for the field when someone edits it.
     it('asks a record already without an age or a sex for them the next time it is edited', () => {
         const initial = formOf(patient({ age: null, birthDate: null, gender: null }), []);
         expect(initial.age).toBe('');
@@ -488,9 +445,6 @@ describe('the patient form — what a save sends', () => {
         expect(patch?.custom).toEqual({ allergies: 'None known' });
     });
 
-    // A required question nobody has answered is not the editor's business on an
-    // edit: `patient.update` validates the patch alone, and holding an unrelated
-    // correction hostage to it is what §7.8 exists to avoid.
     it('does not let an unanswered required question hold an edit back', () => {
         const initial = formOf(patient({ custom: {} }), questions);
         const form = { ...initial, phone: '0100 000 0000' };
@@ -501,10 +455,6 @@ describe('the patient form — what a save sends', () => {
         ).not.toBeNull();
     });
 
-    // `validateIntake` wants every *active required* question answered, not just
-    // the ones this screen can draw. A required `date` therefore makes intake
-    // impossible until it stops being required or gets a control (§7.9) — and
-    // the screen has to say so rather than offer a Save that cannot work.
     it('spots a required question it has no control for, so intake fails legibly', () => {
         const asked = question({ key: 'last_visit', kind: 'date', required: true });
 
@@ -517,10 +467,6 @@ describe('the patient form — what a save sends', () => {
         expect(unaskableRequired([blood, optional])).toEqual([]);
     });
 
-    // The server draws the line in `checkSubmitted`: a blank for an active
-    // required question throws rather than deleting the answer. It only ever
-    // sees the keys the patch carries, so "never answered" and "just emptied"
-    // are different cases, and only the second one is refused.
     it('refuses to empty a required answer, because the server refuses that patch', () => {
         const initial = formOf(patient({ custom: { blood: 'O+' } }), questions);
         const form = { ...initial, answers: { ...initial.answers, blood: '' } };
@@ -580,12 +526,6 @@ describe('the patient form — what a save sends', () => {
     });
 });
 
-/**
- * The **Old patient** switch, and the one rule everything about it turns on:
- * off sends nothing. A number typed and then thought better of must not reach
- * the server, and the way it does not is that `createInputOf` leaves the whole
- * block out rather than sending a blank one.
- */
 describe('the Old patient switch', () => {
     const questions: CustomQuestion[] = [];
 
@@ -607,9 +547,6 @@ describe('the Old patient switch', () => {
         expect(input?.old?.ref).toBe('710');
     });
 
-    // The reported case, from the form's side: what the screen sends for old
-    // ref 710 has to be 710 and nothing else. The server keeps it as the
-    // patient's ref, so a blank or a trimmed-away value here is the bug.
     it('sends 710 for a file marked 710', () => {
         const input = createInputOf(
             sound({ old: oldOn({ ref: ' 710 ' }) }),
@@ -627,8 +564,6 @@ describe('the Old patient switch', () => {
         });
         const off = { ...filled, old: { ...filled.old, on: false } };
 
-        // The values are still on screen — a mis-tap that wiped them would be
-        // worse — and none of them is in the payload.
         expect(off.old.ref).toBe('710');
         expect(createInputOf(off, questions, DEFAULT_PATIENT_REQUIREMENTS, TODAY)?.old).toBeUndefined();
     });
@@ -685,10 +620,6 @@ describe('what an old patient owes', () => {
         expect(blank?.old?.openingBalance).toBeUndefined();
     });
 
-    // `12.50` read as `1250` is a hundredfold overcharge told to a patient
-    // months later with no visit to check it against. The keypad has no decimal
-    // key; a paste is the one way punctuation gets in, and it is refused
-    // rather than reinterpreted.
     it('refuses punctuation rather than reading a separator as digits', () => {
         expect(owesInput('12.50')).toBe('12.50');
         expect(owesPiastres('12.50')).toBeNull();
@@ -718,8 +649,6 @@ describe('what an old patient owes', () => {
     });
 });
 
-// Past work is an old visit now, added from the record; registration sends
-// only the number and what they owed.
 describe('old procedures', () => {
     it('are never part of a registration', () => {
         const input = createInputOf(
@@ -732,19 +661,12 @@ describe('old procedures', () => {
     });
 });
 
-/**
- * Correcting the number a record is known by. The screen decides three things
- * — whether the row is drawn, whether what is in it is sound, and whether a
- * save has anything to send — and all three live here.
- */
 describe('the ref', () => {
     describe('refError', () => {
         it('takes a plain number', () => {
             for (const ref of ['1', '910', '100000']) expect(refError(ref)).toBeNull();
         });
 
-        // A patient from before numbering carries a four-character code, and it
-        // is still the number written on their paper file.
         it('takes the code an older file carries, in either case', () => {
             for (const ref of ['W5F5', 'w5f5', 'ABCD', '2345']) expect(refError(ref)).toBeNull();
         });
@@ -780,9 +702,6 @@ describe('the ref', () => {
             expect(refEditOf(from('W5F5'), from('W5F5'))).toBeNull();
         });
 
-        // The server stores refs uppercase, so retyping the same code in
-        // lowercase is not a correction and must not spend a call — or write an
-        // audit row saying the number changed when it did not.
         it('sends nothing when only the case differs', () => {
             expect(refEditOf(from('w5f5'), from('W5F5'))).toBeNull();
         });
@@ -797,31 +716,21 @@ describe('the ref', () => {
             expect(refEditOf(from('  910 '), from('W5F5'))).toBe('910');
         });
 
-        // After a partial save the screen compares against the number that
-        // landed, not the one the record opened with. Against the opening one,
-        // a number the desk changed *again* would still look sent.
         it('compares against the number that already landed', () => {
             const opened = from('W5F5');
             const landed = { ...opened, ref: '910' };
 
-            // Retrying with the landed number: nothing left to send.
             expect(refEditOf(from('910'), landed)).toBeNull();
-            // Changed again after it landed: that change is owed.
             expect(refEditOf(from('911'), landed)).toBe('911');
-            // Put back to what the record opened with: also a real change.
             expect(refEditOf(from('W5F5'), landed)).toBe('W5F5');
         });
 
-        // The record refetched after somebody else changed the number. The
-        // draft still holds the one it opened with, and an unrelated Save must
-        // not send that back as a correction.
         it('does not undo a number someone else changed underneath', () => {
-            const refreshed = from('777'); // the record's latest read
-            const draft = from('W5F5'); // untouched since it was seeded
+            const refreshed = from('777');
+            const draft = from('W5F5');
 
             const baseline = refBaselineOf(refreshed, 'W5F5', null);
             expect(refEditOf(draft, baseline as PatientForm)).toBeNull();
-            // Measured against the refreshed record instead, it would have gone out.
             expect(refEditOf(draft, refreshed)).toBe('W5F5');
         });
 
@@ -835,17 +744,11 @@ describe('the ref', () => {
             expect(refBaselineOf(from('W5F5'), null, null)).toBeNull();
         });
 
-        // A registration holds no ref: the counter hands the number out.
         it('sends nothing while registering', () => {
             expect(refEditOf(sound({ ref: '' }), sound({ ref: '' }))).toBeNull();
         });
     });
 
-    /**
-     * A ref only has to be one this app would issue if it is being changed to.
-     * An old patient's number is their old system's, kept verbatim, and Save
-     * must not be held hostage to a shape nobody typed today.
-     */
     describe('refEditError', () => {
         const on = (ref: string) => sound({ ref });
 
@@ -859,8 +762,6 @@ describe('the ref', () => {
             expect(refEditError(on(' a/1991-07 '), on('A/1991-07'))).toBeNull();
         });
 
-        // The lockout this exists to prevent: a record carrying `A/1991-07`
-        // must still be editable for everything else.
         it('leaves a legacy record editable', () => {
             const initial = on('A/1991-07');
             const edited = { ...initial, phone: '0100 000 0000' };
@@ -882,8 +783,6 @@ describe('the ref', () => {
             expect(saveFailureTitle(false, true)).toBe('The number was saved, the rest was not');
         });
 
-        // An earlier attempt wrote one number; this one tried another and was
-        // refused. The number on screen is not on file.
         it('does not claim the number saved when the ref call is the failure', () => {
             expect(saveFailureTitle(true, true)).toBe('Not saved');
         });
@@ -906,8 +805,6 @@ describe('the ref', () => {
         });
     });
 
-    // `formOf` seeds the editor from the record, so the row opens on the number
-    // that is on file rather than empty.
     it('opens on the number the record carries', () => {
         expect(formOf(patient({ ref: '910' }), []).ref).toBe('910');
     });

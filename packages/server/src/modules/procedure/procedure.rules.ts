@@ -1,25 +1,3 @@
-/**
- * SPEC §5. The rules a requested procedure list must satisfy, shared by visits
- * (what was done) and appointments (what is planned). They live here rather
- * than in either service so the two cannot drift: a list the secretary is
- * allowed to book is exactly a list the doctor is allowed to record.
- *
- * Only a leaf may go on a list; a category row is a heading. `is_tooth_specific`
- * decides whether a tooth belongs on the line at all, so an extraction cannot
- * be filed against no tooth and a consultation cannot be filed against UL6.
- * Uniqueness is per tooth, not per procedure — an extraction on UL6 and one on
- * UR3 are two real lines; tooth-less lines share one empty-string key, keeping
- * the once-per-list rule for them.
- *
- * A general (not dental) clinic is never asked for a tooth. A tooth that still
- * arrives on a tooth-specific line is kept: it is a line written before the
- * switch, sent back unchanged by an edit of that visit.
- *
- * Catalogue reads go out together, but the rules are applied in request order,
- * so the line a client is told about is the first offending one rather than
- * whichever query happened to land first. Callers map the result onto their own
- * row shape: a visit line adds the price snapshot, a planned one adds `sortOrder`.
- */
 import { ERROR_CODE, type Tooth } from '@lustre/shared';
 import { AppError } from '../../errors/AppError.ts';
 import { settingsService } from '../settings/settings.service.ts';

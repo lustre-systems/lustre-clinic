@@ -12,13 +12,6 @@ import {
 import { patientNumberDigits, patientNumberError } from './data/clinic';
 import { minutesFromTime, TEMPLATE_MAX, templateDraft, timeFromMinutes } from './data/reminders';
 
-/**
- * The one shape the settings cluster converts rather than passes through:
- * `reminder_notify_at` is a Postgres `time` and the pane's stepper counts
- * minutes from midnight. A round trip that drifted would move the daily
- * notification every time the pane was opened and saved.
- */
-
 describe('reminder notify time', () => {
     test('reads the column, seconds or not', () => {
         expect(minutesFromTime('00:00')).toBe(0);
@@ -36,7 +29,6 @@ describe('reminder notify time', () => {
     });
 
     test('survives a round trip at every step the pane can land on', () => {
-        // The stepper moves in hours between 6 AM and 9 PM.
         for (let minutes = 6 * 60; minutes <= 21 * 60; minutes += 60) {
             expect(minutesFromTime(timeFromMinutes(minutes))).toBe(minutes);
         }
@@ -48,12 +40,6 @@ describe('reminder notify time', () => {
     });
 });
 
-/**
- * The template field used to write on blur, which on Android is a blur that
- * never arrives when the pane is left by the header or the back gesture: the
- * edit went nowhere and nothing said so. It has an explicit Save now, and what
- * that button may do is decided here.
- */
 describe('the reminder template draft', () => {
     const SAVED = 'Hello {name}, see you {date} at {time}.';
 
@@ -74,7 +60,6 @@ describe('the reminder template draft', () => {
     });
 
     test('does not offer a save that would write the message back unchanged', () => {
-        // The server trims, so this round trips to exactly what is stored.
         const draft = templateDraft(`  ${SAVED}  `, SAVED);
 
         expect(draft.dirty).toBe(false);
@@ -108,9 +93,6 @@ describe('the reminder template draft', () => {
         expect(draft.canSave).toBe(true);
     });
 
-    // The server accepts 1000 characters and this pane holds 320, so a message
-    // saved elsewhere can arrive too long for the field. The pane explains the
-    // unavailable Save; it must not claim the stored message is unsaved.
     test('explains an unsaveable saved message without calling it an edit', () => {
         const draft = templateDraft(null, 'x'.repeat(TEMPLATE_MAX + 10));
 
@@ -120,16 +102,6 @@ describe('the reminder template draft', () => {
     });
 });
 
-/**
- * The patient number is the number the **next new patient will be given**. It
- * used to be the last one handed out, labelled `Last patient number`, and every
- * clinic that typed 910 into it watched the next patient come out as 911 —
- * because the field said "last" and everybody read it as "next".
- *
- * The 910/911 report is asserted on the server, where the counter actually
- * lives (`tests/modules.test.ts`). What is left here is what the field itself
- * can refuse without seeing the register.
- */
 describe('the next patient number', () => {
     test('takes digits and nothing else', () => {
         expect(patientNumberDigits('910')).toBe('910');
@@ -148,8 +120,6 @@ describe('the next patient number', () => {
         expect(patientNumberError('   ')).toContain('next new patient');
     });
 
-    // Zero was valid under the old meaning — "no numbers handed out yet" — and
-    // is not under this one: nobody writes patient 0 at the top of a file.
     test('refuses zero, which the old meaning allowed', () => {
         expect(patientNumberError('0')).toContain('first patient number is 1');
     });
@@ -181,8 +151,6 @@ describe('backup status on the index', () => {
         expect(view.sub).toBe('Last backup today · on this machine only');
     });
 
-    // The dump still runs and still verifies, so nothing else on the phone looks
-    // wrong — this row is the only place the doctor can find out.
     test('a revoked grant outranks everything else on the row', () => {
         const view = backupView(
             {
@@ -225,7 +193,6 @@ describe('backup status on the index', () => {
         const view = backupView({ ...ok, lastSuccessAt: null, stale: true }, now);
         expect(view.tone).toBe('stale');
         expect(view.sub).toBe('No backup yet');
-        // Only `reauthorize` draws a card, so a detail here would never be read.
         expect(view.detail).toBeNull();
     });
 
@@ -245,8 +212,6 @@ describe('backup status on the index', () => {
         expect(onPhone.canSignIn).toBe(true);
         expect(onPhone.account).toBe('doctor@example.com');
 
-        // An operator-only server must not tell the doctor to do something the
-        // app cannot offer.
         const operatorOnly = backupView({ ...broken, offsite: { ...broken.offsite, canSignIn: false } }, now);
         expect(operatorOnly.detail).toContain('Ask whoever set up the clinic server');
         expect(operatorOnly.detail).not.toContain('Open Backups below');
@@ -311,7 +276,6 @@ describe('the Backups pane', () => {
         expect(details.note).toBeNull();
     });
 
-    // The age sits beside a clock time, so it counts midnights, not 24-hour spans.
     test('a backup from before midnight is yesterday, however recent', () => {
         const lastNight = new Date(instantAt('2026-09-19', 23 * 60)).toISOString();
         const details = backupDetails({ ...linked, lastSuccessAt: lastNight }, instantAt('2026-09-20', 60));

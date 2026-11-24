@@ -1,34 +1,3 @@
-// Every patient, and the search over them — `patients-list.html`, followed
-// structurally: the heading with the size of the register beside it and the one
-// way to add to it opposite, the search, then RECENT and the rows.
-//
-// Layout notes that are the design's and not defaults: the list is full-bleed
-// with a hairline above every row, not cards — the register runs edge to edge,
-// and a white rounded block per row stripes it and turns each patient into an
-// object of their own. The RECENT label carries no count; the count is beside
-// the heading, where it is the whole register rather than the length of a page.
-//
-// Arabic and Latin names are one list — rows set no face and `<Text>` picks the
-// script per string (§6). Order is the server's (newest first); the A–Z grouping
-// the design's own note describes is not drawn in it and is not invented here.
-//
-// The list opens on `patient.recent` and switches to `patient.search` once
-// something is typed: `search` answers `[]` for an empty term by design, so
-// browsing is its own procedure. Both are paged, and the next page loads as the
-// end of the list nears. Balances are one query per loaded page, so a money
-// failure costs only those rows' amounts. A refresh or a next page that failed
-// leaves what is loaded up — stale, not gone (§7.14). The search is debounced
-// because it runs over Tailscale; stale answers are dropped by the query key.
-//
-// The section label above the rows is also how the list is ordered: tapped, it
-// drops Recent, Alphabetical and Who owes. Who owes swaps the rows for everyone
-// who owes the clinic (`balance.outstanding`), largest balance first, and the
-// search then filters that list on the phone.
-//
-// Every mode's rows go through the one `renderItem`, as a `PatientRow` that
-// fades up into place (`ui/FadeUp`) the first time that mode shows it — so a
-// mode added to the menu animates like the others without asking to. A doctor's phone is not shown balances,
-// so it has the first two only.
 import { seesPayments } from '@lustre/shared';
 // biome-ignore lint/style/noRestrictedImports: two of them, both external — the imperative `scrollToOffset` on the FlatList ref when the tab is re-tapped, and the search debounce's `setTimeout`
 import { useEffect, useRef, useState } from 'react';
@@ -72,23 +41,7 @@ import { type PatientPrefill, prefillOf } from './patientForm';
 
 export type PatientListScreenProps = {
     onOpen: (patientId: string) => void;
-    /**
-     * Registering someone from here — `PatientEditScreen`, which the cluster
-     * above routes to. Still optional so the screen can be mounted on its own
-     * (a gallery, a test); without a handler the button says where the flow
-     * lives rather than going missing, which is the rule the record's openers
-     * already follow.
-     *
-     * `prefill` is a search that found nobody, offered as the patient to
-     * register — the heading's button passes nothing.
-     */
     onNewPatient?: (prefill?: PatientPrefill) => void;
-    /**
-     * Bumped when the Patients tab is tapped while this screen is already up.
-     * The stack is already home, so what is left is the search field, which is
-     * at the top of a register that can be several screens long. The term
-     * itself is kept — it is what the desk typed, not a route.
-     */
     goHome?: number;
 };
 
@@ -111,20 +64,12 @@ export function PatientListScreen({ onNewPatient, onOpen, goHome = 0 }: PatientL
     const query = useDebounced(term, DEBOUNCE_MS);
     const searching = query.trim().length > 0;
 
-    // A doctor's phone is refused balances by the server, so it does not ask.
     const { granted } = useRole();
     const owing = mode === 'owes' && seesPayments(granted);
     const modes: ListMode[] = seesPayments(granted) ? ['recent', 'name', 'owes'] : ['recent', 'name'];
     const order = mode === 'name' ? 'name' : 'newest';
     const outstanding = useOutstanding(owing);
 
-    // Two queries rather than one keyed by the term: leaving the recent page
-    // mounted means clearing the search puts it straight back without a round
-    // trip, and the register's size stays on the heading while typing.
-    //
-    // Idle, the search resolves to `undefined` rather than `[]` — `[]` is an
-    // answer, and the first keystroke would spend the round trip showing "No
-    // patients found" instead of the skeleton.
     const recent = usePagedQuery(
         ['recent', order],
         (offset) => patientsApi.recent(offset, order),
@@ -142,7 +87,6 @@ export function PatientListScreen({ onNewPatient, onOpen, goHome = 0 }: PatientL
 
     const list = searching ? results : recent;
     const pages = searching ? results.pages : recent.pages?.map((page) => page.patients);
-    // A search answers in its own order; Alphabetical puts what it found A–Z.
     const found = distinct(pages?.flat() ?? []);
     const rows =
         searching && order === 'name' ? [...found].sort((a, b) => a.name.localeCompare(b.name)) : found;
@@ -155,8 +99,6 @@ export function PatientListScreen({ onNewPatient, onOpen, goHome = 0 }: PatientL
         { enabled: seesPayments(granted) },
     );
 
-    // A page whose rows shifted is a new query with no answer yet, so each row
-    // keeps the balance last read for it rather than blinking to nothing owed.
     const lastDue = useRef(new Map<string, number>());
     balances.forEach((page, index) => {
         if (!page.data) return;
@@ -165,8 +107,6 @@ export function PatientListScreen({ onNewPatient, onOpen, goHome = 0 }: PatientL
     });
     const dueByPatient = seesPayments(granted) ? new Map(lastDue.current) : new Map<string, number>();
 
-    // What is on screen, whichever mode drew it. A debtor carries the balance
-    // the report derived; any other row the one read for its page.
     const listed: Listed[] = owing
         ? matchDebtors(outstanding.data?.patients ?? [], term).map((row) => ({
               id: row.patientId,
@@ -175,18 +115,10 @@ export function PatientListScreen({ onNewPatient, onOpen, goHome = 0 }: PatientL
           }))
         : rows.map((patient) => ({ id: patient.id, patient, balance: dueByPatient.get(patient.id) ?? 0 }));
 
-    // A row fades up the first time its mode shows it, and not again when the
-    // list only redraws it — a balance arriving, a page loading under it, or
-    // the virtualized list remounting it after a scroll. Changing mode starts
-    // over, and the mode is in the row's key, so the new list arrives afresh.
     const view = owing ? 'owes' : order;
     const seen = useRef({ view, ids: new Set<string>() });
     if (seen.current.view !== view) seen.current = { view, ids: new Set() };
 
-    // The list on screen and its balances, and no further than that: the record
-    // behind a row is read when it is opened, and the other tabs are refreshed by
-    // their own pull. A refresh while searching re-runs the search, not the whole
-    // list — the term is the query key.
     const pull = usePullToRefresh(
         () => {
             if (owing) return outstanding.refetch();
@@ -196,10 +128,6 @@ export function PatientListScreen({ onNewPatient, onOpen, goHome = 0 }: PatientL
         owing ? outstanding.isLoading : list.loading || balances.some((page) => page.loading),
     );
 
-    // An effect because scrolling is imperative and there is nothing to derive:
-    // the signal is a number that says a tap happened, and the answer is a call
-    // on the view. It is skipped on mount — a list that has just been mounted is
-    // already at the top, and animating there would be a jolt for nothing.
     const scroller = useRef<FlatList<Listed>>(null);
     const shown = useRef(goHome);
     useEffect(() => {
@@ -208,18 +136,6 @@ export function PatientListScreen({ onNewPatient, onOpen, goHome = 0 }: PatientL
         scroller.current?.scrollToOffset({ offset: 0, animated: true });
     }, [goHome]);
 
-    // `keyboardShouldPersistTaps="handled"` below is what lets a result be
-    // tapped in one go while typing: the tap reaches the row instead of being
-    // spent closing the keyboard. The other half of that bargain is this. With
-    // the tap handled, nothing dismisses the keyboard for us, and the list
-    // stays mounted under the record, so the caret stayed in the search field
-    // and the keys were drawn over the record that had just opened — its
-    // contact row, its balance, its actions. `ui/Button` makes the same call on
-    // every press, for the same reason; a row is not a `Button`.
-    //
-    // Every row, not only a search result: with the keyboard already down this
-    // is nothing, and the rule "opening a patient ends the typing that found
-    // them" is easier to keep than one that asks which list the row came from.
     function openPatient(patientId: string) {
         Keyboard.dismiss();
         onOpen(patientId);
@@ -227,17 +143,10 @@ export function PatientListScreen({ onNewPatient, onOpen, goHome = 0 }: PatientL
 
     const register = onNewPatient ?? (() => setToast('Registering a patient is not wired up here yet.'));
 
-    // The term the empty answer was for — `query`, not `term`, so the button
-    // never names something typed since that has not been searched yet.
     const unmatched = searching ? query.trim() : '';
 
     return (
         <View style={styles.screen}>
-            {/* The search field is at the top of this list, so it is never
-                under the keyboard — but the results it is filtering are. The
-                window does not shrink around the keys (`ui/useKeyboardHeight`),
-                so without the padding the last few matches cannot be scrolled
-                clear of them: the content simply ends behind the keyboard. */}
             <FlatList
                 ref={scroller}
                 data={listed}
@@ -293,11 +202,7 @@ export function PatientListScreen({ onNewPatient, onOpen, goHome = 0 }: PatientL
                         <ModeLabel
                             mode={owing ? 'owes' : mode === 'owes' ? 'recent' : mode}
                             modes={modes}
-                            // Search results are not "recent"; the other two still say what order they are in.
                             label={searching && !owing && mode !== 'name' ? 'RESULTS' : undefined}
-                            // The report's own total, hidden while searching rather than
-                            // recomputed over the matches: a figure that shrank as you typed
-                            // would read as the clinic being owed less than it is.
                             owed={owing && !searching ? outstanding.data?.total : undefined}
                             onChange={setMode}
                         />
@@ -339,11 +244,6 @@ export function PatientListScreen({ onNewPatient, onOpen, goHome = 0 }: PatientL
 
 type Listed = { id: string; patient: PatientSummary; balance: number };
 
-/**
- * The section label over the rows, which is also the control that orders them:
- * the eyebrow and its muted colour, a caret beside it, and the menu of the
- * other orders under it. Who owes carries the total owed on the same line.
- */
 function ModeLabel({
     mode,
     modes,
@@ -361,9 +261,6 @@ function ModeLabel({
     const button = useRef<RNView>(null);
     const [anchor, setAnchor] = useState<MenuAnchor | null>(null);
 
-    // The menu is a Modal, so it wants window coordinates; the label sits in a
-    // scroller and says nothing about where it currently is. Measured on press,
-    // because scrolling moves it and nothing tells the label that it did.
     function open() {
         button.current?.measureInWindow((_x, y, _width, height) =>
             setAnchor({ top: y + height + MODE_MENU_GAP, start: size.gutter }),
@@ -378,7 +275,6 @@ function ModeLabel({
                 accessibilityLabel={`${t('Order patients')} — ${t(MODE_LABEL[mode])}`}
                 accessibilityState={{ expanded: anchor !== null }}
                 onPress={open}
-                // A 44px target without a 44px row: the label is an eyebrow over the list.
                 hitSlop={14}
                 style={({ pressed }) => [styles.modeButton, pressed && styles.modePressed]}
                 testID="patients-mode"
@@ -416,10 +312,6 @@ function ModeLabel({
     );
 }
 
-/**
- * An empty answer. A search that found nobody offers them as the patient to
- * register; the empty register and the error state have nothing typed to carry over.
- */
 function NoPatients({
     searching,
     unmatched,
@@ -477,17 +369,11 @@ function MoreFooter({ error, loading, onRetry }: { error?: Error; loading: boole
     ) : null;
 }
 
-/** A registration between two page reads shifts every offset by one, which repeats a row at the seam. */
 function distinct(patients: Patient[]): Patient[] {
     const seen = new Set<string>();
     return patients.filter((patient) => !seen.has(patient.id) && seen.add(patient.id));
 }
 
-/**
- * The design's heading: the word, the size of the register on its baseline, and
- * `New patient` opposite. The count is the clinic's total, not the rows loaded so
- * far. It is absent until the number is known rather than animating up from zero.
- */
 function ListHeader({ total, onNewPatient }: { total?: number; onNewPatient: () => void }) {
     const t = useT();
     return (
@@ -508,13 +394,6 @@ function ListHeader({ total, onNewPatient }: { total?: number; onNewPatient: () 
     );
 }
 
-/**
- * A filled `ink` pill, not `ui/AddButton` — that one is a dashed accent affordance
- * for the end of a list, and this is the screen's one solid action, drawn small
- * and dark opposite the heading. `ui/Button` is 44px at its shortest, which is
- * the height of something you commit to rather than a control riding on a
- * heading's baseline.
- */
 function NewPatientButton({ onPress }: { onPress: () => void }) {
     const t = useT();
     return (
@@ -534,7 +413,6 @@ function NewPatientButton({ onPress }: { onPress: () => void }) {
     );
 }
 
-/** `1284` → `1,284`. Written out rather than left to `Intl`, which Hermes ships cut-down. */
 function grouped(value: number): string {
     return value.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
 }

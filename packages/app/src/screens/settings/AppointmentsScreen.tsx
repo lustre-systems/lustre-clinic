@@ -1,17 +1,3 @@
-/**
- * Settings → Appointments: the list of durations the booking screen offers, and
- * which one it pre-fills.
- *
- * The default is not a separate setting with its own control — it is one of the
- * rows, chosen by tapping its circle, which is why the card reads as a radio
- * group rather than a list with a picker under it. The consequence is the rule
- * the pane has to state and the API has to enforce: the default row has no
- * remove control, because deleting it would leave the booking screen pre-filling
- * a duration that is no longer offered. Pick another default first.
- *
- * Under them, whether the doctor's Finish asks if the procedures need editing
- * first. On until the clinic says otherwise.
- */
 import { MAX_DURATION_MINUTES, MIN_DURATION_MINUTES } from '@lustre/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRef, useState } from 'react';
@@ -38,7 +24,6 @@ import { Pane } from './components/Pane';
 import { ErrorState, SkeletonRows } from './components/QueryStates';
 import { errorText } from './data/errors';
 
-/** The three the mockup offers as one-tap fills, minus whatever is already on. */
 const QUICK_ADDS = [10, 25, 90] as const;
 
 export function AppointmentsScreen({ onBack }: { onBack: () => void }) {
@@ -49,9 +34,6 @@ export function AppointmentsScreen({ onBack }: { onBack: () => void }) {
     const settings = useQuery(trpc.settings.get.queryOptions());
     const [draft, setDraft] = useState('');
 
-    // Every control on this pane writes the same row, so they are one mutation:
-    // the list of durations and which of them is the default are two columns of
-    // `settings`, not three procedures.
     const save = useMutation(
         trpc.settings.update.mutationOptions({
             onSuccess: () => queryClient.invalidateQueries(trpc.settings.pathFilter()),
@@ -60,14 +42,6 @@ export function AppointmentsScreen({ onBack }: { onBack: () => void }) {
 
     const pull = usePullToRefresh(settings.refetch, settings.isFetching);
 
-    /**
-     * Every control on the pane goes through one guarded write. A Radio and a
-     * remove Pressable have no press lock of their own, and `isPending` is state
-     * — two taps in a frame both read the old `false` and the second one writes
-     * a list built from the same stale `durations`, undoing the first. The
-     * guard's ref refuses the overlap outright; a failure clears it, so the tap
-     * can be made again.
-     */
     const write = usePendingAction(
         async (patch: Parameters<typeof save.mutateAsync>[0], after?: () => void) => {
             await save.mutateAsync(patch);
@@ -79,12 +53,6 @@ export function AppointmentsScreen({ onBack }: { onBack: () => void }) {
     const durations = data?.durationOptions ?? [];
     const busy = write.pending;
 
-    /**
-     * Which control is mid-write. One mutation serves all three, so `isPending`
-     * alone put Add's spinner up for a removal two rows above it — the pending
-     * state belongs on the control that was pressed. Set before the mutation,
-     * so the re-render its `isPending` causes reads it.
-     */
     const acting = useRef<'add' | 'row'>('add');
 
     const drafted = Number.parseInt(draft, 10);
@@ -97,8 +65,6 @@ export function AppointmentsScreen({ onBack }: { onBack: () => void }) {
         write.run({ durationOptions: [...durations, drafted].sort((a, b) => a - b) }, () => setDraft(''));
     }
 
-    // The default has to stay bookable, so it cannot be the row you remove.
-    // The pane hides the control on that row; the server refuses it too.
     function onRemove(minutes: number) {
         acting.current = 'row';
         write.run({ durationOptions: durations.filter((d) => d !== minutes) });
@@ -276,12 +242,6 @@ export function AppointmentsScreen({ onBack }: { onBack: () => void }) {
     );
 }
 
-/**
- * Answered on the phone rather than by the server: a duration already offered
- * would be deduplicated silently, and one out of range would come back as a
- * generic validation failure a second later. Both are worth saying under the
- * field while the number is still being typed.
- */
 function draftProblem(minutes: number, offered: readonly number[]): string | undefined {
     if (!Number.isFinite(minutes)) return 'Whole minutes only.';
     if (minutes < MIN_DURATION_MINUTES || minutes > MAX_DURATION_MINUTES) {
@@ -301,8 +261,6 @@ const styles = StyleSheet.create({
         paddingHorizontal: space[3.5],
         paddingVertical: space[3],
     },
-    // The default row is tinted, not bordered: it is the one already chosen,
-    // not the one being pointed at.
     defaultRow: { backgroundColor: color.canvas },
     minutes: { minWidth: 34 },
     rowEnd: { flex: 1, alignItems: 'flex-end' },

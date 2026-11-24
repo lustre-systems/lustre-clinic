@@ -1,15 +1,8 @@
-/**
- * A zone's offset history read off the ICU data of whatever runs it. Only the
- * server and the build call this: a phone's ICU is as old as its OS image, and
- * stale zone data is the bug `clinicTime` exists to route around. It is kept
- * out of the package barrel so the app cannot reach it by accident.
- */
 import type { ClinicZone } from './clinicTime.ts';
 
 const MINUTE = 60_000;
 const DAY = 24 * 60 * MINUTE;
 
-/** Minutes east of UTC for `timeZone` at `at`, DST included. */
 export function utcOffsetMinutes(timeZone: string, at: Date): number {
     return offsetReader(timeZone)(at.getTime());
 }
@@ -41,11 +34,6 @@ function offsetReader(timeZone: string): (at: number) => number {
     };
 }
 
-/**
- * Every offset `timeZone` takes between `from` and `to`. Sampled a day apart,
- * which no real zone has changed twice inside, and each change narrowed to its
- * minute.
- */
 export function zoneSpans(timeZone: string, from: number, to: number): ClinicZone {
     const offsetAt = offsetReader(timeZone);
     const spans: [number, number][] = [[from, offsetAt(from)]];

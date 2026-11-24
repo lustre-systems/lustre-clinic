@@ -1,17 +1,3 @@
-/**
- * The pill under the patient's name on every visit screen. It lives here rather
- * than in each screen's own stylesheet because it was drawn twice and the two
- * drifted: `VisitViewScreen` painted "Completed visit" green and `VisitScreen`
- * painted the same words grey, so the colour changed as you moved between them.
- * One state, one colour, wherever it is read.
- *
- * Green is the mock's `.chip`, grey its `.chip.is-open`, and the split is
- * settled against still open — a visit that is over is history, and everything
- * else is work in hand. Only the chair pulses (`pulse-dot`): the visit is
- * running and the dot says so without a word. Reduced motion leaves it lit
- * rather than hiding it, because the state is the point and the pulse is
- * decoration.
- */
 // biome-ignore lint/style/noRestrictedImports: drives the chair dot's `Animated.loop` imperatively, and stops it on cleanup
 import { useEffect, useRef } from 'react';
 import { Animated, StyleSheet, View } from 'react-native';
@@ -20,12 +6,6 @@ import { useT } from '../../../i18n';
 import { color, radius, space, Text } from '../../../theme';
 import type { Standing } from '../chair';
 
-/**
- * What the chip can say. Beyond the four standings: `arriving` is the arrival
- * screen's own state, where nothing is written yet and claiming a visit is in
- * progress would claim a check-in that has not happened; `unpaid` is a visit
- * that is open and owing, either sent to the desk or reopened to be corrected.
- */
 export type VisitState = Standing | 'arriving' | 'unpaid';
 
 const LABEL: Record<VisitState, string> = {
@@ -37,12 +17,6 @@ const LABEL: Record<VisitState, string> = {
     unpaid: 'Waiting to be paid',
 };
 
-/**
- * Which of the two states a screen is looking at, given where the patient
- * stands and whether the visit itself is closed. A visit reopened for
- * correction stands `finished` — the patient is not in the building — but it is
- * open and owing until it is checked out again, and the chip says so.
- */
 export function visitState(standing: Standing | 'arriving', closed: boolean): VisitState {
     if (standing !== 'finished') return standing;
     return closed ? 'finished' : 'unpaid';

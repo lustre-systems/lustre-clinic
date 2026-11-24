@@ -1,21 +1,3 @@
-/**
- * SPEC §13. Native Bun WebSockets, upgraded in the same `fetch` handler and
- * kept separate from tRPC — with two clients and low volume, tRPC subscriptions
- * are not required.
- *
- * Payloads carry IDs only. The client refetches through tRPC on receipt, so no
- * patient data crosses this channel. The channel is server-to-client only;
- * client messages are ignored. A socket is admitted on the same credential rule
- * as tRPC (`deviceService.admitsSocket`), and closed when its phone is revoked
- * or, for a phone with none, when the clinic starts requiring one.
- *
- * Delivery is at most once per socket, and recovery is the client's to ask for:
- * it reconnects with the `epoch` and last `seq` it applied, and gets the frames
- * it missed replayed from `recent`, or `resync` when they are gone — the process
- * restarted, or more happened than `REPLAY_LIMIT` holds. Either way the client
- * converges on the server's state, and never by trusting a frame's content:
- * every event only says what to refetch.
- */
 import {
     WS_CLOSE_REFUSED,
     WS_PROTOCOL_VERSION,
@@ -34,14 +16,12 @@ export interface Resume {
 export interface WsData {
     connectedAt: number;
     resume: Resume | null;
-    /** Null for a phone with no credential. */
     deviceId: string | null;
 }
 
 type Socket = ServerWebSocket<WsData>;
 type EventFrame = Extract<WsFrame, { type: 'event' }>;
 
-/** A dropped Tailscale link for a few minutes of a clinic morning is tens of events. */
 const REPLAY_LIMIT = 256;
 
 const epoch = Bun.randomUUIDv7();
@@ -57,7 +37,6 @@ export function resumeFrom(url: URL): Resume | null {
     return { epoch: from, since };
 }
 
-/** Null when the gap cannot be filled and the client has to refetch everything. */
 function replayFor(resume: Resume | null): EventFrame[] | null {
     if (!resume || resume.epoch !== epoch || resume.since > seq) return null;
     const oldest = recent[0]?.seq ?? seq + 1;
@@ -67,8 +46,6 @@ function replayFor(resume: Resume | null): EventFrame[] | null {
 
 export const wsHandlers: WebSocketHandler<WsData> = {
     open(ws) {
-        // Synchronous from here to `add`, so no broadcast can land between the
-        // replay and the socket joining the live stream.
         const replay = replayFor(ws.data.resume);
         for (const frame of replay ?? []) ws.send(JSON.stringify(frame));
         const hello: WsFrame = { v: WS_PROTOCOL_VERSION, type: 'hello', epoch, seq, resync: replay === null };
@@ -112,7 +89,6 @@ export function broadcast(event: WsEvent, payload: { id?: string } = {}): void {
     const message = JSON.stringify(frame);
     let dropped = 0;
     for (const ws of sockets) {
-        // 0 is a send Bun dropped outright; the client finds out from the gap.
         if (ws.send(message) === 0) dropped += 1;
     }
     logger.debug({ event, seq, clients: sockets.size, dropped }, 'ws event');

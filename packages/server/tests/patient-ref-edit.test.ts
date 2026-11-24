@@ -7,24 +7,12 @@ import { setupDatabase, sql, truncateAll } from './helpers/db.ts';
 import { expectAppError } from './helpers/factories.ts';
 import { expectTrpcError, startTestServer, type TestServer } from './helpers/trpc.ts';
 
-/**
- * Correcting the number a record is already known by (§5). The number is
- * written on a paper file and read back off it for years, so the wrong one is
- * corrected rather than lived with — and every correction leaves a row saying
- * what it was, what it became, who declared the change and when.
- *
- * The counter is seeded high here on purpose: `assertOldRefUnreserved` refuses
- * a number the sequence has still to hand out, and every case below that is
- * *not* about that rule needs a number safely under it.
- */
-
 let api: TestServer;
 
 async function patient(name = 'Nadia Hassan') {
     return patientService.create({ name, phone: '01012345678', birthDate: '1990-01-01', custom: {} });
 }
 
-/** The counter, moved well clear so a corrected number is one the sequence has passed. */
 async function counterAt(next: number): Promise<void> {
     await settingsService.update({ patientRefNext: next });
 }
@@ -47,9 +35,6 @@ describe('the format a patient ref takes', () => {
         for (const ref of ['1', '7', '910', '100000']) expect(isPatientRef(ref)).toBe(true);
     });
 
-    // The pre-numbering behaviour `util/ref.ts` documents: patients registered
-    // before the counter landed carry a four-character code, which is still the
-    // number on their file and must stay editable and re-typeable.
     test('accepts the four-character code a patient from before numbering carries', () => {
         for (const ref of ['W5F5', 'ABCD', '2345', 'w5f5']) expect(isPatientRef(ref)).toBe(true);
     });
@@ -124,7 +109,6 @@ describe('editing a ref', () => {
             patientService.updateRef({ id: second.id, ref: first.ref, editedBy: 'doctor' }),
         );
 
-        // Refused, and nothing moved.
         expect((await patientService.byId(second.id)).patient.ref).toBe(second.ref);
     });
 
@@ -197,8 +181,6 @@ describe('the audit trail', () => {
         expect(await patientService.refHistory(row.id)).toEqual([]);
     });
 
-    // A screen submitting a field the user never touched must not fill the
-    // trail with rows where nothing moved.
     test('does not record re-typing the ref the record already has', async () => {
         const row = await patient();
 
@@ -222,7 +204,6 @@ describe('the audit trail', () => {
         expect(await patientService.refHistory(second.id)).toHaveLength(1);
     });
 
-    // An audit trail whose rows vanish with the record they describe is not one.
     test('outlives the record it describes', async () => {
         await counterAt(5000);
         const row = await patient();
@@ -236,8 +217,6 @@ describe('the audit trail', () => {
         expect(kept[0]?.count).toBe(1);
     });
 
-    // Kept rows nobody can read are not a trail. The record being gone is the
-    // case the table is retained for, so the read must not require it.
     test('is still readable once the record is gone', async () => {
         await counterAt(5000);
         const row = await patient();

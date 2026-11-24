@@ -1,9 +1,3 @@
-// The field-level rules three clusters share. `day.test.ts`, `patients.test.ts`
-// and `entryForm.test.ts` each cover their own submission shape on top of these;
-// what is here is the rules themselves, at their edges.
-//
-// Pure logic, no renderer: the components beside it import `react-native`, which
-// fails outside Metro, so the rules live here and are tested here.
 import { describe, expect, test } from 'bun:test';
 import {
     ageError,
@@ -30,9 +24,6 @@ describe('phoneError', () => {
         expect(phoneError('0100 224 8891')).toBeNull();
     });
 
-    // The regression this file was started for: judging "answered" on the
-    // stripped string reads a lone `+` as an untouched field and lets it reach
-    // the server, where only `.min(5)` is left to catch it.
     test('a field holding only separators is too short, not unanswered', () => {
         expect(phoneError('+')).not.toBeNull();
         expect(phoneError('+ ')).not.toBeNull();
@@ -57,8 +48,6 @@ describe('emailError', () => {
 });
 
 describe('the age, converted', () => {
-    // The app's one lossy rule: the year is what the desk was told, the day is
-    // not. 1 January reads back as the same age for the rest of the year.
     test('an age becomes 1 January of the year that reads back as it', () => {
         const today = '2026-08-16';
         expect(birthDateOf('34', today)).toBe('1992-01-01');
@@ -112,7 +101,6 @@ describe('calendarIsoOf', () => {
         expect(calendarIsoOf('29022023')).toBeNull();
     });
 
-    // `Number('aa')` is NaN and passes every range check, so the shape is checked first.
     test('refuses anything that is not eight digits', () => {
         for (const bad of [
             'aa012020',

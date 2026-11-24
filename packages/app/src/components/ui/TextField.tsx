@@ -1,16 +1,3 @@
-/**
- * Single-line text input. The face follows the *value*, not the screen: a clinic
- * keeps Arabic and Latin question labels in one list, so an Arabic answer renders
- * in Noto Naskh even on an English screen (Component Inventory §6). An empty
- * field falls back to the placeholder's script so the caret does not jump
- * families on the first keystroke. The placeholder is drawn by `Placeholder`,
- * not by `TextInput` — see there.
- *
- * The ref reaches the inner `TextInput`, which is what makes a bulk entry form
- * possible: submit a row, get an empty form back with the caret already in the
- * first field. Without it the desk taps back into the name between every row of
- * a list that is hundreds long.
- */
 import { forwardRef, useState } from 'react';
 import type { TextInputProps } from 'react-native';
 import { StyleSheet, TextInput, View } from 'react-native';
@@ -26,7 +13,6 @@ export type TextFieldProps = Omit<TextInputProps, 'style' | 'placeholderTextColo
     hint?: string;
     error?: string;
     due?: boolean;
-    /** The underlined control rather than the boxed one. `layout` is the separate question of where the label sits. */
     inline?: boolean;
     layout?: FieldLayout;
 };
@@ -37,8 +23,6 @@ export const TextField = forwardRef<TextInput, TextFieldProps>(function TextFiel
 ) {
     const t = useT();
     const [focused, setFocused] = useState(false);
-    // The placeholder as it will be drawn, so an Arabic one picks the face the
-    // value will then be typed in.
     const shown = placeholder ? t(placeholder) : undefined;
     const arabic = containsArabic(input.value || shown || '');
 

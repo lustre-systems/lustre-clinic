@@ -1,12 +1,3 @@
-/**
- * Writes `src/clinicZone.bundled.ts`: the clinic zone's offsets from this
- * machine's ICU, for the app to use until a server has sent its own (and for
- * one-phone mode, which never has one). Bundled into the JS, so an OTA update
- * carries a fresh one. `clinicZone.bundled.test.ts` fails when Bun's zone data
- * no longer agrees with it, or when it runs out within a year; run this then.
- *
- *   bun packages/shared/scripts/bundle-clinic-zone.ts
- */
 import { join } from 'node:path';
 import { zoneSpans } from '../src/zoneSpans.ts';
 

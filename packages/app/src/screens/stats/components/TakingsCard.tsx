@@ -1,14 +1,3 @@
-// A collected total and one row per payment method, from `balance.takings`
-// less "other" (`shownTakings`), so the shares add up to 100%.
-// Amounts are full, never compact (§7.12). Each row's share is a ratio, not
-// money — nothing is summed here, and the percentage is never rendered as an
-// amount. A method the clinic has never taken is absent rather than a zero row,
-// so the list is as long as the period earns.
-//
-// The share label rides above the head of its own bar rather than sitting in a
-// column: four bars of different lengths read as one comparison that way, and
-// the caret is what ties a label to the bar it belongs to. It is positioned
-// with `start`, not `left`, so it tracks the fill under RTL.
 // biome-ignore lint/style/noRestrictedImports: animates the method bar's width to its new share, and stops it on cleanup
 import { useEffect, useRef } from 'react';
 import { Animated, StyleSheet, View } from 'react-native';
@@ -36,14 +25,8 @@ export function TakingsCard({ takings, label }: TakingsCardProps) {
     const t = useT();
     const { total, byMethod } = takings;
 
-    // Nothing came in is a period with no payment rows, not a period whose
-    // total happens to be zero. Refunds are negative rows, so a day that took
-    // 1,000 and gave 1,000 back nets to zero with two real movements on it —
-    // "Nothing was collected" over them would be false.
     const nothingCollected = byMethod.length === 0;
 
-    // Shares need a positive base. Without one the amounts are still the truth
-    // and the split is not: see `methodShare`.
     const split = hasShareBase(total);
 
     return (
@@ -56,9 +39,6 @@ export function TakingsCard({ takings, label }: TakingsCardProps) {
                     <BankIcon />
                 </View>
 
-                {/* Green means money came in. A net refund is money going the
-                    other way, so it is drawn neutral rather than as a negative
-                    success. */}
                 <MoneyValue
                     amount={total}
                     variant="figure"
@@ -152,8 +132,6 @@ function MethodRow({ row, total, split }: { row: MethodTaking; total: number; sp
                 ) : null}
             </View>
 
-            {/* `MoneyValue` renders a bare Text when the currency is hidden, so
-                the column's width belongs to a box around it. */}
             <View style={styles.amount}>
                 <MoneyValue
                     amount={row.amount}
@@ -213,10 +191,6 @@ const styles = StyleSheet.create({
     },
     fill: { height: '100%', borderRadius: radius.full, backgroundColor: color.success },
 
-    // `start` puts the box's leading edge on the bar's head; the negative
-    // margin pulls it back by half its width so the label centres there. A
-    // zero-width box would centre too, but Android clips the overflow and the
-    // label disappears.
     shareAnchor: {
         position: 'absolute',
         bottom: BAR_HEIGHT + CARET,

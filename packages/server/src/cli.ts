@@ -1,20 +1,3 @@
-/**
- * Entrypoint of the compiled server binary (`bun run build:server`). One binary
- * carries the server and the scripts it is operated with, so the clinic image
- * needs no source tree and no node_modules:
- *
- *   lustre                                          serve (the default)
- *   lustre migrate                                  as MIGRATION_DATABASE_URL
- *   lustre backup                                   one run of the nightly job
- *   lustre drive-authorize                           link the doctor's Drive once
- *   lustre restore <file> [--into <db>] [--key <k>]
- *   lustre seed                                     refuses a production database
- *   lustre grant <role> [label]                     print a one-time role QR (the first admin)
- *   lustre import-local <file>                      a clinic kept on one phone, into an empty server
- *
- * Each script reads its own arguments from argv[2] onward, so the command word
- * is taken out before the script is imported. `Bun.argv` is the same array.
- */
 import { logger } from './logger.ts';
 
 const COMMANDS = {

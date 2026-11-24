@@ -1,11 +1,3 @@
-/**
- * The overflow menu — anchored under the trailing icon button, scaling .94 → 1.
- * The anchor is passed in rather than measured: the trigger is a top-bar button
- * at a fixed inset on every screen that has one, and measuring it would make the
- * menu depend on layout timing for no gain. Exactly one inline edge must be set —
- * start or end, never both — or the surface stretches across the window instead
- * of sitting under its trigger.
- */
 import type { ReactNode } from 'react';
 // biome-ignore lint/style/noRestrictedImports: runs the open/close `Animated.timing` and unmounts on its completion callback, so the menu finishes leaving before it goes
 import { useEffect, useRef, useState } from 'react';
@@ -20,7 +12,6 @@ export type MenuAnchor = {
     top: number;
     end?: number;
     start?: number;
-    /** The trigger's own width, for a menu that drops from a field. */
     width?: number;
 };
 
@@ -88,11 +79,6 @@ export function PopoverMenu({
     );
 }
 
-/**
- * `drop` is a field's menu: it unfolds from the field's edge rather than scaling
- * from its middle, and leaves the page undimmed, since it is part of the form
- * rather than over it.
- */
 export type MenuMotion = 'popover' | 'drop';
 
 export type MenuSurfaceProps = {
@@ -119,9 +105,6 @@ export function MenuSurface({
     const [mounted, setMounted] = useState(visible);
     const reducedMotion = useReducedMotion();
 
-    // Callers clear the anchor in the same update that closes the menu, and the
-    // surface is still on screen for its exit. Without the last anchor held, it
-    // fell back to the default corner and jumped to the top right as it faded.
     const lastAnchor = useRef(anchor);
     if (anchor) lastAnchor.current = anchor;
     const at = anchor ?? (visible ? undefined : lastAnchor.current);
@@ -176,16 +159,10 @@ export function MenuSurface({
             <Animated.View
                 accessibilityRole="menu"
                 accessibilityLabel={accessibilityLabel ? t(accessibilityLabel) : undefined}
-                // Every item closes the menu before it acts, and the menu is
-                // still on screen for the whole exit — so without this a second
-                // tap lands on a row that has already run, and runs it again.
-                // The surface goes dead the moment it is leaving.
                 pointerEvents={visible ? 'auto' : 'none'}
                 style={[styles.surface, { top, ...inline }, width, shape]}
             >
                 {drop ? (
-                    // The rows come in behind the surface, so it reads as
-                    // unfolding rather than as a squashed list stretching.
                     <Animated.View
                         style={{
                             opacity: progress.interpolate({

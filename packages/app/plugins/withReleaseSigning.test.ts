@@ -1,14 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import { applyReleaseSigning, PROPERTIES } from './withReleaseSigning';
 
-/**
- * A release APK signed with the wrong key cannot be installed over the one on a
- * clinic phone without an uninstall, and an uninstall wipes the phone's saved
- * address and role. So the debug fallback is the failure pinned here.
- */
-
-// What `expo prebuild` writes into android/app/build.gradle (SDK 57), trimmed to
-// the blocks the plugin touches.
 const TEMPLATE = `apply plugin: "com.android.application"
 
 def jscFlavor = 'io.github.react-native-community:jsc-android:2026004.+'

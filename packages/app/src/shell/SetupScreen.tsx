@@ -28,25 +28,6 @@ import { signInToDrive } from './driveSignIn';
 import { usePendingJoin } from './joinLink';
 import { applyAddresses, learnTailnetAddress, saveServerAddresses } from './serverStore';
 
-// First run (SPEC §18 F1), and the front door: `app.json` ships no address, so
-// the first launch of a shipped build lands here and someone types where the
-// clinic PC is. A build that does carry a default — a dev machine's, or a
-// clinic that baked its own in — has it probed on boot by
-// `shell/serverStore.ts` and skips this screen when it answers. The rest of
-// the traffic here is the clinic that moved its server and the typo: someone
-// standing in front of the phone, correcting an address that did not answer.
-//
-// A prod build asks for the MagicDNS hostname alone: the clinic server listens
-// only on Tailscale, so there is no LAN address that could answer, and no demo
-// button beside a real clinic's register (`api/variant.ts`). Dev and demo builds
-// keep the LAN field, tried first per §14, and the way into demo mode.
-//
-// Nothing is saved on the strength of the text being well-formed. The button
-// probes, and only an address that answered is written down — a typo that lands
-// the secretary in the offline dead end on the next launch is the one failure
-// this screen exists to prevent. A probe that fails puts the previous addresses
-// back rather than leaving a broken one behind.
-
 type Attempt = { ok: true; address: AddressKind; ms: number } | { ok: false; message: string };
 
 const ADDRESS_LABEL: Record<AddressKind, string> = {
@@ -60,9 +41,6 @@ const DEMO_ALLOWED = allowsDemo(BUILD_VARIANT);
 export function SetupScreen() {
     const t = useT();
     const current = serverAddresses();
-    // A join link names the server its page came from. It fills in what is
-    // empty and nothing else: the person still connects, and a prod build
-    // still refuses an address off the tailnet.
     const suggested = usePendingJoin()?.server ?? null;
     const onTailnet = suggested !== null && isTailnetAddress(suggested);
     const [lan, setLan] = useState(current.lan ?? (LAN_ALLOWED && suggested && !onTailnet ? suggested : ''));
@@ -76,8 +54,6 @@ export function SetupScreen() {
     const [fileProblem, setFileProblem] = useState<string | null>(null);
     const [replacing, setReplacing] = useState<PickedClinic | null>(null);
 
-    // The shell replaces this screen once the flag flips, so success has
-    // nothing to draw.
     async function runLocally() {
         setLocalFailed(false);
         setStartingLocal(true);
@@ -89,8 +65,6 @@ export function SetupScreen() {
         }
     }
 
-    // A new phone or a reinstall: sign in, and the newest backup comes back,
-    // held to every row check, and asking first if it would replace a clinic.
     async function restoreFromDrive() {
         setFileProblem(null);
         setLocalFailed(false);
@@ -160,13 +134,7 @@ export function SetupScreen() {
 
         setAttempt({ ok: true, address: getConnectionState().address ?? 'lan', ms });
 
-        // The server knows its own tailnet address and is now reachable, so ask
-        // rather than keep what was typed — a hand-entered value is the older
-        // of the two the moment the clinic moves. What was typed still stands
-        // in when the clinic has not configured one.
         const learned = await learnTailnetAddress();
-        // The shell replaces this screen as soon as the write lands, so the
-        // success line is the handoff rather than something to dwell on.
         await saveServerAddresses({ lan: candidate.lan, tailscale: learned ?? candidate.tailscale });
     }
 
@@ -247,9 +215,6 @@ export function SetupScreen() {
                         <View style={styles.orRule} />
                     </View>
 
-                    {/* A clinic with no PC to run the server on. Its records
-                        live on this phone, and leave it only as a backup to
-                        the phone's own Google Drive. */}
                     <Button
                         label="Use on this phone only"
                         onPress={() => void runLocally()}
@@ -284,12 +249,6 @@ export function SetupScreen() {
                         </Text>
                     ) : null}
 
-                    {/* The way in to demo mode (the role-code screen offers it too, to a
-                    dev or demo build). It is here rather
-                    than anywhere inside the app because this is the screen a
-                    phone with no clinic behind it lands on, and because a
-                    control that swaps the register for a fake one should not
-                    sit two taps from a real day's work. */}
                     {DEMO_ALLOWED ? (
                         <Button
                             label="Run in demo mode"
@@ -332,8 +291,6 @@ const styles = StyleSheet.create({
         backgroundColor: color.surface,
     },
     heading: { marginTop: space[5] },
-    // The two hints carry what the standfirst used to say, so the fields start
-    // closer to the heading than they did under a paragraph.
     fields: { alignSelf: 'stretch', gap: space[4], marginTop: space[5] },
     action: { marginTop: space[6] },
     result: { flexDirection: 'row', alignItems: 'center', gap: space[2], marginTop: space[2] },

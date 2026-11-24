@@ -1,10 +1,3 @@
-/**
- * Editing the money on a visit already checked out, against the demo backend,
- * in the same steps the phone takes: reopen, rewrite the lines as they were,
- * `setPaid` the new total, close again taking nothing. The server's twin is
- * `packages/server/tests/payment-edit.test.ts`; the two must agree, because a
- * demo that settles differently teaches the desk the wrong thing.
- */
 import { beforeEach, describe, expect, it, mock } from 'bun:test';
 import { ERROR_CODE } from '@lustre/shared';
 
@@ -37,7 +30,6 @@ function checkedOutUnpaid() {
     const work = db.procedureTypes.find((row) => row.name === 'Scaling & polishing');
     if (!branch || !patient || !work) throw new Error('the seed is missing its fixtures');
 
-    // Booked clear of the seed's week, then brought to now for the check-in.
     const appointment = appointmentHandlers.create({
         patient: { kind: 'existing', patientId: patient.id },
         branchId: branch.id,
@@ -146,7 +138,6 @@ describe('editing the payment on a checked-out visit (demo)', () => {
                 method: 'cash',
             }),
         ).toThrow(DemoError);
-        // Refused before anything moved: still open, still owing all of it.
         const visit = visitHandlers.byId({ id: visitId });
         expect(visit.completedAt).toBeNull();
         expect(visit.balance).toBe(charged);

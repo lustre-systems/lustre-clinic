@@ -1,17 +1,3 @@
-/**
- * SPEC §16 — linking the clinic's off-site backups to a Google account from the
- * phone, which is the one thing in this app that changes where patient data
- * goes.
- *
- * The refresh token never touches the handset. The browser hands back an
- * authorization code, the code goes to the server, and the server exchanges it
- * for the token it will keep. A code is single-use and worthless without the
- * verifier that produced it, so nothing durable is exposed if this call is seen.
- *
- * The client is an Android OAuth client, which Google issues without a secret —
- * PKCE is what stands in for one, and `expo-auth-session` generates the
- * verifier and challenge.
- */
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import * as AuthSession from 'expo-auth-session';
 import { useTRPC } from '../../../api';
@@ -47,14 +33,9 @@ export function useDriveSignIn() {
             redirectUri: config.redirectUri,
             scopes: [config.scope],
             usePKCE: true,
-            // Without `access_type` Google returns an access token only, and the
-            // server has nothing to mint tomorrow night's upload with. `hl` keeps
-            // Google's own screens in the app's language: they otherwise follow
-            // the Google account, which on a clinic phone is often not Arabic.
             extraParams: { access_type: 'offline', prompt: 'consent', hl: getLocale() },
         });
 
-        // Google's screens leave the app; coming back must not restart it into an update mid-link.
         return withUpdatesHeld(async () => {
             const result = await request.promptAsync(DISCOVERY);
             if (result.type !== 'success') return { kind: 'cancelled' };

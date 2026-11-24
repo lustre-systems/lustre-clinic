@@ -1,15 +1,3 @@
-/**
- * Failures, in the words the secretary needs. §4/§14: the client localizes
- * from `ERROR_CODE` and never parses the server's message, which stays English
- * for the logs. The switch picks the English sentence and `localize` takes it
- * through the shared catalogue on the way out, so the Arabic lives beside every
- * other string in the app rather than in a second table keyed by code. The rule
- * for the copy: say what happened to the thing on screen, then what to do about
- * it. The SLOT_OVERLAP case matters most — double-booking is a Postgres
- * exclusion constraint, and a secretary standing in front of the patient has to
- * know the slot is gone, not that "something went wrong", or she tells them
- * they are booked and they are not.
- */
 import { ERROR_CODE, localizeCopy } from '@lustre/shared';
 import { getLocale } from '../../i18n/runtime';
 import type { RequestError } from './data';

@@ -1,15 +1,3 @@
-/**
- * A visit opened from outside the day view — a row in a patient's history. It
- * is the whole stack in one component (read → edit → pay) so a caller in
- * another cluster needs nothing from `day/data`: two ids in, a close callback
- * out. `DayScreen` keeps its own copy of the stack because it already holds the
- * appointment and the visit and would only be handing them back to be fetched
- * again.
- *
- * The two reads go together because the screens want both: the visit carries
- * the lines and the payments, and the appointment carries whose visit it is and
- * when. Neither is on the history row.
- */
 import { useRef, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { Banner, Button, PushView } from '../../../components/ui';
@@ -27,21 +15,15 @@ export type VisitPageProps = {
     appointmentId: string;
     visitId: string;
     onClose: () => void;
-    /** Something was written, so whatever is underneath is now stale. */
     onChanged?: () => void;
 };
 
-/** The pages over the read-only one, which is this component's own root. */
 type Route = 'treatment' | 'payment';
 
 export function VisitPage({ appointmentId, visitId, onClose, onChanged }: VisitPageProps) {
     const t = useT();
-    // The reopened / repriced visit, once a write has moved it on from what was
-    // read. Null means "still what the server first said".
     const [edited, setEdited] = useState<Visit | null>(null);
-    // A payment corrected without the editor writes too, and never sets `edited`.
     const paid = useRef(false);
-    // The payment page, mid-write: the hardware back is held until it lands.
     const [paying, setPaying] = useState(false);
 
     const appointment = useLocalQuery(`appointment:${appointmentId}`, () =>
@@ -53,14 +35,6 @@ export function VisitPage({ appointmentId, visitId, onClose, onChanged }: VisitP
     const priced = visit ? pricedVisit(visit) : null;
     const failure = appointment.error ?? loaded.error;
 
-    /**
-     * Asked to close, and not yet gone. Closing is the caller's `pop`, and this
-     * page stays mounted and drawn for the whole of the slide that follows it —
-     * so between the two there is a window where every way out is still live.
-     * A second back press in it would close twice: the caller's second `pop`
-     * takes the screen *underneath* with it, and an edited visit reports its
-     * change to that screen twice over.
-     */
     const closing = useRef(false);
 
     function close() {
@@ -70,21 +44,6 @@ export function VisitPage({ appointmentId, visitId, onClose, onChanged }: VisitP
         onClose();
     }
 
-    /**
-     * The stack is inside this component, so back is answered here too — the
-     * caller sees one page and cannot walk it. `atRoot` is why the press is
-     * claimed all the way down rather than falling through: leaving through
-     * `close` is what tells the screen underneath that the totals have moved,
-     * and the caller's own close would skip that.
-     *
-     * It claims the press once closing too, where `close` no longer does
-     * anything. Declining would hand it to the caller's own handler, which is
-     * the pop that would take the screen underneath.
-     *
-     * The two states below return before their screens are drawn and after
-     * this, so the stack is empty there and back closes — which is what their
-     * own Back button does.
-     */
     const routes = useRouteStack<Route>({
         locked: paying,
         atRoot: () => {
@@ -115,8 +74,6 @@ export function VisitPage({ appointmentId, visitId, onClose, onChanged }: VisitP
         );
     }
 
-    // Bound out of the query so the narrowing above survives into the callback
-    // below, which TypeScript cannot see is only reached past those returns.
     const appointmentData = appointment.data;
 
     return (
@@ -125,11 +82,7 @@ export function VisitPage({ appointmentId, visitId, onClose, onChanged }: VisitP
                 appointment={appointmentData}
                 visit={visit}
                 onBack={close}
-                // Nothing is written on the way in, so the record underneath is
-                // not stale yet — `onConfirm` is what makes it so.
                 onEdit={() => routes.push('treatment')}
-                // Gone, so there is nothing to come back to: leave the way an
-                // edit leaves, telling the record underneath it moved.
                 onDeleted={() => {
                     paid.current = true;
                     close();
@@ -152,21 +105,11 @@ export function VisitPage({ appointmentId, visitId, onClose, onChanged }: VisitP
                             key={`edit:${visit.id}`}
                             appointment={appointmentData}
                             visit={visit}
-                            // Always a checkout here: this page is opened off a
-                            // history row, so the arrival is long past. And
-                            // always a finished one — the visit was closed and
-                            // has been reopened to be corrected, so the patient
-                            // is not in the building and the desk is not
-                            // anywhere they can be sent.
                             mode="checkout"
                             standing="finished"
                             onBack={routes.pop}
                             onConfirm={(priced) => {
                                 setEdited(priced);
-                                // The note is written onto the appointment, not
-                                // the visit, so the priced visit coming back
-                                // says nothing about it — the read-only page
-                                // underneath would go on showing the old one.
                                 appointment.refetch();
                                 routes.push('payment');
                             }}
@@ -178,15 +121,9 @@ export function VisitPage({ appointmentId, visitId, onClose, onChanged }: VisitP
                             key={`pay:${visit.id}:${priced.chargedTotal}`}
                             appointment={appointmentData}
                             visit={priced}
-                            // Always: this page only ever reaches the money by
-                            // way of reopening a visit that was checked out.
                             correcting
                             onWritingChange={setPaying}
                             onBack={routes.pop}
-                            // `close` rather than the two calls it makes: the
-                            // money is only reached by way of a confirm, which
-                            // is what set `edited`, so it reports the change on
-                            // this path too — and it is the guarded way out.
                             onClosed={() => {
                                 paid.current = true;
                                 close();

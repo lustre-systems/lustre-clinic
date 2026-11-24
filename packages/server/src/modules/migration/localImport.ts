@@ -1,16 +1,3 @@
-/**
- * A clinic that ran on one phone (the app's local mode), moved onto this
- * server: a snapshot of it, written into an empty clinic in one
- * transaction. Reachable from `scripts/import-local.ts` and nowhere else — it
- * replaces the clinic's setup wholesale, which is an operator's act on the
- * server and not something a phone should be able to send.
- *
- * "Empty" is no patients and no appointments. Branches, hours, the catalogue
- * and the patient fields a fresh server may already hold are replaced by the
- * phone's, since nothing points at them yet. The phones and role codes are the
- * server's and stay: the phone's credential means nothing here, so whoever
- * moved the clinic issues the first admin with `lustre grant admin` as usual.
- */
 import { Database } from 'bun:sqlite';
 import {
     assembleLocalClinicFile,
@@ -42,7 +29,6 @@ import {
 } from '../../db/schema.ts';
 import { AppError } from '../../errors/AppError.ts';
 
-/** Well under Postgres's 65,535 bind parameters for the widest table here. */
 const CHUNK = 500;
 
 export interface LocalImportSummary {
@@ -54,7 +40,6 @@ export interface LocalImportSummary {
     payments: number;
 }
 
-/** The phone's gzipped SQLite snapshot, every row checked against the shared schema. */
 export function parseLocalClinicFile(gzipped: Uint8Array): LocalClinicFile {
     let assembled: unknown;
     try {
@@ -88,7 +73,6 @@ async function insertAll<T extends PgTable>(executor: Executor, table: T, rows: 
     }
 }
 
-/** Parents before their subtypes, or the self-reference refuses the child. */
 function parentsFirst<T extends { parentId: string | null }>(rows: T[]): T[] {
     return [...rows.filter((row) => row.parentId === null), ...rows.filter((row) => row.parentId !== null)];
 }
@@ -97,8 +81,6 @@ export async function importLocalClinic(file: LocalClinicFile): Promise<LocalImp
     const clinic = file.db;
 
     await db.transaction(async (tx) => {
-        // A phone registering a patient while this runs would make the clinic
-        // not empty after the check below has said it was.
         await tx.execute(sql`LOCK TABLE patients, appointments IN SHARE ROW EXCLUSIVE MODE`);
         const [held] = await tx.execute<{ patients: number; appointments: number }>(sql`
             SELECT (SELECT count(*) FROM patients)::int AS patients,
@@ -145,8 +127,6 @@ export async function importLocalClinic(file: LocalClinicFile): Promise<LocalImp
         await insertAll(tx, reminders, clinic.reminders);
         await insertAll(tx, refEdits, clinic.refEdits);
 
-        // Whether a phone needs a role code is about this server's phones, not
-        // the one the clinic came from, so the server's own answer stays.
         const { requireProvisioning: _, ...setup } = clinic.settings;
         const values = { ...setup, updatedAt: new Date() };
         await tx

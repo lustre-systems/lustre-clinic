@@ -1,23 +1,3 @@
-/**
- * `primary` is an ink fill, not blue (Component Inventory §3.1); `accent` is the
- * handful of places that really are blue-filled, and `inverse` a white fill on
- * the black chair card. `text` is the quiet affirmative — Try again, Answer —
- * and stays blue; `dangerText` is its destructive twin at the same weight, so a
- * step that undoes something never wears the colour of Try again. `loading` is
- * a hard requirement: every write crosses
- * Tailscale to the clinic PC, and a button that looks idle mid-flight gets
- * tapped again — a second tap on Book is a second booking. The label stays
- * mounted and keeps its width while loading; `pressLockMs` covers the frame
- * between the finger going down and the caller's state flipping.
- *
- * `disabled` is two colours rather than one opacity, and one per variant. An
- * opacity moves fill and label together, so a disabled `primary` fades an ink
- * fill and white type into the same grey and `3 required left` — the sentence
- * that says how to bring the control back — goes with it. The design draws
- * `rgba(0,0,0,.12)` under `rgba(0,0,0,.45)`: `surface2` under `muted`, where
- * the label darkens as the fill lightens. The two text variants have no fill to
- * lighten, so they only lose their colour.
- */
 import type { ReactNode } from 'react';
 import type { StyleProp, ViewStyle } from 'react-native';
 import { ActivityIndicator, Keyboard, Pressable, StyleSheet, View } from 'react-native';
@@ -111,17 +91,11 @@ export function Button({
     const shownLabel = t(label);
     const lock = usePressLock(pressLockMs);
     const inert = disabled || loading;
-    // A button that refuses the press always looks it. One that kept its fill
-    // while disabled read as a screen that had frozen, not as a step unfinished.
     const dimmed = disabled;
 
     function handlePress() {
         if (inert || !onPress) return;
         lock(() => {
-            // A press is the end of typing. Left up, the keyboard covers whatever
-            // the press opens next — a booking's second step, a save's result. A
-            // screen that wants the caret back (data entry's next row) focuses a
-            // field afterwards, which raises it again.
             Keyboard.dismiss();
             onPress();
         });
@@ -159,10 +133,6 @@ export function Button({
 
             {loading && (
                 <View style={styles.spinner} pointerEvents="none">
-                    {/* A button can be loading and disabled at once — `ActionBar`
-                        passes both to its primary. The spinner follows the label
-                        onto the light fill, or a white one lands on `surface2`
-                        and the button reads as doing nothing at all. */}
                     <ActivityIndicator size="small" color={dimmed ? color.muted : SPINNER[variant]} />
                 </View>
             )}
@@ -212,8 +182,6 @@ const styles = StyleSheet.create({
     pressed: { opacity: 0.72 },
 
     disabledFilled: { backgroundColor: color.surface2 },
-    // The outlined variants keep their border, at `line` rather than at their
-    // own colour: a disabled Delete drawn in `danger` red still shouts.
     disabledOutlined: { backgroundColor: color.surface2, borderColor: color.line },
     disabledBare: { backgroundColor: color.transparent },
 });

@@ -33,8 +33,6 @@ async function hydrate(): Promise<void> {
 const subscribe = hydratingSubscribe(listeners, hydrate);
 const getSnapshot = () => current;
 
-/** Not a hook: the language toggle is the only caller and it sets the
- * preference rather than reading it, so there is nothing to subscribe to. */
 export function setLocale(next: Locale): void {
     if (next === current) return;
     emit(next);

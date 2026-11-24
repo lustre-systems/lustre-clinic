@@ -1,17 +1,3 @@
-/**
- * SPEC §6, §13 — the doctor view's numbers for a period, and the owner's stats
- * screen. Everything here is an aggregate over the same rows the rest of the
- * app writes; nothing is stored separately, so a stat can never drift from what
- * happened.
- *
- * `outstanding` is the standing balance — what is still owed right now — not a
- * per-period figure.
- *
- * Profit is revenue less cost. Revenue is what the period's visits were
- * charged; cost is each line's `unit_cost`, snapshotted from the procedure when
- * the visit was priced, so a cost entered later leaves past profit alone and a
- * visit from before costs existed counts as costing nothing.
- */
 import { and, asc, desc, eq, gte, isNull, lt, sql } from 'drizzle-orm';
 import { db } from '../../db/index.ts';
 import {
@@ -53,7 +39,6 @@ interface BranchFigures {
     revenue: number;
     cost: number;
     profit: number;
-    /** Days this branch saw at least one visit. */
     workingDays: number;
 }
 
@@ -63,13 +48,10 @@ interface StatsFigures {
     revenue: number;
     cost: number;
     profit: number;
-    /** Registered in the period, imports left out. */
     newPatients: number;
-    /** Only branches that saw a visit in the period. */
     branches: BranchFigures[];
 }
 
-/** A bigint sum reaches the driver as a string; see `piastres` in `balance.service.ts`. */
 function amount(total: string | number | null): number {
     return total === null ? 0 : Number(total);
 }
@@ -81,8 +63,6 @@ async function figuresFor(period: StatsPeriod): Promise<StatsFigures> {
     const to =
         period.toMinute === undefined ? last.to : new Date(last.from.getTime() + period.toMinute * 60_000);
 
-    // Per visit rather than joined line by line, which would repeat a visit's
-    // charge once for every line it has.
     const lineCost = db
         .select({
             visitId: visitProcedures.visitId,
@@ -94,13 +74,8 @@ async function figuresFor(period: StatsPeriod): Promise<StatsFigures> {
         .groupBy(visitProcedures.visitId)
         .as('line_cost');
 
-    // The local day a visit fell on. One offset for the whole period is enough
-    // here: the two regimes only disagree about the hour around midnight, and
-    // nobody is in the chair then.
     const localDay = sql`((${appointments.startsAt} AT TIME ZONE 'UTC') + make_interval(mins => ${period.offsetMinutes}))::date`;
 
-    // Opening-balance and imported rows are left out for the reason `summary`
-    // gives: they are another system's work, not this clinic's.
     const byBranch = await db
         .select({
             branchId: branches.id,
@@ -161,7 +136,6 @@ export const statsService = {
         return figuresFor(input);
     },
 
-    /** One entry per period, in the order asked for: the chart's points and the branch bars. */
     trend(periods: StatsPeriod[]): Promise<StatsFigures[]> {
         return Promise.all(periods.map(figuresFor));
     },
@@ -170,12 +144,6 @@ export const statsService = {
         const { from } = dayRange(input.from, input.offsetMinutes);
         const { to } = dayRange(input.to, input.offsetMinutes);
 
-        // Opening-balance rows are debt the clinic inherited, not a day's work:
-        // counting them would report a cutoff date on which hundreds of
-        // patients were seen and a fortune was billed. `outstanding` below is
-        // the one figure that does include them, because they are still owed.
-        // Imported rows are the same argument about work rather than money —
-        // the old system saw those patients, this clinic did not.
         const inPeriod = and(
             gte(appointments.startsAt, from),
             lt(appointments.startsAt, to),

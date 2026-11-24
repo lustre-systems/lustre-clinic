@@ -6,13 +6,6 @@ import { APK_PATH, UPDATES_ASSETS_PATH, UPDATES_MANIFEST_PATH } from '@lustre/sh
 import { config } from '../src/config.ts';
 import { startTestServer, type TestServer } from './helpers/trpc.ts';
 
-/**
- * The releases a phone can reach (§15): the APK Settings offers, and the
- * expo-updates manifest a release build asks for on every launch. A wrong
- * answer is an install prompt that never goes away, or a fleet that never hears
- * about a fix, so the no-update paths are pinned as closely as the update.
- */
-
 const RUNTIME = '3f1c0de4a9b2';
 const UPDATE_ID = '0f6e2b8a-6a8e-4d49-9a0a-6f3b8b8e0d11';
 const SIGNATURE = 'sig="c2lnbmVk", keyid="main"';
@@ -116,7 +109,6 @@ describe('release.latestApk', () => {
 
     test('is null while the APK beside the metadata is not the one it describes', async () => {
         await publishApk();
-        // A copy that has landed the new metadata but not yet the new APK.
         await put('android/lustre.apk', 'PK-the-previous-apk-which-is-longer');
         expect(await server.client.release.latestApk.query()).toBeNull();
     });
@@ -185,7 +177,6 @@ describe(UPDATES_MANIFEST_PATH, () => {
     });
 
     test('serves the latest update on an APK staged releases ago', async () => {
-        // An OTA ship leaves the APK alone, so a fresh install of 1.0.0 asks for, and gets, the 1.0.3 update.
         await publishApk();
         await publishUpdate();
         await put(

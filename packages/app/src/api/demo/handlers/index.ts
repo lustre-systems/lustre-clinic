@@ -1,12 +1,3 @@
-/**
- * Every procedure on `AppRouter`, by path.
- *
- * The whole router is here rather than the subset the screens happen to call
- * today: a demo that answers 40 of 54 procedures is a demo that works until
- * someone opens the one screen nobody thought of, on stage. A procedure added
- * to the server and missed here fails the exhaustiveness check below at compile
- * time rather than at the tap.
- */
 import type { RouterInput } from '../../types';
 import { appointmentHandlers } from './appointment';
 import { backupHandlers } from './backup';
@@ -24,14 +15,8 @@ import { settingsHandlers } from './settings';
 import { statsHandlers } from './stats';
 import { visitHandlers } from './visit';
 
-/**
- * `never` in the parameter is what lets handlers with different input types
- * share one table: every function type is assignable to it, and the single cast
- * that pays for it lives in `resolve` below.
- */
 type Handler = (input: never, caller: DemoCaller) => unknown;
 
-/** Every `module.procedure` string the router exposes, off the inferred inputs. */
 type Path = {
     [M in keyof RouterInput]: `${M & string}.${keyof RouterInput[M] & string}`;
 }[keyof RouterInput];
@@ -131,13 +116,10 @@ const handlers = {
     'device.setRequireProvisioning': settingsHandlers.setRequireProvisioning,
 } as const satisfies Record<Path, Handler>;
 
-// `in` would also answer for `toString` and `constructor`, and `resolve` would
-// then call the prototype method instead of leaving `link.ts` to refuse.
 export function hasHandler(path: string): path is Path {
     return Object.hasOwn(handlers, path);
 }
 
-/** The one cast: `resolve` is called with whatever the client sent for `path`. */
 export function resolve(path: Path, input: unknown, caller: DemoCaller): unknown {
     return handlers[path](input as never, caller);
 }

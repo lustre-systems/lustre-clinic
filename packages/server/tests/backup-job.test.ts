@@ -1,12 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import { isBackupDue } from '../src/background/backup.job.ts';
 
-/**
- * SPEC §16. The interval counts from boot, so this is what decides whether a
- * restart backs up now or waits a full interval. Getting it wrong on the "not
- * due" side is how a clinic with daily power cuts goes without backups.
- */
-
 const HOUR = 3_600_000;
 const INTERVAL = 24 * HOUR;
 const NOW = Date.parse('2026-09-13T12:00:00Z');

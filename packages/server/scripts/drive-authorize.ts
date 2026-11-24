@@ -1,4 +1,3 @@
-/** One-time operator flow for linking the doctor's Google Drive account. */
 import { createHash, randomBytes } from 'node:crypto';
 import { createDriveFolder, createOAuthAuthorizationUrl, exchangeOAuthCode } from '../src/backup/drive.ts';
 

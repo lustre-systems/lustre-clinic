@@ -1,14 +1,3 @@
-/**
- * Local mode is a real clinic answered from the phone. What it must never do is
- * the thing the demo is allowed to: say a write was saved when the file did not
- * take it, or replace a clinic it could not read with an empty one.
- *
- * The file system is an in-memory stand-in with the two behaviours that matter
- * here — a write that can be made to fail, and a move that replaces the target —
- * plus a file picker and a share sheet that hand over and take whatever the
- * test says.
- */
-
 import { Database } from 'bun:sqlite';
 import { afterEach, beforeEach, describe, expect, it, mock } from 'bun:test';
 import { gunzipSync, gzipSync } from 'fflate';
@@ -16,7 +5,6 @@ import { gunzipSync, gzipSync } from 'fflate';
 const stored = new Map<string, string>();
 const files = new Map<string, string | Uint8Array>();
 let writesFail = false;
-/** The backup the next `pickClinicFile` reads, as Drive would hand it back. */
 let pickable: string | Uint8Array = '';
 
 mock.module('@react-native-async-storage/async-storage', () => ({
@@ -31,7 +19,6 @@ mock.module('expo-constants', () => ({
     default: { expoConfig: { extra: { demo: false, driveClientId: 'client' } } },
 }));
 
-// A clinic's own build: local mode must not depend on the demo being allowed.
 mock.module('../config', () => ({ BUILD_VARIANT: 'prod' }));
 
 class MemoryFile {
@@ -84,7 +71,6 @@ mock.module('expo-file-system', () => ({
     Paths: { document: 'documents', cache: 'cache' },
 }));
 
-/** Real SQLite, in memory: the transaction is what these tests are about. */
 const sqlite = new Database(':memory:');
 
 function opened(database: Database) {
@@ -116,7 +102,6 @@ function resetStore(): void {
     `);
 }
 
-/** What a table holds in the store, not in memory. */
 function storedRows<T>(table: string): T[] {
     return sqlite
         .query('SELECT json FROM clinic_rows WHERE tbl = ? ORDER BY seq')
@@ -131,7 +116,6 @@ mock.module('expo-secure-store', () => ({
     deleteItemAsync: (key: string) => Promise.resolve(void secure.delete(key)),
 }));
 
-/** Google, as much of it as the backups talk to. */
 const drive = {
     files: [] as { id: string; name: string; createdTime: string; size: string; bytes: Uint8Array }[],
     uploads: 0,
@@ -228,7 +212,6 @@ async function pickClinicFile() {
 const LEGACY = 'lustre-local.json';
 const STORED = 'SELECT count(*) AS n FROM clinic_rows';
 
-/** A launch: nothing in memory, whatever is in storage and on file. */
 function relaunch(): void {
     setDb(freshLocalDb(), 'demo');
 }
@@ -250,7 +233,6 @@ beforeEach(async () => {
     relaunch();
 });
 
-// The flag is module state, and bun runs the other files in this process too.
 afterEach(disableLocalMode);
 
 describe('the clinic file', () => {
@@ -402,7 +384,6 @@ describe('a phone from before the store', () => {
     });
 });
 
-/** Another phone's clinic, before it is exported: one branch of its own and a patient. */
 function anotherPhonesClinic() {
     const db = freshLocalDb();
     db.branches[0] = { ...db.branches[0], name: 'Dokki' } as (typeof db.branches)[number];
@@ -428,7 +409,6 @@ function anotherPhonesExport(): Uint8Array {
     return clinicSnapshot(anotherPhonesClinic(), EXPORTED_AT);
 }
 
-/** A snapshot with whatever the test wants in it, rather than what the app would write. */
 function handMadeSnapshot(rows: [string, string, string][], meta: [string, string][]): Uint8Array {
     const snapshot = new Database(':memory:');
     snapshot.exec(LOCAL_CLINIC_TABLES_SQL);
@@ -457,8 +437,6 @@ describe('the clinic leaving the phone', () => {
         expect(parsed.success ? null : parsed.error.issues.slice(0, 3)).toBeNull();
     });
 
-    // Zod drops a key it does not know, so a column added to the rows and not to
-    // the schema would vanish on the way to a server without anything failing.
     it('has every field of every row in the shared format', () => {
         const file = JSON.parse(serializeLocal(seedDemoDb()));
         const parsed = localClinicFileSchema.parse(file);
@@ -505,7 +483,6 @@ describe('backups to Google Drive', () => {
         expect(status.staleAfterHours).toBe(48);
     });
 
-    // A cold launch of a phone already in local mode never calls `startLocalMode`.
     it('still knows it is linked after a cold launch', async () => {
         await linkedClinicWithAPatient();
         const at = await backUpToDrive();
@@ -704,7 +681,6 @@ describe('a clinic file brought back', () => {
         const branches = await client.branch.list.query({ includeInactive: true });
         expect(branches.map((branch) => branch.name)).toEqual(['Dokki']);
         expect(storedRows('patients')).toHaveLength(1);
-        // That copy is still wherever it was saved, so it is this phone's last one too.
         expect((await client.backup.status.query()).lastSuccessAt).toBe('2026-09-28T08:00:00.000Z');
     });
 

@@ -1,25 +1,3 @@
-/**
- * Numerals only, always DM Mono, always Latin digits (§7.11), so columns of
- * amounts stay aligned in Arabic too. `decimal-pad` rather than `numeric`: the
- * numeric pad on Android carries a newline key that commits nothing, and
- * `number-pad` is the override for a field that takes whole numbers only, where
- * the decimal key is a hazard rather than a convenience — a balance typed
- * `12.50` and stripped to `1250` is a hundredfold overcharge nobody sees. The
- * `end`
- * variant uses a physical textAlign resolved from the layout direction — React
- * Native has no logical `textAlign`, and `auto` would put a Latin numeral on the
- * wrong edge of an Arabic screen. Prefixes are units, never formatted numbers;
- * formatting is `domain/`'s.
- *
- * `variant` is the box; `size` is the figure inside it. `amount` is the 20px
- * price the money screens are built around, and it is wrong for a number that
- * is not money — an age, a count, "14 months ago" — which reads as a total
- * being announced. `body` is that number at the size of the text around it. The
- * face stays mono either way: the digits are still tabular.
- *
- * The ref reaches the inner `TextInput` so a form can move the caret between
- * fields without owning one.
- */
 import { forwardRef, useState } from 'react';
 import type { TextInputProps } from 'react-native';
 import { StyleSheet, TextInput, View } from 'react-native';
@@ -32,7 +10,6 @@ import { Placeholder } from './Placeholder';
 export type NumericFieldVariant = 'display' | 'end' | 'inline';
 export type NumericFieldSize = 'amount' | 'body';
 
-/** Each figure size is a `TextVariant`, so the placeholder is drawn at the one the value will land in. */
 const FIGURE_STYLE = { figure: 'figure', amount: 'amount', body: 'bodySize' } as const;
 
 export type NumericFieldProps = Omit<TextInputProps, 'style' | 'placeholderTextColor' | 'keyboardType'> & {
@@ -41,10 +18,8 @@ export type NumericFieldProps = Omit<TextInputProps, 'style' | 'placeholderTextC
     hint?: string;
     error?: string;
     due?: boolean;
-    /** The two that are safe. Never `numeric` — see above. */
     keyboardType?: 'decimal-pad' | 'number-pad';
     variant?: NumericFieldVariant;
-    /** Ignored by `display`, which is the 30px figure and has its own size. */
     size?: NumericFieldSize;
     layout?: FieldLayout;
     prefix?: string;
@@ -65,9 +40,6 @@ export const NumericField = forwardRef<TextInput, NumericFieldProps>(function Nu
         prefix,
         suffix,
         placeholder,
-        // Amounts are usually replaced as a whole. Selecting on focus avoids
-        // Android placing the caret between identical digits (for example, in
-        // `3500`) when a receptionist taps back into the field.
         selectTextOnFocus = true,
         selection: suppliedSelection,
         onSelectionChange,
@@ -111,9 +83,6 @@ export const NumericField = forwardRef<TextInput, NumericFieldProps>(function Nu
                             setFocused(true);
                             input.onFocus?.(event);
 
-                            // `selectTextOnFocus` is ignored intermittently by Android
-                            // when it first places the caret. Apply the selection on the
-                            // next frame, after that native placement has completed.
                             if (selectTextOnFocus && !suppliedSelection && input.value) {
                                 requestAnimationFrame(() => {
                                     setSelection({ start: 0, end: input.value?.length ?? 0 });

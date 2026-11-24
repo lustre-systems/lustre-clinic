@@ -1,6 +1,3 @@
-// A prod build that still probes the wifi, or still offers the demo, is the
-// failure this guards: both are silent on a clinic phone until someone notices
-// the fake register or the half-second lost on every reconnect.
 import { describe, expect, it } from 'bun:test';
 import {
     acceptsServer,
@@ -71,8 +68,6 @@ describe('showsDevBanner', () => {
         expect(showsDevBanner('demo')).toBe(false);
     });
 
-    // `__DEV__` is Metro's, false in every release bundle whatever app.json
-    // says, so a clinic's APK cannot carry the strip by a forgotten flag.
     it('follows the build rather than a flag anyone maintains', () => {
         expect(showsDevBanner(variantOf({ dev: true, shippedDemo: true }))).toBe(true);
         expect(showsDevBanner(variantOf({ dev: false, shippedDemo: false }))).toBe(false);
@@ -85,8 +80,6 @@ describe('acceptsServer', () => {
         expect(acceptsServer('dev', 'production')).toBe(false);
     });
 
-    // The clinic's server from before `environment` existed says nothing, and
-    // it is the one this exists to refuse.
     it('refuses a server that does not say which it is', () => {
         expect(acceptsServer('dev', undefined)).toBe(false);
         expect(acceptsServer('dev', null)).toBe(false);

@@ -1,21 +1,3 @@
-/**
- * Settings → Branches. Branches are never deleted — visits, invoices and
- * patients keep pointing at them forever — so the verb is deactivate, the same
- * as procedures and patient fields, and the pane says so in as many words
- * rather than leaving someone hunting for a delete that is not there.
- *
- * A branch is a card of its own rather than a row in a shared card, because the
- * design gives each several lines that belong together and a divider between
- * multi-line rows reads as a table of unrelated fields. Inactive branches keep
- * the shape and lose the fill: dashed and dimmed, still tappable, still
- * editable.
- *
- * The design's second line — a phone number, a patient count, the year it
- * opened, the month it closed — is not drawn, and neither is the "you're here"
- * tag. `branches` is `id, name, address, active` and nothing tracks which
- * branch a phone is standing in, so every one of those would be a number the
- * pane made up. They come back when the columns do.
- */
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
@@ -56,18 +38,12 @@ export function BranchesScreen({ onBack }: { onBack: () => void }) {
     const t = useT();
 
     const branches = useQuery(trpc.branch.list.queryOptions({ includeInactive: true }));
-    // The editor is a route over this list rather than a nullable piece of
-    // state, so the branch being edited outlives the pane's exit animation.
-    // Clearing it on close slid an empty pane off the screen.
     const editing = useRouteStack<Branch | 'new'>();
     const [toast, setToast] = useState<string | null>(null);
 
     const active = branches.data?.filter((b) => b.active) ?? [];
     const inactive = branches.data?.filter((b) => !b.active) ?? [];
 
-    // Settings are read once when the pane opens, so a branch added on the
-    // doctor's phone is invisible here until something asks again. The editor
-    // is a pane of its own, so a pull can never land under a half-typed draft.
     const pull = usePullToRefresh(branches.refetch, branches.isFetching);
 
     return (
@@ -218,12 +194,6 @@ function BranchEditor({ branch, onClose, onSaved }: BranchEditorProps) {
     const create = useMutation(trpc.branch.create.mutationOptions({ onSuccess: onBranchWritten }));
     const update = useMutation(trpc.branch.update.mutationOptions({ onSuccess: onBranchWritten }));
 
-    /**
-     * One lock for the pane's two writes. Save and the deactivate confirm are the
-     * same `update`, and `isPending` is state: the second of two taps landing in
-     * one frame reads the old `false` and sends a second write. The guard's ref
-     * refuses it, and clears on failure so the write can be tried again.
-     */
     const write = usePendingAction((job: () => Promise<unknown>) => job());
 
     const nameError = submitted && name.trim() === '' ? 'A branch needs a name.' : undefined;
@@ -262,7 +232,6 @@ function BranchEditor({ branch, onClose, onSaved }: BranchEditorProps) {
         });
     }
 
-    // A write in flight swallows Back, the same as the header's.
     useBackHandler(() => {
         if (!busy) onClose();
         return true;
@@ -274,9 +243,6 @@ function BranchEditor({ branch, onClose, onSaved }: BranchEditorProps) {
             onBack={busy ? () => {} : onClose}
             testID="branch-editor"
             footer={
-                // Save alone, as `settings.html` draws it: the pane has a back
-                // button, and a Cancel beside Save is a second way out of a
-                // screen that already has one.
                 <ActionBar
                     primaryLabel={saving ? 'Saving' : branch ? 'Save branch' : 'Create branch'}
                     onPrimary={onSave}
@@ -404,7 +370,6 @@ const styles = StyleSheet.create({
         borderColor: color.line,
         backgroundColor: color.surface,
     },
-    // Dashed and unfilled: still a branch, no longer somewhere you can book.
     inactiveCard: {
         borderStyle: 'dashed',
         borderColor: color.outline,

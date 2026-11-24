@@ -1,15 +1,3 @@
-/**
- * The rules `live.ts` runs every `/ws` frame through, kept free of React Native
- * so `bun test` can reach them.
- *
- * The server numbers its events (`seq`) within one process (`epoch`) and
- * replays what a reconnecting phone missed. The cursor is this phone's half:
- * it drops what it has already applied, and asks for everything to be
- * refetched whenever it cannot prove it saw every event in between — a gap, a
- * restarted server, a protocol it does not know. Refetching is always safe
- * because an event only ever says what to refetch, so the worst a wrong call
- * here costs is one extra round of queries.
- */
 import { WS_EVENT, WS_PROTOCOL_VERSION, WS_RESUME_PARAM, type WsEvent, type WsFrame } from '@lustre/shared';
 
 export type ServerEvent = Extract<WsFrame, { type: 'event' }>;
@@ -18,7 +6,6 @@ type Outcome = 'applied' | 'duplicate' | 'resync' | 'ignored';
 
 interface Step {
     outcome: Outcome;
-    /** Everything is stale: refetch every query, not only what `event` touched. */
     resync: boolean;
     event: ServerEvent | null;
 }
@@ -38,7 +25,6 @@ export function createEventCursor() {
     let seq = 0;
 
     return {
-        /** The query string a reconnect resumes with; empty before the first `hello`. */
         resumeQuery(): string {
             if (epoch === null) return '';
             return `?${WS_RESUME_PARAM.EPOCH}=${encodeURIComponent(epoch)}&${WS_RESUME_PARAM.SINCE}=${seq}`;
@@ -70,7 +56,6 @@ export function createEventCursor() {
             epoch = frame.epoch;
             seq = at;
 
-            // A name this build does not know is still a change it did not see.
             if (!isWsEvent(frame.event) || typeof frame.at !== 'number') {
                 return { outcome: 'resync', resync: true, event: null };
             }
@@ -88,7 +73,6 @@ export function createEventCursor() {
     };
 }
 
-/** The routers whose queries an event can have made stale. */
 export type Area =
     | 'appointment'
     | 'backup'
@@ -109,23 +93,13 @@ const REFRESHES: Record<WsEvent, readonly Area[]> = {
     [WS_EVENT.VISIT_COMPLETED]: ['appointment', 'visit', 'stats'],
     [WS_EVENT.APPOINTMENT_CHECKED_IN]: ['appointment', 'visit', 'stats'],
     [WS_EVENT.VISIT_UPDATED]: ['visit', 'balance', 'patient', 'appointment', 'stats'],
-    // The pending list is rendered from the settings: the template is its
-    // wording and the lead time is which reminders are on it at all, and a new
-    // lead time moves the ones already booked.
     [WS_EVENT.SETTINGS_UPDATED]: ['settings', 'reminder', 'backup'],
-    // Rows carry the patient's name wherever the patient appears.
     [WS_EVENT.PATIENT_UPDATED]: ['patient', 'appointment', 'reminder', 'balance', 'stats'],
     [WS_EVENT.REMINDER_UPDATED]: ['reminder'],
     [WS_EVENT.CATALOG_UPDATED]: ['branch', 'procedure', 'customQuestion'],
     [WS_EVENT.DEVICES_UPDATED]: ['device'],
 };
 
-/**
- * Folds the events handled in one turn into one refetch per router: a resync
- * and the event that revealed the gap, or `hello` and what it closes. A
- * microtask rather than a timer, because Android stops JS timers while the app
- * is in the background and this has to run there.
- */
 export function createRefreshBatch(
     run: (areas: ReadonlySet<Area> | 'all') => void,
     defer: (flush: () => void) => void = queueMicrotask,

@@ -2,12 +2,6 @@ import { describe, expect, test } from 'bun:test';
 import { DEFAULT_REMINDER_TEMPLATE, REMINDER_TOKENS, reminderToken } from '@lustre/shared';
 import { previewMessage } from './reminders';
 
-/**
- * The preview split on single-brace chips while the senders substituted double,
- * so it rendered `{name}` as if it worked and turned the seeded `{{name}}` into
- * `{Nour El-Sayed}`, braces the patient would never see. What it shows has to
- * be what goes out.
- */
 describe('previewMessage', () => {
     test('renders the seeded default with no braces left', () => {
         const preview = previewMessage(DEFAULT_REMINDER_TEMPLATE);

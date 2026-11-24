@@ -14,11 +14,6 @@ async function register(phone: string) {
     return patientService.create({ name: 'On File Already', phone, birthDate: '1990-01-01', custom: {} });
 }
 
-/**
- * An old visit: work this clinic did on a day that has passed and never typed
- * in. It is an ordinary visit that was simply entered late, so it is charged
- * and the patient owes it.
- */
 describe('recording a visit that already happened', () => {
     beforeAll(setupDatabase);
     beforeEach(truncateAll);
@@ -43,16 +38,13 @@ describe('recording a visit that already happened', () => {
         expect(history).toHaveLength(1);
 
         const [row] = history;
-        // Not imported, not an opening balance — an ordinary visit.
         expect(row?.isImported).toBe(false);
         expect(row?.isOpeningBalance).toBe(false);
         expect(row?.visitId).toBe(added.visitId);
         expect(row?.chargedTotal).toBe(CHECKUP_PRICE);
         expect(row?.balance).toBe(0);
-        // Noon UTC, so the day reads back as itself at any offset.
         expect(row?.startsAt.toISOString()).toBe(`${DAY}T12:00:00.000Z`);
 
-        // The payment is the day's, not today's — today's takings did not take it.
         const [payment] = await db.select().from(payments).where(eq(payments.visitId, added.visitId));
         expect(payment?.amount).toBe(CHECKUP_PRICE);
         expect(payment?.method).toBe('cash');
@@ -62,8 +54,6 @@ describe('recording a visit that already happened', () => {
         expect(outstanding.patients.find((p) => p.patientId === patient.id)).toBeUndefined();
     });
 
-    // It reaches the money, which is the whole difference from a historical
-    // procedure: take the payment back and the patient owes the visit.
     test('owes the visit once the payment is taken back', async () => {
         const clinic = await fixtures();
         const patient = await register('01066660006');
@@ -107,17 +97,12 @@ describe('recording a visit that already happened', () => {
             patientId: patient.id,
             performedOn: DAY,
             offsetMinutes: 0,
-            // The x-ray is the catalogue's one `hasQuantity` row — §5 refuses a
-            // quantity on anything else, which is a rule this path inherits.
             procedures: [{ procedureId: clinic.xray.id, quantity: 2, unitPrice: 5_000 }],
         });
 
         expect(added.chargedTotal).toBe(10_000);
     });
 
-    // `appointments_no_overlap` covers `booked` and `checked_in` only, so a
-    // `done` row holds no slot. Without that, a second old visit on one day —
-    // or any old visit on a day the clinic was busy — would collide.
     test('takes two on the same day without colliding', async () => {
         const clinic = await fixtures();
         const patient = await register('01066660003');
@@ -156,8 +141,6 @@ describe('recording a visit that already happened', () => {
         expect((await patientService.byId(patient.id)).history).toHaveLength(0);
     });
 
-    // A day that has happened is the clinic's day, not the server's: the same
-    // date is today fourteen hours east of UTC and still tomorrow fourteen west.
     test('judges the day by the clinic’s offset', async () => {
         const clinic = await fixtures();
         const patient = await register('01066660010');
@@ -181,7 +164,6 @@ describe('recording a visit that already happened', () => {
         expect(added.visitId).toBeTruthy();
     });
 
-    // §10: a checkup is free on a visit that did other work, old or not.
     test('waives the checkup when other work was done', async () => {
         const clinic = await fixtures();
         const patient = await register('01066660011');

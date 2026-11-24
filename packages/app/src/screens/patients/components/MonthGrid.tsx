@@ -1,13 +1,3 @@
-/**
- * A month of days that have already happened, one of them picked: the record's
- * Old visit page asks its "which day" with it inline, the way booking asks
- * "when" on its own step, rather than behind a sheet on top of a page.
- *
- * Days after today are not offered, and paging forward stops at this month:
- * an old visit is something that has happened. It fetches nothing —
- * nothing was booked on these days that the answer depends on — and holds no
- * state; the month on show and the pick are the caller's.
- */
 import { keyParts, todayKey } from '@lustre/shared';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { Chevron, IconButton } from '../../../components/ui';
@@ -17,7 +7,6 @@ import { WeekdayHeader, WeekRows } from '../../day/components/WeekRows';
 import { addMonths, formatLongDate, formatMonth } from '../../day/time';
 
 export type MonthGridProps = {
-    /** Any day in the month on show. */
     month: string;
     onMonth: (month: string) => void;
     selected: string | null;
@@ -29,8 +18,6 @@ export function MonthGrid({ month, onMonth, selected, onPick }: MonthGridProps) 
     const today = todayKey();
 
     function goToMonth(next: string) {
-        // Paging forward stops at the month today is in — there is nothing to
-        // pick beyond it, and an empty grid of disabled cells reads as broken.
         onMonth(next > today ? monthOf(today) : next);
     }
 
@@ -40,8 +27,6 @@ export function MonthGrid({ month, onMonth, selected, onPick }: MonthGridProps) 
                 <Text variant="title3" weight="semibold">
                     {formatMonth(month)}
                 </Text>
-                {/* `pressLockMs={0}`: paging back through years is many
-                    deliberate taps, and the default lock eats half of them. */}
                 <View style={styles.monthNav}>
                     <IconButton
                         accessibilityLabel={t('Previous year')}
@@ -93,11 +78,6 @@ export function MonthGrid({ month, onMonth, selected, onPick }: MonthGridProps) 
                             onPress={() => onPick(day)}
                             style={styles.cell}
                         >
-                            {/* The fill is a child of a clipped box rather than a
-                                background on the pressable: Android drops the
-                                corner radius when it paints a descendant's
-                                background, and the clip is what does hold.
-                                `day/CalendarSheet` carries the same note. */}
                             <View style={styles.cellBox}>
                                 {picked ? <View style={styles.fill} /> : null}
                                 {!picked && day === today ? (
@@ -106,9 +86,6 @@ export function MonthGrid({ month, onMonth, selected, onPick }: MonthGridProps) 
 
                                 <Text
                                     variant="callout"
-                                    // Instrument Sans, not the cluster's mono:
-                                    // DM Mono stops at 500 and a grid is read at
-                                    // a glance, so it wants 700.
                                     script="sans"
                                     weight="bold"
                                     tone={picked ? 'inverse' : ahead ? 'muted' : 'ink'}
@@ -124,15 +101,12 @@ export function MonthGrid({ month, onMonth, selected, onPick }: MonthGridProps) 
     );
 }
 
-/** The first of the month a day falls in — what the pager clamps to. */
 function monthOf(key: string): string {
     return `${key.slice(0, 7)}-01`;
 }
 
 function DoubleChevron({ direction }: { direction: 'back' | 'forward' }) {
     return (
-        // The overlap is on the second glyph, not the pair: pulling the whole
-        // row in by a margin set it off the button's centre.
         <View style={styles.doubleChevron}>
             <Chevron direction={direction} tone="ink" size={9} />
             <View style={styles.overlap}>

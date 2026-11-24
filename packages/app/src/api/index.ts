@@ -1,5 +1,3 @@
-// The one entry point. Screens import from `../api`, never from a file inside it.
-
 export { ApiProvider, useTRPC } from './ApiProvider';
 export { api, trpcClient } from './client';
 export { adoptClinicZone, hydrateClinicZone } from './clinicZone';

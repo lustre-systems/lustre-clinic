@@ -1,10 +1,3 @@
-/**
- * The demo's role lives in two places: the device row in the demo database and
- * the token in the phone's credential slot. When the database is seeded anew —
- * nothing stored, or a version the phone no longer reads — the row is gone, and
- * a kept token would be refused as withdrawn. That refusal persists, and "Enter
- * demo mode" cannot clear it because the phone is already in the demo.
- */
 import { beforeEach, describe, expect, it, mock } from 'bun:test';
 
 const stored = new Map<string, string>();
@@ -21,7 +14,6 @@ mock.module('expo-constants', () => ({ default: { expoConfig: { extra: { demo: f
 
 mock.module('../config', () => ({ BUILD_VARIANT: 'dev' }));
 
-// Local mode's file sits behind the same imports; the demo never touches it.
 mock.module('expo-file-system', () => ({ File: class {}, Paths: { document: 'documents' } }));
 
 const { createTRPCClient } = await import('@trpc/client');
@@ -36,7 +28,6 @@ import type { AppRouter } from '@lustre/server/src/trpc/router.ts';
 
 const client = createTRPCClient<AppRouter>({ links: [demoLink] });
 
-/** A launch: no demo database in memory, so the next request opens one. */
 function relaunch(): void {
     setDb(freshLocalDb(), 'local');
 }

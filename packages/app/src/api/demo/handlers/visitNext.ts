@@ -1,8 +1,3 @@
-/**
- * `server/src/modules/visit/visit.next.ts`. The next procedures: chosen on a
- * visit, taken by the patient's next booking — the one made after it, or the
- * earliest one already waiting, which gets the lines added.
- */
 import type { Tooth } from '@lustre/shared';
 import { getDb, type VisitRow } from '../db';
 import { uuidv7 } from '../rules';
@@ -16,13 +11,11 @@ export interface NextProcedure extends NextLine {
     name: string;
 }
 
-/** The booking that took them, while it still stands to do them. */
 export function takenBy(appointmentId: string | null): string | null {
     const taker = getDb().appointments.find((row) => row.id === appointmentId);
     return taker && taker.status !== 'cancelled' && taker.status !== 'no_show' ? taker.id : null;
 }
 
-/** The visit's next procedures in order, with their names. */
 export function nextOf(visit: VisitRow): NextProcedure[] {
     const db = getDb();
     return visit.nextProcedures.flatMap((line) => {
@@ -53,7 +46,6 @@ export function takeNext(patientId: string, appointmentId: string): void {
     if (visit) visit.nextAppointmentId = appointmentId;
 }
 
-/** Returns the booking the lines were added to, if any. */
 export function setNext(visit: VisitRow, next: readonly NextLine[], now: Date): string | null {
     const same =
         visit.nextProcedures.length === next.length &&

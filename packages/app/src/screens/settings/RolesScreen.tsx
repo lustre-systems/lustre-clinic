@@ -1,18 +1,3 @@
-/**
- * Settings → Phones & role codes. The admin's pane, and the only place a role
- * is handed out: pick the role, name the phone it is for, and hold the QR up to
- * that phone's camera. A code works once, for `GRANT_TTL_MINUTES`.
- *
- * The list is what is live: codes waiting to be scanned, and the phones using
- * theirs. A code withdrawn, replaced by the phone's next one, or left unused
- * past its expiry is deleted, not listed. Withdrawing a used code shuts its
- * phone out at once. This phone's own code cannot be withdrawn from here: the
- * last admin revoking itself would leave only the server's CLI to get back in.
- *
- * The switch at the top is the upgrade path's end. Off, a phone that has never
- * scanned a code keeps working as it did before roles existed; the admin turns
- * it on once every phone in the clinic has one.
- */
 import {
     clinicWallClock,
     GRANT_TTL_MINUTES,
@@ -252,22 +237,12 @@ function GrantRow({ grant, mine, onPress }: { grant: Grant; mine: boolean; onPre
     );
 }
 
-/**
- * The QR's text: the join page on the server this phone is talking to, so a
- * phone without the app can scan it with its camera and be offered the app
- * (`device.http.ts`). The demo has no server to point at, and keeps the bare code.
- */
 function qrValue(payload: string, demo: boolean): string {
     const base = demo ? null : getConnectionState().baseUrl;
     const code = grantCodeOf(payload);
     return base && code ? joinUrl(base, code) : payload;
 }
 
-/**
- * Two steps in one sheet: what the code is for, then the code. The QR is shown
- * once — the server keeps only its hash — so closing the sheet is the end of it,
- * and a phone that did not get to scan it needs a new one.
- */
 function MakeCodeSheet({
     visible,
     onClose,

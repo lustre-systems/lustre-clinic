@@ -1,9 +1,3 @@
-/**
- * Screen-level strip. The designs draw only an offline banner, but §7.14 says a
- * clinic-local server over Tailscale needs more than one — stale data and failed
- * writes get their own — which is why this takes a tone rather than being
- * `OfflineBanner`.
- */
 import type { ReactNode } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { useT } from '../../i18n';

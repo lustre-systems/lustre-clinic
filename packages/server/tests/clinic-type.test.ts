@@ -5,11 +5,6 @@ import { settingsService } from '../src/modules/settings/settings.service.ts';
 import { setupDatabase, truncateAll } from './helpers/db.ts';
 import { clinic, expectAppError, todaySlot } from './helpers/factories.ts';
 
-/**
- * A general clinic is never asked for a tooth. The catalogue keeps
- * its own flags, so the dental rule is back the moment the clinic is dental again.
- */
-
 beforeAll(async () => {
     await setupDatabase();
 });

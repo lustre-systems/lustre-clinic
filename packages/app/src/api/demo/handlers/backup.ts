@@ -1,18 +1,3 @@
-/**
- * `server/src/modules/backup`. A demo is the phone talking to itself, so there
- * is no backup job and nothing to be stale about: it answers as a clinic whose
- * last night went fine, which is what the Settings row should look like when
- * nobody is being shown a problem.
- *
- * Local mode's clinic is real, so it is told the truth instead. Its backups are
- * the ones `../localDrive` uploads: off until a Google account is linked, and
- * behind only with something unsaved two days on. An unchanged clinic uploads
- * nothing, so an old backup of it is not a problem.
- *
- * Signing in is refused rather than faked. There is no clinic server to hold a
- * refresh token, and a demo that appeared to link a real Google account would
- * be lying about where the dumps go.
- */
 import { ERROR_CODE } from '@lustre/shared';
 import type { RouterOutput } from '../../types';
 import { getDb, openKind } from '../db';
@@ -28,8 +13,6 @@ export const backupHandlers = {
             const link = currentDriveLink();
             const last = lastDriveBackupAt();
             const { patients, appointments } = getDb();
-            // Never backed up is behind once there is something to lose: a first
-            // upload that keeps failing must not read as nothing to report.
             const old = last
                 ? Date.now() - last.getTime() > DRIVE_STALE_AFTER_HOURS * 3_600_000
                 : patients.length > 0 || appointments.length > 0;

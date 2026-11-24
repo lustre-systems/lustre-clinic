@@ -1,7 +1,3 @@
-/**
- * Every failure the UI can be handed, carrying the code it localizes from —
- * the client switches on `ERROR_CODE` and never parses the server's `message`.
- */
 import { ERROR_CODE, type ErrorCode } from '@lustre/shared';
 
 export class RequestError extends Error {

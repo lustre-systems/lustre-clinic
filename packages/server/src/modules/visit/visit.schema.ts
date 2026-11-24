@@ -1,20 +1,8 @@
-/**
- * SPEC §8, §9, §13. Amounts are integer piastres.
- *
- * `setProcedures` replaces the whole list; it does not patch individual lines.
- * `unitPrice` overrides the price snapshot and defaults to the procedure's
- * price. `appointments` carries no `visit_id`, so the day view looks a visit up
- * by appointment.
- */
 import { MAX_AMOUNT_PIASTRES, paymentMethodSchema, toothSchema } from '@lustre/shared';
 import { z } from 'zod';
 
 const amount = z.number().int().min(0).max(MAX_AMOUNT_PIASTRES);
 
-/**
- * The client's UTC offset. Check-in and checkout decide "today" and who holds
- * the chair within one clinic day, and a day is only ever a day for somebody.
- */
 const offsetMinutes = z.number().int().min(-840).max(840).default(0);
 
 export const checkInInput = z.object({ appointmentId: z.uuid(), offsetMinutes });
@@ -38,19 +26,10 @@ export const setProceduresInput = z.object({
             }),
         )
         .max(100),
-    /**
-     * What to do at the patient's next visit (`visit.next.ts`), in order. Left
-     * off keeps what is there; empty clears it.
-     */
     nextProcedures: z.array(nextLine).max(20).optional(),
-    /**
-     * The single next procedure phones on 1.10 send: one becomes a list of one,
-     * null clears. Ignored when `nextProcedures` is given.
-     */
     nextProcedure: nextLine.nullable().optional(),
 });
 
-/** What this patient's next booking should be for, if a visit asked for anything. */
 export const pendingNextInput = z.object({ patientId: z.uuid() });
 
 export const setPriceInput = z.object({
@@ -58,10 +37,8 @@ export const setPriceInput = z.object({
     chargedTotal: amount,
 });
 
-/** Undo a checkout so the visit can be corrected. Payments taken are kept. */
 export const reopenInput = z.object({ visitId: z.uuid() });
 
-/** Undo a check-in that should not have happened. Refused if money was taken. */
 export const deleteVisitInput = z.object({ visitId: z.uuid(), offsetMinutes });
 
 export const deletePaymentInput = z.object({ paymentId: z.uuid() });
@@ -84,11 +61,6 @@ export const checkOutInput = z
         path: ['methodNote'],
     });
 
-/**
- * What the visit was *actually* paid, in total. The delta against what is on it
- * is what gets written, so this is the one way a recorded payment can come back
- * down — see `setPaid` in the service.
- */
 export const setPaidInput = z
     .object({
         visitId: z.uuid(),
@@ -100,10 +72,6 @@ export const setPaidInput = z
         path: ['methodNote'],
     });
 
-/**
- * How the money already on a visit was paid, said again: everything on it moves
- * onto `method`, and the total does not change — see `setPaidMethod`.
- */
 export const setPaidMethodInput = z
     .object({
         visitId: z.uuid(),
@@ -125,7 +93,6 @@ export const recordPaymentInput = z
         path: ['methodNote'],
     });
 
-/** Input, not output: `offsetMinutes` defaults to 0, and a caller inside the server may leave it off. */
 export type CheckInInput = z.input<typeof checkInInput>;
 export type SetProceduresInput = z.infer<typeof setProceduresInput>;
 export type SetPriceInput = z.infer<typeof setPriceInput>;

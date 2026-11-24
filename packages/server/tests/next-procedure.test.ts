@@ -5,11 +5,6 @@ import { visitService } from '../src/modules/visit/visit.service.ts';
 import { setupDatabase, truncateAll } from './helpers/db.ts';
 import { checkedInVisit, expectAppError, slot } from './helpers/factories.ts';
 
-/**
- * The next procedures (`visit.next.ts`): set on a visit, taken by the patient's
- * next booking — the one made after it, or the earliest one already waiting.
- */
-
 beforeAll(async () => {
     await setupDatabase();
 });
@@ -186,7 +181,6 @@ describe('the next booking', () => {
         expect(
             (await visitService.pendingNextProcedures(patient.id)).map((line) => line.procedureId),
         ).toEqual([rootCanal.id]);
-        // The visit no longer says a booking has them.
         expect((await visitService.byId(visit.id)).nextAppointmentId).toBeNull();
     });
 });

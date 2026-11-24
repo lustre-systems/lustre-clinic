@@ -1,8 +1,3 @@
-/**
- * "Running 12 min late", with an × that closes it. Closing fades it and then
- * folds its row away, so the agenda under it slides up instead of jumping; the
- * negative margin takes back the agenda's `gap` it would otherwise leave behind.
- */
 import { useRef, useState } from 'react';
 import { Animated, Pressable, StyleSheet, View } from 'react-native';
 import { duration, easing, useReducedMotion } from '../../../components/ui';
@@ -12,7 +7,6 @@ import { ClockIcon, CloseIcon } from './icons';
 
 export type LateNoticeProps = {
     late: string;
-    /** The agenda's `gap`, folded away with the notice. */
     gap: number;
     onDismissed: () => void;
 };
@@ -35,7 +29,6 @@ export function LateNotice({ late, gap, onDismissed }: LateNoticeProps) {
             toValue: 0,
             duration: duration.collapse,
             easing: easing.sheet,
-            // Height and margin are layout, which the native driver cannot run.
             useNativeDriver: false,
         }).start(({ finished }) => {
             if (finished) onDismissed();

@@ -7,12 +7,6 @@ import { setupDatabase, sql, truncateAll } from './helpers/db.ts';
 import { CHECKUP_PRICE, checkedInVisit } from './helpers/factories.ts';
 import { expectTrpcError, socketAs, startTestServer, type TestServer } from './helpers/trpc.ts';
 
-/**
- * Role provisioning and what each role may reach, over HTTP: the credential is
- * a header, so only a real request exercises the path from it to the role the
- * server acts on.
- */
-
 let api: TestServer;
 
 beforeAll(async () => {
@@ -34,7 +28,6 @@ function codeOf(payload: string): string {
     return code;
 }
 
-/** A phone that scanned a code for `role`, the way the CLI or an admin would issue it. */
 async function provisioned(
     role: Role,
     label = role,

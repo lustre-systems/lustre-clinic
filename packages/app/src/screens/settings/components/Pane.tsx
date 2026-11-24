@@ -1,17 +1,3 @@
-/**
- * One settings pane: a header, a scrolling body, and optionally an action bar
- * under it. Every screen in this cluster is this shape. `Toast` is a child of
- * the pane, never of the list — a toast nested in scrolling content lands
- * wherever that content has scrolled to.
- *
- * The header is the cluster's own rather than `ui/TopBar`. Every pane in
- * `settings.html` draws the same one: a round white back button and the title
- * beside it, left-aligned, sitting on the canvas with no bar behind it and no
- * rule under it. `TopBar` centres its title on a white ground with a divider,
- * which is right for the money cluster's screens and is why this is not a
- * change to the shared component. The trailing slot is pushed to the end
- * instead of balancing the back button, because nothing here needs centring.
- */
 import type { ReactNode } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import type { PullToRefresh } from '../../../components/ui';
@@ -27,8 +13,6 @@ export type PaneProps = {
     children: ReactNode;
     footer?: ReactNode;
     overlay?: ReactNode;
-    /** `usePullToRefresh` from the pane's own screen — settings are read once
-     * on open, so this is the only way to see what the other phone changed. */
     pull?: PullToRefresh;
     testID?: string;
 };
@@ -112,7 +96,6 @@ const styles = StyleSheet.create({
         backgroundColor: color.surface,
     },
     pressed: { opacity: 0.6 },
-    // Takes the slack so a trailing action is pushed to the end.
     titles: { flex: 1, minWidth: 0 },
 
     scroll: { flex: 1 },

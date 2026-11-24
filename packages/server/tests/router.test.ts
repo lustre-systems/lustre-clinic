@@ -1,12 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import { appRouter } from '../src/trpc/router.ts';
 
-/**
- * SPEC §13 lists the API surface. This asserts the router tree matches it, so
- * a module that is built but never merged into `appRouter` fails here rather
- * than when the app tries to call it.
- */
-
 const EXPECTED = [
     'health.check',
     'health.clock',

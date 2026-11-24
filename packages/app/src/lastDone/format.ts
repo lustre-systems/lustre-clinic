@@ -1,7 +1,3 @@
-/**
- * The sheet's words for a line, in the language that is on now. Kept apart from
- * the sheet so `bun test` can read them without a renderer.
- */
 import { type Locale, localizeCopy } from '@lustre/shared';
 import { formatStamp, formatTime12 } from '../components/domain/clock';
 import { formatMoney } from '../components/domain/money';
@@ -23,10 +19,6 @@ export const TITLE: Record<LastDoneKind, string> = {
     oldVisit: 'Added old visit',
 };
 
-/**
- * The same, short enough for the day header's button, which has only the room
- * between two pills: a word or two, then the first name (`buttonLabel`).
- */
 const SHORT: Record<LastDoneKind, string> = {
     book: 'Booked',
     move: 'Moved',
@@ -42,12 +34,6 @@ const SHORT: Record<LastDoneKind, string> = {
     oldVisit: 'Old visit',
 };
 
-/**
- * "Arrived" and "Yara" — what the button says it did last, as the word and the
- * name it sets in two weights. Measured against the header on a 411dp phone,
- * every word fits with every Arabic-script first name and with Latin ones up
- * to "Mohamed"; longer ones are cut.
- */
 export function buttonLabel(entry: LastDoneEntry, locale: Locale): { said: string; name: string | null } {
     const first = entry.patientName?.trim().split(/\s+/)[0];
     return { said: localizeCopy(locale, SHORT[entry.kind]), name: first || null };
@@ -56,7 +42,6 @@ export function buttonLabel(entry: LastDoneEntry, locale: Locale): { said: strin
 const MINUTE = 60_000;
 const HOUR = 60 * MINUTE;
 
-/** "Just now", "12m" inside the hour, the clock time after that. */
 export function whenText(at: number, now: number, locale: Locale): string {
     const elapsed = now - at;
     if (elapsed < MINUTE) return localizeCopy(locale, 'Just now');
@@ -72,7 +57,6 @@ function slot(startsAt: string, locale: Locale): string {
     return `${formatDate(dateKey(startsAt))}${comma(locale)}${formatTime12(startsAt, locale)}`;
 }
 
-/** From → to, read in the line's own direction. */
 function arrow(locale: Locale): string {
     return locale === 'ar' ? '←' : '→';
 }
@@ -85,10 +69,6 @@ function move(from: string | null, to: string, locale: Locale): string {
         : `${formatDate(dateKey(from))} ${arrow(locale)} ${formatDate(dateKey(to))}`;
 }
 
-/**
- * The one detail after the name. Money is left out on a phone that may not see
- * it — the doctor's.
- */
 function detailText(detail: LastDoneDetail | null, locale: Locale, showMoney: boolean): string | null {
     if (detail === null) return null;
     switch (detail.type) {
@@ -111,7 +91,6 @@ function detailText(detail: LastDoneDetail | null, locale: Locale, showMoney: bo
     }
 }
 
-/** "Ahmed Ali · Tue 14 Oct, 4:00 PM" — either half alone when the other is missing. */
 export function subline(entry: LastDoneEntry, locale: Locale, showMoney: boolean): string {
     return [entry.patientName, detailText(entry.detail, locale, showMoney)]
         .filter((part): part is string => Boolean(part))
@@ -123,7 +102,6 @@ export interface DayGroup {
     entries: LastDoneEntry[];
 }
 
-/** Newest day first, in the order the entries already are. */
 export function byDay(entries: readonly LastDoneEntry[]): DayGroup[] {
     const groups: DayGroup[] = [];
     for (const entry of entries) {

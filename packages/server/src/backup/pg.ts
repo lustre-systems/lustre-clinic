@@ -1,19 +1,3 @@
-/**
- * SPEC §16 — `pg_dump` on a schedule, and every dump verified by restoring it
- * into a scratch database. A dump that has never been restored is not a backup.
- *
- * `pg_dump` and `pg_restore` are external binaries. The `oven/bun` image does
- * not ship them, so the server image installs `postgresql-client` (see
- * compose.yaml); `PG_BIN_DIR` covers a host where they are not on PATH.
- *
- * Custom format (`-Fc`) because it restores selectively and compresses.
- *
- * Errors never include the command line — it can carry the database password.
- * Database names in `recreateDatabase`/`withScratchDatabase` are generated or
- * operator-supplied, never request input, but are still quoted. `CREATE
- * DATABASE` cannot run inside a transaction, so those helpers use a dedicated
- * connection to the `postgres` database.
- */
 import { join } from 'node:path';
 import postgres from 'postgres';
 import { config } from '../config.ts';

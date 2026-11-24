@@ -1,8 +1,3 @@
-/**
- * The inline explanation that sits under a control — "past visits keep the old
- * price", "answers are kept, not erased". `note` is the dashed footer variant
- * for content the clinic cannot change.
- */
 import type { ReactNode } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { useT } from '../../i18n';

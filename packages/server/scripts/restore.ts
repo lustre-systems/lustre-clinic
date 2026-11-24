@@ -1,17 +1,3 @@
-/**
- * Restores a dump (SPEC §16 — "test the restore procedure before go-live").
- *
- *   bun packages/server/scripts/restore.ts backups/lustre-....dump
- *   bun packages/server/scripts/restore.ts backups/lustre-....dump.enc --key <base64>
- *   bun packages/server/scripts/restore.ts <file> --into lustre_restore_test
- *
- * By default it restores into a scratch database and drops it again, which
- * verifies the file without touching the live one. `--into <name>` restores
- * into a named database instead and leaves it in place; that database is
- * created if it does not exist. The live database is never overwritten by this
- * script — promoting a restore is a deliberate manual step.
- */
-
 import { decrypt, parseKey } from '../src/backup/crypto.ts';
 import { databaseName, pgRestore, recreateDatabase, withScratchDatabase } from '../src/backup/pg.ts';
 import { config } from '../src/config.ts';

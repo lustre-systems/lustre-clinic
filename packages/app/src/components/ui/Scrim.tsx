@@ -1,7 +1,3 @@
-/**
- * The dim layer behind a sheet or menu. `accessibilityViewIsModal` is set so
- * nothing behind the scrim is reachable by a swipe either, not just by touch.
- */
 import type { Animated as AnimatedTypes } from 'react-native';
 import { Animated, Pressable, StyleSheet } from 'react-native';
 import { color } from '../../theme';

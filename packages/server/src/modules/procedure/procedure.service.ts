@@ -1,13 +1,3 @@
-/**
- * SPEC §5, §12. The hierarchy is one level deep. A row with children is a
- * category and is not selectable; only leaves are. Both rules are enforced
- * here, in the service layer, because the schema cannot express them.
- *
- * Parenthood is computed over every row, active or not, everywhere — a
- * deactivated subtype must not make its category look selectable to a picker.
- * `findCheckup` supplies the line seeded on check-in (§8), and exactly one row
- * carries the flag it looks for — see `clearOtherCheckups`.
- */
 import { ERROR_CODE, type Role, seesStats, WS_EVENT } from '@lustre/shared';
 import { and, asc, eq, inArray, ne } from 'drizzle-orm';
 import { db, type Executor } from '../../db/index.ts';
@@ -24,7 +14,6 @@ import type {
 
 export type Procedure = typeof procedureTypes.$inferSelect;
 
-/** A catalogue row as a phone reads it: `cost` is null on one that may not see it. */
 type ShownProcedure = Omit<Procedure, 'cost'> & { cost: number | null };
 
 interface ProcedureNode extends ShownProcedure {
@@ -51,12 +40,6 @@ async function hasChildren(id: string): Promise<boolean> {
     return child !== undefined;
 }
 
-/**
- * The checkup is held by exactly one procedure (§8/§9): it is the line waived
- * when other work is done, and two of them would make which one gets waived a
- * matter of `sortOrder`. Taking the flag hands it over rather
- * than sharing it, in the same transaction as the write that took it.
- */
 async function clearOtherCheckups(tx: Executor, keep: string): Promise<void> {
     await tx
         .update(procedureTypes)
@@ -152,12 +135,6 @@ export const procedureService = {
         return created;
     },
 
-    /**
-     * A category and the first subtype under it, in one transaction. Two calls
-     * would leave a childless root priced 0 behind whenever the second failed —
-     * which is not a category at all but a procedure `list` would happily offer
-     * on a visit, and a retry would write the heading twice.
-     */
     async createCategory(input: CreateCategoryInput): Promise<{ category: Procedure; first: Procedure }> {
         const created = await db.transaction(async (tx) => {
             const [category] = await tx
@@ -239,16 +216,6 @@ export const procedureService = {
         return updated;
     },
 
-    /**
-     * The whole order of one sibling group, in one transaction. The client
-     * sends the list it wants and every row is stamped with its index, so a
-     * connection that drops mid-write leaves the previous order intact rather
-     * than half of each.
-     *
-     * The ids must be siblings: `sortOrder` is only ever compared within a
-     * group, so a list spanning two categories would write positions that mean
-     * nothing next to each other.
-     */
     async reorder({ ids }: ReorderProceduresInput): Promise<void> {
         if (new Set(ids).size !== ids.length) {
             throw new AppError(ERROR_CODE.VALIDATION, 'the same procedure appears twice in the order', 422);

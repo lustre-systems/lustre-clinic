@@ -1,7 +1,3 @@
-/**
- * The saved schedule has to come back on a cold launch, and a write that does
- * not land must not take away the copy that did.
- */
 import { beforeEach, describe, expect, it, mock } from 'bun:test';
 import type { SavedSchedule } from './savedSchedule';
 

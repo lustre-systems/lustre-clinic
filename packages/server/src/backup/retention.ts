@@ -1,20 +1,3 @@
-/**
- * SPEC §16 — retention is ~14 daily / 8 weekly / 12 monthly, pruned
- * automatically.
- *
- * Pure functions over a list of dumps, so the policy is testable without
- * touching a filesystem. Bucket the dumps by day, ISO week, and month; keep the
- * newest dump in each of the most recent N buckets of each kind; delete
- * whatever is in none of those sets.
- *
- * The dump file name carries the timestamp retention sorts on, and lives here
- * because every destination has to be able to read one back — a name that
- * cannot be parsed is a file pruning must not touch. Membership is by file
- * identity, not name: two runs in the same second produce the same name, and
- * matching on name would keep or delete both copies together. Generic over the
- * file so a destination's own fields (an off-site handle) survive the trip and
- * a doomed file is never looked back up by name.
- */
 const FILE_PREFIX = 'lustre-';
 const FILE_SUFFIX = '.dump';
 

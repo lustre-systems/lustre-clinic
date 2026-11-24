@@ -1,26 +1,3 @@
-/**
- * A visit that is over — `appointment-view.html`. The same cards as
- * `VisitScreen` with the inputs taken out: what was done, and what was paid for
- * it, split by the segmented control because they are two questions and a
- * finished visit is usually opened for one of them.
- *
- * Read-only is the resting state, not the only one. `Edit visit` hands the
- * visit to `VisitScreen` and writes nothing: the reopen the server needs before
- * `setProcedures` will take on a completed visit happens on that screen's
- * Confirm, with the edit itself. Opening the editor and backing out of it left
- * a closed visit standing open here — the same mistake as checking a patient in
- * the moment their arrival screen was opened.
- *
- * The note is the appointment's, shown here because the visit editor writes it
- * and a note that only appears on the booking page is one nobody reads back.
- * The mock's billing note is left out: `visits` has no column to hold it.
- *
- * The two deletes are written from here rather than handed up. Both mounts of
- * this screen would only have run the same confirm and the same call, and what
- * they differ on — where to go afterwards — is the one callback they get.
- * Deleting a payment leaves the screen where it is with the visit re-read;
- * deleting the visit leaves nothing to show, so `onDeleted` is the way out.
- */
 import { useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import {
@@ -54,11 +31,8 @@ export type VisitViewScreenProps = {
     appointment: Appointment;
     visit: Visit;
     onBack: () => void;
-    /** Open the editor over this page. Nothing has been written to the visit. */
     onEdit: (visit: Visit) => void;
-    /** The visit is gone; whatever is underneath is stale and this page has nothing left to show. */
     onDeleted: () => void;
-    /** A payment came off and the visit was re-read. */
     onPaymentDeleted: (visit: Visit) => void;
 };
 
@@ -76,7 +50,6 @@ function methodLabel(payment: VisitPayment): string {
     return METHOD_LABEL[payment.method] ?? payment.method;
 }
 
-/** The tile's month: capitals in English, the month's name in Arabic, which has no capitals. */
 function monthOf(iso: string): string {
     const month = monthShort(dateKey(iso));
     return getLocale() === 'ar' ? month : month.toUpperCase();
@@ -93,10 +66,6 @@ export function VisitViewScreen({
     const t = useT();
     const [panel, setPanel] = useState<Panel>('treatment');
     const [menuOpen, setMenuOpen] = useState(false);
-    // The menu is a Modal and positions against the window, so the trigger is
-    // measured in the window on press — where it sits depends on the status
-    // bar and, in a dev build, the DEV strip, neither of which this screen
-    // knows about.
     const more = useRef<View>(null);
     const [menuTop, setMenuTop] = useState<number>(space[12]);
 
@@ -142,16 +111,9 @@ export function VisitViewScreen({
 
     const groups = toothGroupsOf(visit.procedures);
     const general = useGeneralClinic();
-    // "Total cost" below is `chargedTotal`, which the server struck the checkup
-    // out of. The group subtotals have to be struck the same way or the lines
-    // on this screen visibly do not add up to the total under them.
     const waived = checkupIsWaived(visit.procedures);
-    // Null on a doctor's phone, which is not shown payments: the visit is its
-    // treatment only, and the payment panel is not offered at all.
     const payments = visit.payments;
     const settled = (visit.balance ?? 0) <= 0;
-    // Null on a finished visit a doctor's phone reads: the treatment is shown
-    // without a price anywhere on it, and it cannot be reopened to edit.
     const priced = visit.chargedTotal !== null;
     const day = dateKey(appointment.startsAt);
 
@@ -289,10 +251,6 @@ export function VisitViewScreen({
                                                                 ? `${line.name} × ${line.quantity}`
                                                                 : line.name}
                                                         </Text>
-                                                        {/* The price stays on the line — it is what
-                                                            the checkup costs, and the row is the
-                                                            record that the patient was seen — so
-                                                            without this the total looks short by it. */}
                                                         {waived && line.isCheckup ? (
                                                             <Text
                                                                 variant="caption"
@@ -446,8 +404,6 @@ export function VisitViewScreen({
                         danger: true,
                         onPress: () => {
                             setMenuOpen(false);
-                            // Refused by the server too; saying so here spares
-                            // the confirm for something that cannot happen.
                             if (payments && payments.length > 0) {
                                 setToast(
                                     t(
@@ -543,7 +499,6 @@ const styles = StyleSheet.create({
     },
     tileMonth: { opacity: 0.62 },
     who: { flex: 1, minWidth: 0, gap: space[1], alignItems: 'flex-start' },
-    // The chip sizes itself; the row is only what holds it off the line above.
     chipRow: { flexDirection: 'row', marginTop: space[1] },
 
     totalLabel: { flexDirection: 'row', alignItems: 'center', gap: space[2.5] },
@@ -645,9 +600,6 @@ const styles = StyleSheet.create({
     bar: {
         paddingHorizontal: size.gutter,
         paddingTop: space[3.5],
-        // The tab bar is below this again and owns the gesture inset, so the
-        // bar only needs its own breathing room — `space[6]` left the button
-        // floating well clear of the tabs.
         paddingBottom: space[4],
         backgroundColor: color.canvas,
     },

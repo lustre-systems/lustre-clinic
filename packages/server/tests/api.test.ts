@@ -10,15 +10,6 @@ import {
     type TestServer,
 } from './helpers/trpc.ts';
 
-/**
- * SPEC §13 — the API surface, over the transport the app actually uses. The
- * service suites import services directly, so this covers the layers between
- * them and a real request: the Zod input schemas, the `AppError` → HTTP status
- * mapping, and the router wiring. Errors carry an `appCode` the client
- * switches on (it never parses the message), and websocket payloads are IDs
- * only — clients refetch over tRPC.
- */
-
 let api: TestServer;
 
 async function clinicViaApi() {
@@ -164,13 +155,6 @@ describe('every path in §13 answers', () => {
         expect((await client.settings.get.query()).reminderDismissedOn).toBeNull();
     });
 
-    /**
-     * The reminder pane's Save, over the wire it actually uses. Its edit used
-     * to be written on blur and was lost whenever the blur did not come, so
-     * what is worth holding is that a saved message is returned by the write,
-     * comes back on a fresh read — the pane reopened, the app restarted — and
-     * that an empty one is refused rather than quietly dropped.
-     */
     test('a saved reminder template survives a fresh read', async () => {
         const { client } = api;
         const template = 'Hi {name}, your appointment at {clinic} is {date} at {time}.';
@@ -180,7 +164,6 @@ describe('every path in §13 answers', () => {
 
         expect((await client.settings.get.query()).reminderTemplate).toBe(template);
 
-        // The next edit replaces it rather than stacking on the old wording.
         await client.settings.update.mutate({ reminderTemplate: 'See you {date}.' });
         expect((await client.settings.get.query()).reminderTemplate).toBe('See you {date}.');
     });
@@ -210,7 +193,6 @@ describe('a full visit, end to end', () => {
         expect(appointment.ref).toMatch(/^\d{6}-[A-Z2-9]{4}$/);
 
         const visit = await client.visit.checkIn.mutate({ appointmentId: appointment.id });
-        // Nothing was booked and check-in adds no checkup, so it opens at zero.
         const seeded = await client.visit.byId.query({ id: visit.id });
         expect(seeded.procedures).toEqual([]);
         expect(seeded.chargedTotal).toBe(0);
@@ -797,8 +779,6 @@ describe('websocket broadcasts', () => {
         });
 
         expect(events.length).toBeGreaterThan(0);
-        // The amount is checked without the envelope: `at` is a timestamp and
-        // can contain any run of digits.
         expect(JSON.stringify(events)).not.toContain('100000');
         const serialized = JSON.stringify(frames);
         expect(serialized).not.toContain('Nadia');

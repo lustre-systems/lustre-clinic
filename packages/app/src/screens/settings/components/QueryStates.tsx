@@ -1,11 +1,3 @@
-/**
- * The two states no list in this app is allowed to skip. `ui/` has no
- * skeleton, so this is the cluster-local one — deliberately dumb (grey bars,
- * no shimmer), because a settings list is read a few times a month. The
- * clinic server is a PC over Tailscale that is off during a power cut, so a
- * failed list is a normal state and always offers Retry. `ErrorState`'s
- * message must arrive already localized from `ERROR_CODE`.
- */
 import { StyleSheet, View } from 'react-native';
 import { Button, Card, CardDivider } from '../../../components/ui';
 import { useT } from '../../../i18n';

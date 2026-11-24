@@ -1,7 +1,3 @@
-/**
- * The appointment sheet once called a queued patient "In the chair" while the day
- * view called them Waiting. The fix is this label choice, so it is tested here.
- */
 import { describe, expect, it } from 'bun:test';
 import { type AppointmentStatus, localizeCopy } from '@lustre/shared';
 import { statusCopy, statusLabel, statusTone } from './status';

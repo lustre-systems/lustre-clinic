@@ -1,17 +1,3 @@
-/**
- * `_LocalQuery` / `_LocalMutation` — BLOCKED.md. TanStack Query is Phase 1 F2
- * and is not a dependency yet; this is the part of it the day view uses. It is
- * deliberately not a cache, a deduper, or a background refetcher — adding those
- * would build a second query library the real one has to be reconciled with.
- * `key` is what identifies a request (change it and the query runs again);
- * `run` lives in a ref so an inline arrow never refetches — the key is the
- * only thing that does. A slow answer for yesterday landing after the tap that
- * moved to today is guarded by an attempt counter, and data is cleared on key
- * change rather than on error, so a *failed refresh* still keeps the day on
- * screen behind its stale-data banner. Every mutation crosses Tailscale, so
- * `pending` is what stops the second tap becoming a second appointment, and
- * errors are held rather than thrown so a failed write ends up on screen.
- */
 // biome-ignore lint/style/noRestrictedImports: this file is the query layer — one effect is the fetch the key subscribes to, one follows the other phone's writes over `/ws`, the last tracks mount so a late answer does not set state on a gone screen
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { dataGeneration, onServerChange, subscribeToDataReset } from '../../../api';
@@ -34,10 +20,6 @@ export function useLocalQuery<T>(
 ): QueryResult<T> {
     const enabled = options.enabled ?? true;
 
-    // The day tabs stay mounted, so nothing about entering a demo or reseeding
-    // one changes a key on its own — these hooks would go on drawing a clinic
-    // that has been replaced until the next tap. The generation joins the key
-    // for exactly that reason (`api/dataReset.ts`).
     const generation = useSyncExternalStore(subscribeToDataReset, dataGeneration);
 
     const [data, setData] = useState<T | undefined>(undefined);
@@ -85,10 +67,6 @@ export function useLocalQuery<T>(
         void load(data !== undefined);
     }, [load, data]);
 
-    // The other phone's writes arrive as `/ws` events, and this layer has no
-    // cache to invalidate, so every mounted read re-reads on any of them. The
-    // day cluster reads nearly every router, and the reads that answer in one
-    // turn go out as one batched request, so being precise would buy little.
     const refetchRef = useRef(refetch);
     refetchRef.current = refetch;
     useEffect(() => {
@@ -99,11 +77,6 @@ export function useLocalQuery<T>(
     return { data, status, error, refreshing, refetch };
 }
 
-/**
- * `onError` runs in addition to the held `error`, never instead of it: the
- * failure still lands on screen, and this is only for the recovery that has to
- * happen with it — re-reading the times a refused booking has just proved stale.
- */
 export interface MutationHandlers<T> {
     onSuccess?: (result: T) => void;
     onError?: (error: RequestError) => void;

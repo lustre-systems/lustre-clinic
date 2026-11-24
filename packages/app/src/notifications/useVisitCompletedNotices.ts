@@ -1,20 +1,3 @@
-/**
- * The desk's half of "the doctor is finished": a `visit:completed` on `/ws`
- * becomes a notification on the secretary's phone, foreground or not.
- *
- * The event carries the appointment's ID and nothing else (§13), so the name
- * the notice shows is asked for through tRPC, the same way every screen asks.
- * One completion is one notice: the server announces the transition once, the
- * cursor in `api/serverEvents.ts` drops a replayed frame it has already
- * applied, and the OS replaces a notice posted twice under one identifier.
- *
- * "Foreground or not" needs the foreground service in `modules/lustre-listener`:
- * Android cuts a backgrounded app's network within seconds, socket and all. It
- * runs on the desk phone only, and only while notices can be shown at all. It
- * can only be started from the foreground, so every return to the app asks for
- * it again — which is also how turning notifications on in Android settings
- * takes effect.
- */
 import { type ClientRole, localizeCopy } from '@lustre/shared';
 // biome-ignore lint/style/noRestrictedImports: subscribes to the `/ws` event stream and `AppState`, and runs the Android foreground service — all outside React
 import { useEffect } from 'react';
@@ -42,9 +25,7 @@ function listen(): void {
     });
 }
 
-/** `role` is null until the stored role has been read, so a doctor's phone never subscribes for a frame. */
 export function useVisitCompletedNotices(role: ClientRole | null): void {
-    // Demo and local mode have no socket to keep alive, and no other phone to finish a visit.
     const onDevice = useDeviceBackend().backend !== null;
 
     useEffect(() => {

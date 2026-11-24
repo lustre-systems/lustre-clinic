@@ -1,7 +1,3 @@
-/**
- * The day view's icons, built from the shared set in `components/domain/icons`
- * and named after the job each does here.
- */
 import { GLYPH, type IconProps, icon } from '../../../components/domain';
 import { useIsRTL } from '../../../i18n';
 
@@ -17,7 +13,6 @@ const ArrowLeftIcon = icon(GLYPH.back, { width: 2.2 });
 
 const ArrowRightIcon = icon(GLYPH.forward, { width: 2.2 });
 
-/** Earlier and later, which swap sides in Arabic — not left and right. */
 export function ArrowBackIcon(props: IconProps) {
     return useIsRTL() ? <ArrowRightIcon {...props} /> : <ArrowLeftIcon {...props} />;
 }
@@ -34,13 +29,10 @@ export const CheckIcon = icon(GLYPH.check, { width: 2.4 });
 
 export const WaitingIcon = icon(GLYPH.waiting, { width: 2.2 });
 
-/** How long a booking runs. Not `WaitingIcon` — the hourglass is spoken for by
- * the patient who is waiting, and a duration is not a wait. */
 export const DurationIcon = icon(GLYPH.duration);
 
 export const PatientIcon = icon(GLYPH.patient);
 
-/** Work out at the lab — a crown, bridge or denture the visit waits on. */
 export const LabIcon = icon(GLYPH.lab, { width: 2 });
 
 export const ChairIcon = icon(GLYPH.procedure, { width: 2 });
@@ -49,7 +41,6 @@ export const PaymentIcon = icon(GLYPH.money, { width: 2.2 });
 
 export const PlusIcon = icon(GLYPH.add, { width: 2.4 });
 
-/** The catalogue's remove — `CloseIcon` is a dismiss, this ends a line. */
 export const XIcon = icon(GLYPH.close, { width: 2.2 });
 
 export const MoreIcon = icon(GLYPH.more, { width: 2.2 });
@@ -58,8 +49,6 @@ export const RetryIcon = icon(GLYPH.retry, { width: 2 });
 
 export const TrashIcon = icon(GLYPH.delete, { width: 2 });
 
-// The appointment sheet's three actions. Cancel's calendar-with-a-cross is the
-// destructive one; the no-show is the patient who did not come.
 export const RescheduleIcon = icon(GLYPH.reschedule, { width: 2 });
 
 export const NoShowIcon = icon(GLYPH.noShow, { width: 2 });

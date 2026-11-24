@@ -4,12 +4,6 @@ import { utcOffsetMinutes } from '@lustre/shared/zoneSpans';
 import { setupDatabase } from './helpers/db.ts';
 import { startTestServer, type TestServer } from './helpers/trpc.ts';
 
-/**
- * Exercises the real transport — Bun.serve, the tRPC fetch adapter, and the
- * inferred `AppRouter` type the app consumes. Phase 0 is done when this is
- * green (SPEC §18).
- */
-
 let server: TestServer;
 let baseUrl: string;
 
@@ -35,8 +29,6 @@ describe('health.clock', () => {
         expect([120, 180]).toContain(result.utcOffsetMinutes);
     });
 
-    // The table the app converts every time with. It has to cover today, and
-    // agree with the offset reported beside it.
     test("carries the clinic zone's offsets around now", async () => {
         const { now, utcOffsetMinutes: offset, zone } = await client().health.clock.query();
         expect(zone.zone).toBe('Africa/Cairo');
@@ -45,9 +37,6 @@ describe('health.clock', () => {
         expect(current?.[1]).toBe(offset);
     });
 
-    // Cairo keeps summer time from the last Friday of April to the last
-    // Thursday of October. A handset left on +2 in September is the bug this
-    // endpoint exists to catch, so the offset has to follow the season.
     test("follows the clinic's summer time", () => {
         expect(utcOffsetMinutes('Africa/Cairo', new Date('2026-09-24T12:00:00Z'))).toBe(180);
         expect(utcOffsetMinutes('Africa/Cairo', new Date('2026-12-24T12:00:00Z'))).toBe(120);
@@ -65,13 +54,9 @@ describe('health.check', () => {
     });
 
     test('carries the tailnet address the app stores, null when unconfigured', () => {
-        // The field must exist even when empty: the app reads it on every
-        // connection, and an absent one would look like a server too old to ask.
         expect(client().health.check.query()).resolves.toHaveProperty('tailscale', null);
     });
 
-    // A dev build connects only to a server that says development, so the
-    // field is always there and the test server (NODE_ENV=test) is one.
     test('says which stack answered', async () => {
         expect((await client().health.check.query()).environment).toBe('development');
     });

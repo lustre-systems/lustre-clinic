@@ -1,8 +1,3 @@
-// Each metric's colours, in one place so the tile and the chart it puts a line
-// on always agree. Not selected, a tile is its soft ground and text colour;
-// selected, it is the solid fill with white text. On the black chart card the
-// line, the area, the dot and the glow take the metric's on-dark colour.
-
 import { GLYPH, type Glyph } from '../../../components/domain';
 import { color, gradient, shadow, type TextTone } from '../../../theme';
 import type { Metric } from '../stats';
@@ -10,7 +5,6 @@ import type { Metric } from '../stats';
 type Skin = {
     soft: string;
     text: TextTone;
-    /** `text` as a colour, for the tile's icon. */
     textColor: string;
     glyph: Glyph;
     solid: string;
@@ -18,7 +12,6 @@ type Skin = {
     onDark: string;
     onDarkTone: TextTone;
     glow: string;
-    /** The area under the line. White reads brighter than the tints, so it takes less. */
     fillOpacity: number;
 };
 

@@ -6,23 +6,10 @@ import { createServer } from '../../src/server.ts';
 import type { AppRouter } from '../../src/trpc/router.ts';
 import type { WsData } from '../../src/ws/index.ts';
 
-/**
- * A real `Bun.serve` on an ephemeral port with a real tRPC client pointed at it.
- *
- * The service-level suites prove the business rules; this proves the wiring —
- * that a request survives the Zod schemas, reaches the service, and comes back
- * as the status and `appCode` the client switches on (§4). None of that is
- * exercised by importing a service directly. `expectTrpcError` asserts the
- * `appCode` and the HTTP status together, since a code with the wrong status is
- * a bug the client sees as a different failure. Websocket broadcasts are
- * fire-and-forget, so `captureWsEvents` yields a turn before asserting.
- */
-
 export type TestClient = ReturnType<typeof createTRPCClient<AppRouter>>;
 
 export interface TestServer {
     client: TestClient;
-    /** A client that sends this phone credential, as a provisioned phone does. */
     clientAs(token: string): TestClient;
     baseUrl: string;
     endpoint: string;
@@ -68,13 +55,11 @@ export function startTestServer(): TestServer {
     };
 }
 
-/** Bun's `WebSocket` takes headers; the DOM type it is checked against does not know that. */
 const HeaderedWebSocket = WebSocket as unknown as new (
     url: string,
     options: { headers: Record<string, string> },
 ) => WebSocket;
 
-/** A socket opened with a phone's credential, as the app opens `/ws`. */
 export function socketAs(wsUrl: string, token: string): WebSocket {
     return new HeaderedWebSocket(wsUrl, { headers: { [DEVICE_TOKEN_HEADER]: `Bearer ${token}` } });
 }
@@ -112,11 +97,6 @@ export async function expectValidationError(fn: () => Promise<unknown>): Promise
     await expectTrpcError('VALIDATION' as ErrorCode, 400, fn);
 }
 
-/**
- * `events` is each event frame as `{ event, id }`, which is what a test is
- * usually about; `frames` is everything that crossed the socket after `hello`,
- * envelope and all.
- */
 export async function captureWsEvents<T>(
     wsUrl: string,
     fn: () => Promise<T>,
@@ -124,8 +104,6 @@ export async function captureWsEvents<T>(
     const ws = new WebSocket(wsUrl);
     const frames: WsFrame[] = [];
 
-    // `hello` is sent once the socket has joined the stream, so nothing the
-    // mutation broadcasts can land before the capture starts.
     await new Promise<void>((resolve, reject) => {
         ws.onmessage = () => resolve();
         ws.onerror = () => reject(new Error('websocket failed to open'));

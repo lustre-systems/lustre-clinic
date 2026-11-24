@@ -3,13 +3,6 @@ import postgres from 'postgres';
 import { config } from '../src/config.ts';
 import { databaseEnvironment, refuseProduction } from '../src/db/environment.ts';
 
-/**
- * The production marker is what stops the seed and the suite's truncation from
- * running against the clinic's data, whatever the connection string says. The
- * init script sets it per database; here it is set per session, on a
- * single-connection client so the setting and the check share a backend.
- */
-
 let client: postgres.Sql | undefined;
 
 function connect(): postgres.Sql {

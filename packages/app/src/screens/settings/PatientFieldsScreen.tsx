@@ -1,19 +1,3 @@
-/**
- * Settings → Patient fields. Five details are built in — they are columns on
- * `patients`, not questions, so renaming one is a migration. Whether two of them,
- * the age and the sex, must be filled in is the clinic's choice, and is two
- * columns of `settings` rather than a question's `required`. Everything else is
- * a `custom_questions` row the clinic writes, answered under a stable `key`.
- * The verb is deactivate, never delete: deleting orphans every answer on a typo,
- * while deactivating keeps the row so the key still points at the answers and
- * reactivation shows them again. The answer type is fixed once answered —
- * changing it would invalidate the stored answers.
- *
- * A question is written in both languages and read back in one, through
- * `resolveLabel` (§14). The answer is not: it is stored once, in whichever
- * language it was given. Labels need no direction handling; `Text` and
- * `TextField` detect the Arabic script per string.
- */
 import { type QuestionKind, resolveLabel } from '@lustre/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
@@ -52,7 +36,6 @@ import { errorText } from './data/errors';
 
 type CustomQuestion = RouterOutput['customQuestion']['list'][number];
 
-/** `options` is `jsonb`, so it arrives as `unknown` for every other kind. */
 function optionsOf(question: CustomQuestion): string[] {
     return Array.isArray(question.options) ? (question.options as string[]) : [];
 }
@@ -78,19 +61,12 @@ export function PatientFieldsScreen({ onBack }: { onBack: () => void }) {
     const [reordering, setReordering] = useState(false);
     const [toast, setToast] = useState<string | null>(null);
 
-    // Reordering is a mode over the list, not a route, so it is not on the
-    // stack — but Back does leave it, the same thing the header's Back does
-    // while it is on. Declared *before* the stack so the editor, which is a
-    // route and sits above this list, is asked first; a press with neither open
-    // falls through to `SettingsScreen`.
     useBackHandler(() => {
         if (!reordering) return false;
         setReordering(false);
         return true;
     });
 
-    // A route over this list rather than a nullable piece of state, so the
-    // question being edited outlives the pane's exit animation.
     const editing = useRouteStack<CustomQuestion | 'new'>();
 
     const reorder = useMutation(
@@ -103,18 +79,10 @@ export function PatientFieldsScreen({ onBack }: { onBack: () => void }) {
     const active = rows.filter((q) => q.active);
     const inactive = rows.filter((q) => !q.active);
 
-    /**
-     * An arrow is an `IconButton`, so its own press lock covers a repeat on the
-     * same one — not the arrow on the row below, and not the frame before
-     * `isPending` re-renders. Both orders would be computed from the list as it
-     * was before the first write landed, and the second would undo the first.
-     */
     const moveRow = usePendingAction((input: Parameters<typeof reorder.mutateAsync>[0]) =>
         reorder.mutateAsync(input),
     );
 
-    // One write for the whole list, so a dropped connection leaves the order it
-    // had rather than half of the new one.
     function move(index: number, delta: number) {
         const next = [...active];
         const moved = next[index];
@@ -125,8 +93,6 @@ export function PatientFieldsScreen({ onBack }: { onBack: () => void }) {
         moveRow.run({ ids: next.map((row) => row.id) });
     }
 
-    // Not while reordering — the same reason as `ProceduresScreen`.
-    // The requirements card reads `settings.get` itself; a pull refreshes it too.
     const pull = usePullToRefresh(() => {
         if (reordering) return;
         void questions.refetch();
@@ -295,11 +261,6 @@ function FixedDetailsCard() {
     );
 }
 
-/**
- * Name and phone are never optional, so they are not offered. A rule turned on
- * leaves the records already on file alone: each is asked for the field the
- * next time it is edited, and nothing else about it is refused.
- */
 function RequirementsCard() {
     const t = useT();
     const trpc = useTRPC();
@@ -311,8 +272,6 @@ function RequirementsCard() {
             onSuccess: () => queryClient.invalidateQueries(trpc.settings.pathFilter()),
         }),
     );
-    // A Switch has no press lock of its own, and two flips in a frame would
-    // both be read against the value before either landed.
     const write = usePendingAction((patch: { requireAge: boolean } | { requireGender: boolean }) =>
         save.mutateAsync(patch),
     );
@@ -430,8 +389,6 @@ function QuestionRow({
             ? t('Dropdown · {count} options', { count: optionsOf(question).length })
             : t(KIND_LABEL[question.kind]);
 
-    // The secretary reads the list in the language her phone is set to, even
-    // here where she is the one who wrote both sides.
     const locale = useLocale();
     const shown = resolveLabel(question, locale);
 
@@ -486,7 +443,6 @@ function QuestionRow({
 
 type QuestionEditorProps = {
     question: CustomQuestion | null;
-    /** Where a new question lands: after every one already asked. */
     nextSortOrder: number;
     onClose: () => void;
     onSaved: (message: string) => void;
@@ -518,12 +474,6 @@ function QuestionEditor({ question, nextSortOrder, onClose, onSaved }: QuestionE
             : undefined;
     const optionsError =
         submitted && kind === 'select' && options.length < 2 ? 'A dropdown needs at least two options.' : '';
-    /**
-     * One lock for the pane's two writes. Save and the deactivate confirm are the
-     * same `update`, and `isPending` is state: the second of two taps landing in
-     * one frame reads the old `false` and adds the question twice. The guard's
-     * ref refuses it, and clears on failure so it can be tried again.
-     */
     const write = usePendingAction((job: () => Promise<unknown>) => job());
 
     const saving = write.pending && !confirming;
@@ -576,7 +526,6 @@ function QuestionEditor({ question, nextSortOrder, onClose, onSaved }: QuestionE
         });
     }
 
-    // A write in flight swallows Back, the same as the header's.
     useBackHandler(() => {
         if (!busy) onClose();
         return true;
@@ -603,9 +552,6 @@ function QuestionEditor({ question, nextSortOrder, onClose, onSaved }: QuestionE
                 </Callout>
             ) : null}
 
-            {/* Two inputs under one heading: they are one question, not two
-                fields. Neither needs direction handling — `TextField` takes its
-                face and its alignment from what is in it. */}
             <View style={styles.section}>
                 <SectionLabel inset={false}>QUESTION</SectionLabel>
                 <View style={styles.labelPair}>
@@ -678,9 +624,6 @@ function QuestionEditor({ question, nextSortOrder, onClose, onSaved }: QuestionE
                 </View>
             ) : null}
 
-            {/* The same control as ANSWER TYPE above it, for the same reason:
-                one boolean does not need a card, a bolded restatement of the
-                heading and a sentence explaining itself. Two options say it. */}
             <View style={styles.section}>
                 <SectionLabel inset={false}>REQUIRED</SectionLabel>
                 <Card>
@@ -693,9 +636,6 @@ function QuestionEditor({ question, nextSortOrder, onClose, onSaved }: QuestionE
                 </Card>
             </View>
 
-            {/* No paragraph over it: `ConfirmSheet` says what deactivating
-                costs at the moment the choice is actually made, and saying it
-                twice only makes the quieter copy easier to skip. */}
             {question ? (
                 <Button
                     label={question.active ? 'Deactivate question' : 'Reactivate question'}

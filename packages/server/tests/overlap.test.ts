@@ -2,21 +2,6 @@ import { beforeAll, beforeEach, describe, expect, test } from 'bun:test';
 import type { AppointmentStatus } from '@lustre/shared';
 import { insertBranch, insertPatient, setupDatabase, sql, truncateAll, uuid } from './helpers/db.ts';
 
-/**
- * SPEC §5 requires boundary tests for `appointments_no_overlap`: identical
- * start, one ending exactly when the next begins, fully contained, spanning,
- * and that cancelled and no-show rows are excluded.
- *
- * These assert Postgres behaviour, not application behaviour. Nothing here goes
- * through a service — the point is that the database refuses, so that no code
- * path anywhere can produce a double-booking. postgres.js does not serialize a
- * `Date` bind parameter correctly under Bun, so raw SQL here passes ISO
- * strings; Drizzle converts `Date` itself, so application code is unaffected.
- * The session-timezone tests pin SET + SELECT to one connection via `SET LOCAL`
- * — a stray `SET TIME ZONE` would leave a pooled connection in a foreign zone
- * and quietly change what later queries see.
- */
-
 const BASE = new Date('2026-03-10T09:00:00.000Z');
 
 function at(minutes: number): string {

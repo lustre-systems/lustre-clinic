@@ -1,17 +1,7 @@
-/**
- * The nudge rule, at its edges. This is the whole of what `bun test` can reach —
- * `notifications.ts` is `expo-notifications` and needs a device — so the rule
- * is deliberately the part that holds the decisions.
- *
- * `PRODUCT.md:96`, restated: at the notify time, if reminders are pending, buzz;
- * repeat every N minutes until the list is empty or dismissed for the day; stop
- * overnight.
- */
 import { describe, expect, it } from 'bun:test';
 import { instantAt } from '@lustre/shared';
 import { minutesOfClock, planNudges } from './schedule';
 
-/** `HH:MM` on a clinic day, as the instant the clinic's clock reads it. */
 function clinic(key: string, hours: number, minutes = 0): number {
     return instantAt(key, hours * 60 + minutes);
 }
@@ -38,7 +28,6 @@ describe('planNudges', () => {
         expect(at[0]).toEqual(new Date(clinic('2026-08-27', 19)));
         expect(at[1]).toEqual(new Date(clinic('2026-08-27', 19, 30)));
         expect(at.at(-1)).toEqual(new Date(clinic('2026-08-27', 23, 30)));
-        // 19:00 to 23:30 inclusive, every half hour.
         expect(at).toHaveLength(10);
     });
 
@@ -58,8 +47,6 @@ describe('planNudges', () => {
     });
 
     it('never schedules a slot that has already passed', () => {
-        // Foregrounded at 21:10. The 19:00, 19:30, 20:00, 20:30 and 21:00 slots
-        // are gone; scheduling them would buzz five times on the spot.
         const { at } = plan({ now: clinic('2026-08-27', 21, 10) });
 
         expect(at[0]).toEqual(new Date(clinic('2026-08-27', 21, 30)));
@@ -84,16 +71,12 @@ describe('planNudges', () => {
         expect(at[0]).toEqual(new Date(clinic('2026-08-27', 6)));
     });
 
-    // 7 pm in Cairo is 16:00 UTC in summer, whatever zone the phone is set to.
     it("fires at the clinic's notify time, not the phone zone's", () => {
         const { at } = plan();
 
         expect(at[0]?.toISOString()).toBe('2026-08-27T16:00:00.000Z');
     });
 
-    // The night summer time ends: 24:00 at +3 becomes 23:00 at +2, so the
-    // last hour of the clinic's Thursday runs twice. The series still ends at
-    // midnight, and every slot is a distinct instant on the right side of it.
     it("keeps the clinic's times across the end of summer time", () => {
         const { at } = plan({
             today: '2026-10-29',

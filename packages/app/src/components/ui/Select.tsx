@@ -1,10 +1,3 @@
-/**
- * The designs draw a native `<select>` with a chevron. React Native's native
- * pickers differ enough between platforms that the row would not match either
- * design, so the control is the field plus a Sheet of options — one appearance
- * on both platforms, and the option labels get per-string script detection for
- * free.
- */
 import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { useT } from '../../i18n';
@@ -16,9 +9,6 @@ import { Sheet } from './Sheet';
 export type SelectOption<T extends string> = { value: T; label: string };
 
 export type SelectProps<T extends string> = {
-    /** The caller's rows, not the control's chrome: a branch or a procedure
-     * name is data and is passed through as it comes. `label`, `placeholder`
-     * and `sheetTitle` are this control's own copy and are localized here. */
     options: readonly SelectOption<T>[];
     value: T | null;
     onChange: (value: T) => void;

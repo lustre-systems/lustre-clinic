@@ -1,9 +1,3 @@
-/**
- * Tap a value and it becomes an input in place; blur or Return commits, Escape
- * reverts (§4.2). The draft is local until commit, so an abandoned edit never
- * reaches the caller or the server — Escape sets an `abandoned` flag so the
- * blur that follows does not commit the discarded draft.
- */
 import { useRef, useState } from 'react';
 import type { KeyboardTypeOptions } from 'react-native';
 import { Pressable, StyleSheet, TextInput, View } from 'react-native';

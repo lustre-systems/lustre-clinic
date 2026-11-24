@@ -1,11 +1,3 @@
-/**
- * The clinic's catalogue, one level deep (§5): a root either is the procedure
- * (Extraction) or is a heading whose children carry the prices (Composite
- * filling → Class I, Class II). Tapping a heading opens it in place rather than
- * pushing another sheet — the variant is a detail of the choice, not a second
- * question — and the price is on every row, because "how much is a zirconia
- * crown" is asked at the same moment as "add a crown".
- */
 import { useMemo, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { Button, Chevron, Sheet } from '../../../components/ui';
@@ -22,11 +14,6 @@ export type PickedProcedure = {
     variant: string | null;
     price: number;
     isCheckup: boolean;
-    /**
-     * Whether the line still owes a tooth. The general sheet offers the whole
-     * catalogue, so the caller cannot tell from the pick alone, and §5 refuses
-     * a tooth-specific line without one.
-     */
     needsTooth: boolean;
 };
 
@@ -38,7 +25,6 @@ export type ProcedureSheetProps = {
     loading: boolean;
     error: RequestError | null;
     onRetry: () => void;
-    /** Named in the title so a tap on "Add to UL6" says where it is going. */
     tooth: string | null;
 };
 
@@ -57,14 +43,6 @@ export function ProcedureSheet({
 
     const offered = useMemo(() => offeredFor(categories, tooth !== null), [categories, tooth]);
 
-    /**
-     * A pick closes the sheet, and the sheet is on screen and under the finger
-     * for the whole slide down — so the second tap of a double tap lands on a
-     * row that has already been answered. The caller has cleared what it was
-     * asking by then, and its own fallback is "no tooth", which is how one tap
-     * on `Class II` became two lines with the second one unassigned. The sheet
-     * that is leaving cannot answer.
-     */
     function pick(picked: PickedProcedure) {
         if (!visible) return;
         onPick(picked);
@@ -100,9 +78,6 @@ export function ProcedureSheet({
                     {t('The clinic has no procedures set up yet. Settings → Procedures.')}
                 </Text>
             ) : offered.length === 0 ? (
-                // Only reachable with a tooth. Without one the sheet offers the
-                // whole catalogue, so an empty list there is an empty
-                // catalogue — which the branch above has already said.
                 <Text variant="subhead" tone="muted">
                     {t(
                         'Nothing in the catalogue is done to a single tooth, so there is nothing to add to {tooth}.',
@@ -151,16 +126,6 @@ export function ProcedureSheet({
 
                                 {open ? (
                                     <View style={styles.variants}>
-                                        {/* Hide every subtype of a category and
-                                            it is still a heading here, because
-                                            the no-tooth sheet offers the
-                                            catalogue whole. Opening it used to
-                                            reveal nothing at all — the chevron
-                                            was the only thing that moved. The
-                                            catalogue screen keeps the heading
-                                            and reads "ONLAYS 0"; saying so here
-                                            costs a line and keeps the two
-                                            screens telling the same story. */}
                                         {category.children.length === 0 ? (
                                             <Text variant="subhead" tone="muted" style={styles.emptyCategory}>
                                                 {t('Nothing in this category yet. Settings → Procedures.')}
@@ -249,10 +214,6 @@ const styles = StyleSheet.create({
         borderRadius: radius.lg,
         backgroundColor: color.surface,
     },
-    // Open, the heading is the top of one shape rather than a pill of its own:
-    // `variants` carries the same ground and rounds the bottom, so leaving the
-    // heading's bottom corners rounded curved them into a square-topped panel
-    // and left a notch down each side.
     rowOpen: {
         backgroundColor: color.surface2,
         borderBottomStartRadius: 0,

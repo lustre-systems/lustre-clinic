@@ -4,11 +4,6 @@ import { useT } from '../i18n';
 import { errorText, GRANT_REFUSED, ROLE_NAME } from '../screens/settings';
 import { clearPendingJoin, usePendingJoin } from './joinLink';
 
-/**
- * Asks before a role code a link handed the app is used (`joinLink.ts`). The
- * link is the join page's "Open in Lustre", but it could be any link on the
- * phone, and a phone must not take a role nobody meant to give it.
- */
 export function JoinSheet({ onDone }: { onDone: (message: string) => void }) {
     const t = useT();
     const join = usePendingJoin();

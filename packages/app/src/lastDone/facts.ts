@@ -1,25 +1,8 @@
-/**
- * Who an id belongs to, learnt from what the server has already answered.
- *
- * Most writes answer with ids and nothing a person would recognise: a check-in
- * comes back as a visit row, a payment correction as a visit. The log line
- * wants the patient's name, and the screen that made the write had it — it
- * read it a moment earlier, through the same client. So every answer that
- * passes through the log's link is walked for the three shapes that carry it,
- * and kept here: a patient (`id`, `name`, `phone`), an appointment (`id`,
- * `patientId`, `startsAt`, sometimes the patient embedded) and a visit (`id`,
- * `appointmentId`, `checkedInAt`).
- *
- * Memory only, and dropped with everything else on a data reset. It is never
- * written down: the log keeps the one name per line it needs, and nothing more.
- */
-
 export interface KnownAppointment {
     patientId: string;
     startsAt: string;
 }
 
-/** Enough for a busy clinic's month of reads, small enough not to matter. */
 const CAP = 4000;
 const DEPTH = 6;
 
@@ -64,7 +47,6 @@ function learn(record: Record<string, unknown>): void {
     }
 }
 
-/** Walks an answer for the shapes above. Never throws: it runs inside every request. */
 export function noteAnswer(value: unknown, depth = 0): void {
     if (depth > DEPTH) return;
     if (Array.isArray(value)) {

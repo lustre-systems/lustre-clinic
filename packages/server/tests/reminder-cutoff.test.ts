@@ -5,16 +5,8 @@ import { settingsService } from '../src/modules/settings/settings.service.ts';
 import { setupDatabase, truncateAll } from './helpers/db.ts';
 import { clinic } from './helpers/factories.ts';
 
-/**
- * SPEC §11. The notify time was 17:00 and the first alarm rang at 20:00: with a
- * 24 h lead, tomorrow's 20:00 patient only became due at 20:00 today, and each
- * repeat brought up one more. From the notify time the pending list now holds
- * everything due before the clinic's midnight; before it, only what is due now.
- */
-
 const HOUR = 3_600_000;
 
-// Two days out, so every booking is in the future whatever the real clock says.
 const DAY = (() => {
     const at = new Date();
     at.setUTCDate(at.getUTCDate() + 2);
@@ -59,7 +51,6 @@ beforeEach(async () => {
             })
         ).startsAt.getTime();
 
-    // Due today at 10:00 and 20:00, and tomorrow at 01:00.
     morning = await book(onDay(24 + 10));
     evening = await book(onDay(24 + 20));
     afterMidnight = await book(onDay(48 + 1));
@@ -88,7 +79,6 @@ describe('reminder.pending, due only', () => {
     });
 
     test('reads the notify time and midnight in the clinic day, from offsetMinutes', async () => {
-        // UTC+3: 13:59Z is 16:59 local, 14:00Z is 17:00, and midnight is 21:00Z.
         expect(await dueAt(onDay(13 + 59 / 60), { offsetMinutes: 180 })).toEqual([morning]);
         expect(await dueAt(onDay(14), { offsetMinutes: 180 })).toEqual([morning, evening]);
     });

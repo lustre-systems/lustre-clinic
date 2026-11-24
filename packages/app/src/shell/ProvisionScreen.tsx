@@ -16,19 +16,6 @@ import { ScanCodeScreen } from '../screens/settings';
 import { color, space } from '../theme';
 import { DeadEnd } from './DeadEnd';
 
-// The shell's third route beside the app and offline: the server answered and
-// would not let this phone in. Like the offline screen it is a dead end with
-// one way out — here, an admin's code. Behind it nothing is drawn, because
-// everything behind it would be a screen of refusals.
-//
-// Revoked is kept across launches (`api/credential`), so a phone an admin shut
-// out does not drift back in on the access a phone with no role still has.
-// Unprovisioned is not: the clinic turning the requirement off again has to be
-// enough, and Try again is how this phone finds out.
-//
-// A dev or demo build has a second way out, the demo (`api/variant.ts`): a
-// developer whose dev server asks for a code has nobody to issue one, and the
-// demo has its own roles. A prod build never shows it.
 const TITLE: Record<Exclude<Refusal, 'none'>, string> = {
     new: 'Scan your role code',
     unprovisioned: 'This phone needs a role code',
@@ -47,8 +34,6 @@ export function ProvisionScreen({ refusal }: { refusal: Exclude<Refusal, 'none'>
     const t = useT();
     const [scanning, setScanning] = useState(false);
     const inDemo = useDemoMode().enabled;
-    // The shell hands the hardware back to the launcher on this route; the
-    // scanner over it is the one thing back should close first.
     useHardwareBack(scanning, () => {
         setScanning(false);
         return true;
@@ -82,8 +67,6 @@ export function ProvisionScreen({ refusal }: { refusal: Exclude<Refusal, 'none'>
                     />
                 ) : null}
 
-                {/* Already in the demo, entering it again changes nothing; the
-                refusal is the demo's own, and starting it over clears it. */}
                 {DEMO_ALLOWED ? (
                     <Button
                         label={inDemo ? 'Reset demo data' : 'Enter demo mode'}

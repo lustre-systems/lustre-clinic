@@ -1,13 +1,3 @@
-/**
- * What the doctor wants done at the patient's next visit — any number of
- * procedures, each with its tooth when it has one. The patient's next booking
- * takes them all: the earliest one already waiting gets the lines added when
- * the visit is saved, and if there is none the booking page offers them the
- * next time the desk books them.
- *
- * Its own file so the visit screen, already the longest in the app, gains a
- * slot rather than another section of markup.
- */
 import type { Tooth } from '@lustre/shared';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { useT } from '../../../i18n';
@@ -23,7 +13,6 @@ export type NextDraft = {
 
 export type NextProcedureBoxProps = {
     next: readonly NextDraft[];
-    /** On a booking, as the server last said — not true of picks nobody has saved. */
     booked: boolean;
     onAdd: () => void;
     onChange: (index: number) => void;

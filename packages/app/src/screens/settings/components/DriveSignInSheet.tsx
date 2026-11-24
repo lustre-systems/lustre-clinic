@@ -1,16 +1,3 @@
-/**
- * The confirm in front of linking Drive (SPEC §16).
- *
- * It exists because of who can reach this. The role is a device preference
- * (§1), so the secretary can switch to the doctor's view and land on these rows
- * — and this is the one control in the app that changes where every future
- * backup of the clinic's records is sent. A mis-tap here does not lose data, it
- * quietly starts sending it somewhere else, which is worse for being invisible.
- *
- * So the sheet names the account that is linked now, says what replacing it
- * does to the old folder, and puts the consequence before the button rather
- * than after it — the same shape `RoleSwitchSheet` uses.
- */
 import { StyleSheet, View } from 'react-native';
 import { Button, Sheet } from '../../../components/ui';
 import { useT } from '../../../i18n';
@@ -19,7 +6,6 @@ import { CheckIcon } from './icons';
 
 export type DriveSignInSheetProps = {
     visible: boolean;
-    /** The account the clinic backs up to now, when there is one. */
     account: string | null;
     busy: boolean;
     onConfirm: () => void;

@@ -1,10 +1,3 @@
-/**
- * The table bundled into the app is what one-phone mode and a phone that has
- * never reached a server convert every time with. It goes stale two ways: the
- * zone's rules change (Bun's ICU says so), or it runs out. Either fails here;
- * `bun packages/shared/scripts/bundle-clinic-zone.ts` writes a fresh one, and
- * an OTA update carries it.
- */
 import { describe, expect, it } from 'bun:test';
 import path from 'node:path';
 import { render } from '../scripts/bundle-clinic-zone.ts';

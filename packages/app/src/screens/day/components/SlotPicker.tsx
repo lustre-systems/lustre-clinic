@@ -1,34 +1,3 @@
-/**
- * When the booking is — a fortnight of days, and the times that day still has
- * free. It draws what `BookingScreen` fetched rather than fetching itself,
- * so the grid and the Book button read the same slots: the button has to refuse
- * a time that went while the note was being typed, and it can only do that if
- * there is one answer to "is 3:00 free", not two.
- *
- * How long comes first, because the length decides both of the answers under
- * it: the grid tiles the day by it, and a day with no room for forty-five
- * minutes is not a day this booking can have. Asking it last meant every answer
- * above it changed the moment it was given.
- *
- * Only free times are drawn. A grid of greyed-out hours is mostly noise on a
- * busy day — what the desk is choosing between is what is left, so that is what
- * it is shown, and the count says how many. A time that goes *while* the
- * booking is being filled in is the one exception: it disappears from the grid,
- * and the callout underneath says why the picked one no longer stands.
- *
- * The strip is the same idea one scale up: the days that can take this booking,
- * and only those. Not the branch's working days — a Thursday whose every time
- * has gone is as much use as a Friday it is shut — so `BookingScreen` reads the
- * whole fortnight and hands down what is left. What is offered is what can be
- * booked, at every scale.
- *
- * The strip ends in a way out of it, because a fortnight is the near question
- * and not the only one: a check-up booked six months ahead is an ordinary thing
- * to ask for at the desk, and before this the strip was the only answer to
- * "which day", so it was also the limit on how far ahead the clinic could book
- * at all. The calendar is the same one the day view opens, so "is March busy"
- * is asked and answered the same way wherever it comes up.
- */
 import { useRef } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { Button, Callout, Chip } from '../../../components/ui';
@@ -42,22 +11,17 @@ import { CalendarIcon } from './icons';
 
 export type SlotPickerProps = {
     dateKey: string;
-    /** The days that can take this booking — already filtered, in order. */
     days: readonly string[];
-    /** The fortnight is still being read: "no days" is not the answer yet. */
     daysLoading: boolean;
     onPickDate: (dateKey: string) => void;
-    /** Open the calendar, for a day further out than the strip reaches. */
     onPickFurtherDate: () => void;
     slotMinutes: number | null;
     onPickSlot: (minutes: number | null) => void;
     slots: readonly Slot[];
-    /** The day behind the grid: it has to say "still loading" before "no times". */
     loading: boolean;
     error: RequestError | null;
     onRetry: () => void;
     branchName: string | null;
-    /** The HOW LONG control, drawn above the two answers it decides. */
     duration: React.ReactNode;
 };
 
@@ -81,12 +45,6 @@ export function SlotPicker({
     const free = slots.filter((slot) => slot.state === 'free');
 
     const strip = useRef<ScrollView>(null);
-    // A day off the calendar sorts after every day in the window, so it is
-    // always the last chip — and the strip starts at its own beginning, which
-    // left the day just chosen sitting past the right edge of a strip that
-    // looked like nothing was selected at all. The content changing width is
-    // the moment that day joined it, and the only moment worth scrolling on:
-    // every other day the strip offers is reachable without moving it.
     const stripEndsOnPick = days.length > 0 && days[days.length - 1] === dateKey;
 
     return (
@@ -123,9 +81,6 @@ export function SlotPicker({
                                     }}
                                 />
                             ))}
-                            {/* Last, not first: the near days are what most
-                                bookings want, and a control ahead of them would
-                                be passed over on every one of those. */}
                             <Chip
                                 label="Another date"
                                 variant="new"

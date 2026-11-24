@@ -1,11 +1,3 @@
-/**
- * SPEC §4. `Bun.serve` is the entire HTTP layer — no Express, no `ws`
- * dependency. It hosts the tRPC fetch adapter, native WebSockets, the release
- * APK download and the expo-updates endpoint (§15, `modules/release`).
- *
- * There is no public ingress and no TLS: Tailscale is the transport and the
- * security boundary (§1).
- */
 import {
     APK_PATH,
     JOIN_PATH,

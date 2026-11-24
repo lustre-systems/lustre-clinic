@@ -1,5 +1,3 @@
-// The strip is only worth its row if it names the server: two phones on a desk
-// showing the same day differ in nothing else.
 import { describe, expect, test } from 'bun:test';
 import { serverLabel } from './serverLabel';
 

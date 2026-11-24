@@ -3,29 +3,6 @@ import * as Application from 'expo-application';
 import Constants from 'expo-constants';
 import { type BuildVariant, bootAddresses, usableAddresses, variantOf } from './variant';
 
-// Server addressing lives entirely here (SPEC §14). The server is a PC in the
-// clinic that listens only on Tailscale, so a prod build has one address: the
-// MagicDNS hostname. Dev and demo builds also keep a LAN address, tried first,
-// because the emulator and a cable-attached phone reach the dev server through
-// `localhost`. `usableAddresses` drops the LAN side on prod however it arrived —
-// shipped, typed, or restored from an older build. Addresses are configured
-// during onboarding via `setServerAddresses`; `app.json` `extra.server` is the
-// boot default, and this module deliberately holds no storage of its own.
-//
-// `extra.server` ships empty. A shipped address is right for exactly one
-// clinic and wrong for every other one, and the wrong address is the worse
-// failure of the two: it sends a fresh install to a screen that says the
-// clinic did not answer, when the truth is that nobody has said where it is.
-// Empty says that, and setup asks. A dev build fills the gap with
-// `extra.devServer` (`bootAddresses`) — the dev server the device scripts have
-// already reversed onto the phone — and a dev machine that wants a different
-// one puts it in `app.json` locally and does not commit it.
-//
-// `normalize` takes `unknown` on purpose: an unconfigured address arrives as
-// JSON `null` (or `{}` through the manifest), so a declared `string | null` is
-// not one at runtime. The timing values sum to roughly ten seconds before a
-// definite "the server is not there": a 3s tailnet probe (after a 0.5s LAN
-// probe on dev), a 5s request cap, and reads retry once while writes never retry.
 export interface ServerAddresses {
     lan: string | null;
     tailscale: string | null;

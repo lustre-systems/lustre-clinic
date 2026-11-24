@@ -1,9 +1,3 @@
-// Profit per chart point, stacked by branch: the biggest earner at the bottom
-// in `ink`, the next in `inkFaint` above it. The selected bar is full strength
-// with its total on top and the rest fade back; tapping a bar selects that
-// point everywhere, like tapping it on the chart. A branch that lost money in a
-// period has no height to stack, so it draws nothing rather than a bar going
-// down through the others; the total on top is still the honest figure.
 import { Pressable, StyleSheet, View } from 'react-native';
 import { useLocale, useT } from '../../../i18n';
 import { color, radius, space, Text } from '../../../theme';
@@ -13,14 +7,11 @@ import { branchOrder, hasSplit, leadingShare, perDayLead, versusAverage } from '
 
 const BAR_HEIGHT = 110;
 const MIN_SEGMENT = 4;
-/** The design's column (six months on a 390-wide phone), as a ceiling: four weeks must not draw four slabs. */
 const BAR_MAX_WIDTH = 40;
 const SHADES = [color.ink, color.inkFaint, color.muted, color.line] as const;
 
-/** What one point on the chart is, for "an average day" and the like. */
 export type PointUnit = 'day' | 'week' | 'month' | 'year';
 
-/** Copy per unit and direction: Arabic words the noun differently for each, so each is a whole sentence. */
 const VERSUS_AVERAGE: Record<PointUnit, { up: string; down: string }> = {
     day: {
         up: '{point}: {percent}% above an average day.',
@@ -43,17 +34,11 @@ const VERSUS_AVERAGE: Record<PointUnit, { up: string; down: string }> = {
 export type BranchBarsProps = {
     points: readonly StatsFigures[];
     labels: readonly string[];
-    /** Each point's full name, for the sentence under the bars: "September", "Week of 4 Oct". */
     names: readonly string[];
-    /** The whole period, for the sentence under the bars while no bar is selected. */
     total: StatsFigures | undefined;
-    /** The pill's name, for that sentence. */
     periodName: string;
-    /** What one point is, for the comparison under the bars. */
     unit: PointUnit;
-    /** Where a second tap on the selected bar goes back to, or null when it is already there. */
     back: string | null;
-    /** -1 when nothing is selected. */
     selected: number;
     onSelect: (index: number) => void;
 };
@@ -86,10 +71,6 @@ export function BranchBars({
     const shareOf = selected >= 0 ? (names[selected] ?? '') : periodName;
     const insight = focus ? insightOf(focus) : null;
 
-    // The most useful thing the bars can say about the point that is up: with
-    // both branches open, which one earns more for each day it opens; with one,
-    // how the point did against the others on the chart; failing both, whose
-    // profit it was.
     function insightOf(point: StatsFigures): string | null {
         const lead = perDayLead(point);
         if (lead) {
@@ -166,7 +147,6 @@ export function BranchBars({
                                 {formatEgp(point.profit, { compact: true, showCurrency: false })}
                             </Text>
                             <View style={styles.stack}>
-                                {/* Top of the stack first: the biggest earner sits at the bottom. */}
                                 {[...stack.keys()].reverse().map((index) => {
                                     const value = stack[index] ?? 0;
                                     if (value <= 0) return null;
@@ -235,7 +215,6 @@ const styles = StyleSheet.create({
     legendItem: { flexDirection: 'row', alignItems: 'center', gap: space[1], flexShrink: 1 },
     dot: { width: 8, height: 8, borderRadius: radius.full },
     subtitle: { marginTop: -space[2.5] },
-    // Room for the total over the tallest stack and the label under it, so no column overflows and pushes its label out of line.
     bars: { flexDirection: 'row', alignItems: 'flex-end', height: BAR_HEIGHT + 54 },
     column: { flex: 1, height: '100%', justifyContent: 'flex-end', alignItems: 'center', gap: space[1.5] },
     faded: { opacity: 0.35 },

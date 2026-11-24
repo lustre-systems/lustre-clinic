@@ -1,8 +1,3 @@
-/**
- * A QR code drawn as one SVG path, dark modules on white with the four-module
- * quiet zone scanners look for. The modules come from `qrModules`, the same
- * encoder the server's CLI prints with.
- */
 import { qrModules } from '@lustre/shared';
 import { useMemo } from 'react';
 import { StyleSheet, View } from 'react-native';

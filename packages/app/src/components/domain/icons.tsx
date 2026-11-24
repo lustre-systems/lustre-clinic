@@ -1,13 +1,3 @@
-/**
- * The app's one icon set: every `lucide-react-native` glyph is picked here,
- * once per concept, and lint refuses the library anywhere else. The clusters'
- * `icons.tsx` files still name icons after the job they do on their screens and
- * set their own sizes and weights, but they build them from `GLYPH`, so "add"
- * is the same plus and "procedure" the same stethoscope on every screen.
- *
- * `ui/` cannot import this — it knows nothing of the library — so a primitive
- * that shows an icon takes it as a prop.
- */
 import type { PaymentMethod } from '@lustre/shared';
 import {
     AppWindow,
@@ -113,13 +103,10 @@ export const GLYPH = {
     hide: EyeOff,
     info: Info,
     lab: FlaskConical,
-    // The arrow round a clock, not a bare undo arrow: it lists what was done,
-    // and must not read as "tap to take it back".
     lastDone: History,
     leaveDemo: LogOut,
     backups: DatabaseBackup,
     money: CreditCard,
-    // The stats screen's four figures.
     statCost: Receipt,
     statNewPatients: UserPlus,
     statProfit: TrendingUp,
@@ -149,7 +136,6 @@ export const GLYPH = {
     waiting: Hourglass,
 } satisfies Record<string, Glyph>;
 
-/** The four ways the clinic is paid, drawn the same wherever a method shows. */
 export const METHOD_GLYPH: Record<PaymentMethod, Glyph> = {
     cash: Banknote,
     visa: CreditCard,

@@ -1,14 +1,3 @@
-/**
- * Local mode's automatic backups: a snapshot of the clinic into the hidden app
- * folder of the phone's own Google account, once a day when anything changed,
- * and on request. There is no clinic server here to hold the Google grant, so
- * this one is the exception to "no refresh token on a handset": it sits in the
- * Android keystore (`expo-secure-store`), and is good for this account's hidden
- * folder and nothing else in it.
- *
- * An unchanged clinic uploads nothing. Fourteen quiet days would otherwise push
- * every backup that differs out of the fourteen kept.
- */
 import { todayKey } from '@lustre/shared';
 import Constants from 'expo-constants';
 import {
@@ -42,22 +31,18 @@ const DAY_MS = 24 * 3_600_000;
 interface DriveLink {
     refreshToken: string;
     account: string | null;
-    /** Google stopped honouring the grant at this instant; nothing uploads until a new sign-in. */
     signedOutAt: string | null;
 }
 
-// Required here rather than imported, for the reason `./local` requires SQLite.
 function secureStore(): typeof import('expo-secure-store') {
     return require('expo-secure-store') as typeof import('expo-secure-store');
 }
 
 function fetcher(): DriveFetch {
-    // Not React Native's own: that one cannot send or read raw bytes.
     const { fetch } = require('expo/fetch') as { fetch: unknown };
     return fetch as DriveFetch;
 }
 
-/** Null on a build with no Google client, which offers none of this. */
 export function driveClientId(): string | null {
     const id = (Constants.expoConfig?.extra as { driveClientId?: unknown } | undefined)?.driveClientId;
     return typeof id === 'string' && id ? id : null;
@@ -68,7 +53,6 @@ function readLink(): DriveLink | null {
         const raw = secureStore().getItem(LINK_KEY);
         return raw ? (JSON.parse(raw) as DriveLink) : null;
     } catch {
-        // A keystore restored onto another phone cannot decrypt: sign in again.
         return null;
     }
 }
@@ -87,7 +71,6 @@ function announce(link: DriveLink | null): void {
     );
 }
 
-/** What Settings reads without waiting. Called on opening the clinic. */
 export function hydrateDriveLink(): void {
     announce(readLink());
 }
@@ -127,7 +110,6 @@ async function accessToken(): Promise<string> {
     return access.token;
 }
 
-/** A finished Google sign-in. The account is only for showing; failing to read it costs nothing. */
 export async function linkDrive(refreshToken: string, token: string): Promise<void> {
     const account = await driveAccount(fetcher(), token).catch(() => null);
     access = null;
@@ -136,7 +118,6 @@ export async function linkDrive(refreshToken: string, token: string): Promise<vo
 
 let running: Promise<Date> | null = null;
 
-/** One at a time: the daily check and a tap can land together. */
 function upload(): Promise<Date> {
     running ??= uploadNow().finally(() => {
         running = null;
@@ -147,14 +128,12 @@ function upload(): Promise<Date> {
 async function uploadNow(): Promise<Date> {
     const at = new Date();
     const snapshot = storeSnapshot(at);
-    // Taken with the snapshot, in one tick: a save during the upload marks it again.
     takeDriveDirty();
     try {
         const send = fetcher();
         const token = await accessToken();
         await uploadBackup(send, token, `lustre-clinic-${todayKey(at.getTime())}.db.gz`, snapshot);
         writeDriveBackupAt(at);
-        // The new copy is safe whatever happens here; the next run tries again.
         try {
             const past = backupsPastKept(await listBackups(send, token));
             for (const old of past) await deleteBackup(send, token, old.id);
@@ -170,23 +149,18 @@ async function uploadNow(): Promise<Date> {
     }
 }
 
-/** "Back up now": always uploads, since whoever asked may be about to uninstall. */
 export function backUpToDrive(): Promise<Date> {
     return upload();
 }
 
-/** A day since the last one and something new to send. The first ever is always due. */
 function isBackupDue(lastAt: Date | null, dirty: boolean, now: number = Date.now()): boolean {
     if (!lastAt) return true;
     return dirty && now - lastAt.getTime() >= DAY_MS;
 }
 
-/** The daily check, from the background task and from the app coming to the front. */
 export async function backUpIfDue(): Promise<boolean> {
     const link = readLink();
     if (!driveClientId() || !link || link.signedOutAt) return false;
-    // Signed in on a reinstall, with a new clinic not yet used or none at all: an
-    // empty copy would become the newest, and the one a restore offers first.
     if (!storeHasRecords()) return false;
     const { lastBackupAt, dirty } = readDriveMeta();
     if (!isBackupDue(lastBackupAt, dirty)) return false;
@@ -198,23 +172,16 @@ export async function listDriveBackups(): Promise<DriveBackup[]> {
     return listBackups(fetcher(), await accessToken());
 }
 
-/** Read and checked like a picked file, row by row, and not opened yet. */
 export async function fetchDriveBackup(id: string): Promise<PickedClinic> {
     return pickedFromSnapshot(await downloadBackup(fetcher(), await accessToken(), id));
 }
 
-/** Every backup gone from Drive, and the phone stays linked. Stops at the first one that fails. */
 export async function deleteDriveBackups(): Promise<void> {
     const send = fetcher();
     const token = await accessToken();
     for (const backup of await listBackups(send, token)) await deleteBackup(send, token, backup.id);
 }
 
-/**
- * Stops the backups and forgets the grant. The backups stay in Drive: after this
- * the app cannot reach them, so deleting them is offered first. A revoke that
- * fails still unlinks, because the person asked for this phone to stop.
- */
 export async function unlinkDrive(): Promise<void> {
     const link = readLink();
     access = null;

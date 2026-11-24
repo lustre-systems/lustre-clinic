@@ -1,7 +1,3 @@
-/**
- * SPEC §12 — branches are rows the clinic edits in-app. A branch is
- * deactivated rather than deleted, because appointments reference branches.
- */
 import { whatsAppAppSchema } from '@lustre/shared';
 import { z } from 'zod';
 

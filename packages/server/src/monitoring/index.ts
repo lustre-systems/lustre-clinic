@@ -1,11 +1,3 @@
-/**
- * SPEC §17. Two channels covering different failures: the Discord webhook is
- * the app reporting its own errors, the heartbeat is an external check that the
- * machine is responding at all.
- *
- * `startMonitoring` installs the process-level handlers and starts the
- * heartbeat; it is called once from the entrypoint, before the server listens.
- */
 import { config } from '../config.ts';
 import { logger } from '../logger.ts';
 import { type Alert, type Alerter, createAlerter, discordSender, noopSender } from './alert.ts';
@@ -25,7 +17,6 @@ export function alert(a: Alert): Promise<void> {
 let heartbeat: Heartbeat | undefined;
 
 export interface MonitoringOptions {
-    /** Asked before each heartbeat; passed in so monitoring never imports the database. */
     isHealthy?: () => Promise<boolean>;
 }
 

@@ -1,7 +1,3 @@
-/**
- * The day view's data layer — one entry point, so swapping in the real tRPC
- * client (BLOCKED.md) is this folder and nothing else.
- */
 export { RequestError } from './client';
 export { useGeneralClinic } from './clinicType';
 export type { BookedProcedure, PatientRef } from './day';

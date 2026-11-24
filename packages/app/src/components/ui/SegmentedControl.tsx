@@ -1,21 +1,3 @@
-/**
- * The pill track (System A) rather than System B's grid — the two designs draw
- * the same control twice and the pill is the one the tabbed screens use (§4.2).
- * Icons are drawn in `currentColor`; the caller decides the colour from
- * `selected`. The selected half is outlined, not just filled: on a track this
- * pale the fill alone is faint, and the border is what makes it read as a thing
- * sitting on top rather than a lighter patch of the same surface.
- *
- * The pill is one view that slides rather than a style on whichever half is
- * chosen, so the control shows the change instead of reporting it. That is also
- * the whole of the animation where this control switches between two panes:
- * moving the panes themselves fights the sheet resizing around them, while the
- * thumb is the thing the finger just pressed.
- *
- * The geometry comes from the first segment measuring itself — the halves are
- * `flex: 1` and therefore equal, so one measurement gives the width and the
- * step. Nothing is drawn until that arrives, which is one frame.
- */
 // biome-ignore lint/style/noRestrictedImports: slides the thumb with `Animated.timing` when the selection moves, and stops it on cleanup
 import { useEffect, useRef, useState } from 'react';
 import type { LayoutChangeEvent } from 'react-native';
@@ -31,13 +13,6 @@ export type Segment<T extends string> = {
     icon?: (selected: boolean) => React.ReactNode;
 };
 
-/**
- * `md` is the control a screen is built around — a tab bar for two panes, the
- * thing the thumb goes to. `sm` is for a screen that already has a heavier
- * control above it: on the patient record the two openers are the buttons, and
- * a switch the same height as them makes the page read as four equal actions
- * rather than two actions and a view toggle.
- */
 export type SegmentedControlSize = 'md' | 'sm';
 
 export type SegmentedControlProps<T extends string> = {
@@ -68,17 +43,6 @@ export function SegmentedControl<T extends string>({
     const isRTL = useIsRTL();
     const t = useT();
 
-    // Anchored at the track's start edge and walked towards its end — one
-    // frame, which is what this had been missing. `layout.x` and `translateX`
-    // are physical, but `left` is not: `LocaleProvider` turns on
-    // `swapLeftAndRightInRTL`, so the thumb's `left: 0` meant the right edge in
-    // Arabic while the offset added to it still counted from the left. Measured
-    // in Arabic the thumb landed a half-track past the end of its own track and
-    // neither tab read as chosen.
-    //
-    // The inset is the track's padding — what `layout.x` reports for the first
-    // segment in LTR. In RTL that segment sits at the far end, so the padding is
-    // what is left after walking the others back off it.
     const inset = slot ? (isRTL ? slot.x - (segments.length - 1) * slot.width : slot.x) : 0;
     const step = slot ? (isRTL ? -1 : 1) * (inset + index * slot.width) : 0;
 
@@ -86,7 +50,6 @@ export function SegmentedControl<T extends string>({
     useEffect(() => {
         if (!slot) return;
 
-        // The first placement is where the pill already is, not a move to play.
         if (!placed.current) {
             placed.current = true;
             slide.setValue(step);
@@ -171,10 +134,6 @@ const styles = StyleSheet.create({
         borderRadius: radius.full,
     },
     segmentSm: { minHeight: 30 },
-    /** `start: 0`, so the thumb begins at the end of the track the first segment
-     * is at — the only anchor that survives `swapLeftAndRightInRTL`. What moves
-     * it along is `translateX`, which stays physical, so the offset above
-     * carries the sign. */
     thumb: {
         position: 'absolute',
         top: 0,

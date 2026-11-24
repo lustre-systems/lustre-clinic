@@ -1,14 +1,3 @@
-// One clinic question in the editor — `patient-edit.html`'s question list: the
-// label, then the control the question's `kind` asks for, ruled off from the
-// next one. No clinic's questions are named anywhere; a question added in
-// settings appears here with no code change, and the covered kinds are exactly
-// `EDITABLE_KINDS` (`date` is read-only for now, §7.9, and never reaches here).
-//
-// The label is drawn here rather than by `ui/Field` for one reason: the design
-// marks a required question that has not been answered by colouring its whole
-// label — label and star together — in `due`, and `Field` draws a `danger` star
-// against an `ink2` label, which is the louder "you got this wrong" and not the
-// quieter "this is still to ask". Everything below the label is `ui/`.
 import { resolveLabel } from '@lustre/shared';
 import { StyleSheet, TextInput, View } from 'react-native';
 import { Button, Placeholder, Select, TextField } from '../../../components/ui';
@@ -22,7 +11,6 @@ export type AnswerEditorProps = {
     question: CustomQuestion;
     value: DraftValue;
     onChange: (value: DraftValue) => void;
-    /** Required and still blank — the design colours the label rather than writing a message. */
     missing?: boolean;
     error?: string;
 };
@@ -60,13 +48,6 @@ function Control({ question, value, onChange, error }: Omit<AnswerEditorProps, '
     const label = resolveLabel(question, useLocale());
 
     switch (question.kind) {
-        // Two buttons and not `ui/Switch`: a switch has no third state, and a
-        // question nobody has asked yet is exactly that. `secondary` is the
-        // design's outline (1.5px on `outline`) and `primary` its ink fill, so
-        // the pair is the shared button at both of its ends. Pressing the
-        // chosen half again unanswers it — the way back out of a mis-tap, and
-        // the only thing here the mockup does not draw, because it draws a
-        // record that has already been answered.
         case 'boolean':
             return (
                 <View style={styles.pair}>
@@ -115,10 +96,6 @@ function Control({ question, value, onChange, error }: Omit<AnswerEditorProps, '
                 />
             );
 
-        // Not `ui/NumericField`, which draws its value at `type.amount` in DM
-        // Mono — a 20px figure, sized for a price. A clinic question's number is
-        // "14 months ago", and at money's size it shouts across a list of text
-        // answers. Same box as `TextField` above it, mono digits inside it.
         case 'number':
             return <NumberBox question={question} value={value} onChange={onChange} error={error} />;
 
@@ -132,12 +109,6 @@ function NumberBox({ question, value, onChange, error }: Omit<AnswerEditorProps,
 
     return (
         <View style={[styles.box, error ? styles.errored : null]}>
-            {/* The input and its placeholder share a wrapper, as they do in
-                `ui/TextField`. `Placeholder` is absolutely positioned at
-                `start: 0`, and an absolute child anchors to its parent's border
-                edge rather than its padding edge — so hung directly on the box
-                it lands hard against the border while the typed value sits
-                inset, and the field reads as two different left margins. */}
             <View style={styles.inputWrap}>
                 <TextInput
                     accessibilityLabel={label}
@@ -153,12 +124,6 @@ function NumberBox({ question, value, onChange, error }: Omit<AnswerEditorProps,
     );
 }
 
-/**
- * A question the record holds an answer to and the editor cannot edit — today
- * only `date` (§7.9). Drawn rather than skipped: a question that vanishes from
- * the form reads as one the clinic stopped asking, which is a different thing
- * and is what deactivating a question means.
- */
 export function ReadOnlyAnswer({ question, shown }: { question: CustomQuestion; shown: string | null }) {
     const t = useT();
     const label = resolveLabel(question, useLocale());
@@ -184,8 +149,6 @@ export function ReadOnlyAnswer({ question, shown }: { question: CustomQuestion; 
 }
 
 const styles = StyleSheet.create({
-    // No horizontal padding: the editor wraps the list in the page gutter, and a
-    // second inset would step the questions in from the card above them.
     field: { paddingVertical: space[3], borderBottomWidth: 1, borderBottomColor: color.line },
     labelRow: { flexDirection: 'row', alignItems: 'center' },
     control: { paddingTop: space[2] },
@@ -194,8 +157,6 @@ const styles = StyleSheet.create({
     pair: { flexDirection: 'row', gap: space[2] },
     half: { flex: 1 },
 
-    // `ui/TextField`'s boxed geometry, so the number sits in the same box as the
-    // text answer above it.
     box: {
         flexDirection: 'row',
         alignItems: 'center',

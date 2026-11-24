@@ -1,18 +1,3 @@
-/**
- * SPEC §16 — "two destinations: local disk, off-site object storage". The local
- * half is the filesystem; this is the off-site half, behind one interface so
- * the run itself does not care which it is talking to.
- *
- * Google Drive is what the clinic actually uses. OAuth works with the doctor's
- * personal Gmail or Workspace account; the old service-account mode remains a
- * compatibility fallback for Workspace shared drives and domain delegation.
- *
- * Anything in an off-site store whose name does not parse as a dump is somebody
- * else's file and is dropped before retention sees it — pruning must never
- * delete a file it cannot name. Half-configured Drive is warned loudly: the run
- * still succeeds locally and still writes its marker, so the 48h staleness
- * check stays quiet while nothing is leaving the machine (§16, §17).
- */
 import { config } from '../config.ts';
 import { logger } from '../logger.ts';
 import { createDriveClient, type DriveCredentials, normalizePrivateKey } from './drive.ts';
@@ -56,9 +41,6 @@ export function resolveDriveCredentials(env: DriveEnvironment): {
     credentials: DriveCredentials | null;
     missing: string[];
 } {
-    // Trimmed, not just checked for empty: every one of these is copied by hand
-    // out of what `bun drive:authorize` prints, and a folder id with a trailing
-    // space fails at Google as `'<id> ' in parents` with nothing naming the cause.
     const set = (value: string | undefined): string | undefined => value?.trim() || undefined;
 
     const oauth = {
@@ -117,11 +99,6 @@ export function resolveDriveCredentials(env: DriveEnvironment): {
     return { credentials: null, missing: [] };
 }
 
-/**
- * A grant made from the doctor's phone outranks the environment: it is the more
- * recent statement of which Drive the clinic backs up to, and the operator's
- * pasted values are what it was before somebody signed in again.
- */
 async function driveDestination(): Promise<OffsiteDestination | null> {
     const grant = await readDriveGrant();
     const resolved = grant

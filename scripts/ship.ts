@@ -1,29 +1,3 @@
-/**
- * The whole release, from `main` to the clinic (infra/RELEASING.md).
- *
- *   bun ship [--minor]          an OTA update: a quiet patch, or a minor the phones take now
- *   bun ship --screen           a patch the phones take now, behind the download screen
- *   bun ship --with-apk         an update that also rebuilds the APK, so fresh installs start on it
- *   bun ship --apk [--major]    a new APK, for a native change
- *   bun ship --dry-run          prints the number and changes nothing
- *   bun ship deploy             the deploy step alone, for the release at HEAD
- *   bun ship:dev [--apk|--screen]  the dev track, to the dev stack
- *   bun ship:dev --fast         the same, but copies only the releases (scripts/pushReleases.ts)
- *                               [--keep-server] when a server change since the last dev tag doesn't matter
- *
- * In order: checks `main` is clean and not behind origin, asks `release.ts` for
- * the number, moves `[Unreleased]` in CHANGELOG.md under it and commits, builds
- * and stages the release (which tags it), pushes `main` and the tag, builds the
- * server and sends it (`pushBinary.ts`, a delta), runs `play app` to restart
- * it, and last sends the releases (`pushReleases.ts`), so no phone is offered
- * an update ahead of the server it needs. It prints how long each step took,
- * and how long the API did not answer while the server restarted.
- *
- * Run it again after a failure: a changelog already cut for the number is kept,
- * and every message says what to run next. The dev track cuts no changelog and
- * pushes nothing: its `dev-v*` tags stay here. It also ships the same commit
- * again, since testing an update on a phone takes several in a row.
- */
 import { join, resolve } from 'node:path';
 import { $ } from 'bun';
 import { healthUrl, sshHost, watchHealth } from './clinicServer';
@@ -32,10 +6,8 @@ import { cutChangelog } from './cutChangelog';
 const ROOT = resolve(import.meta.dir, '..');
 const RELEASE = join(ROOT, 'packages/app/scripts/release.ts');
 const CHANGELOG = join(ROOT, 'CHANGELOG.md');
-/** What `build:server` compiles. The deploy builds from the working tree, so these must match the tag. */
 const SERVER_PATHS = ['packages/server', 'packages/shared', 'bun.lock', 'package.json'];
 
-/** What `printTimings` reports. Declared before anything can `fail`, which prints them. */
 const shipStarted = performance.now();
 const phases: { name: string; seconds: number; note?: string }[] = [];
 let current: { name: string; started: number } | null = null;
@@ -100,7 +72,6 @@ function duration(seconds: number): string {
     return `${Math.floor(whole / 60)}:${String(whole % 60).padStart(2, '0')}`;
 }
 
-/** How long each step took, and the whole run. Also printed when a step fails. */
 function printTimings(): void {
     const rows = [...phases];
     if (current)
@@ -128,7 +99,6 @@ async function gitSucceeds(...parts: string[]): Promise<boolean> {
     return (await $`git ${parts}`.cwd(ROOT).quiet().nothrow()).exitCode === 0;
 }
 
-/** Runs on this terminal, so the build's progress and the sudo prompt reach the person shipping. */
 async function run(
     command: string[],
     env: Record<string, string | undefined> = process.env,
@@ -137,7 +107,6 @@ async function run(
     return (await child.exited) === 0;
 }
 
-/** The newest release tag at or before `ref`, or null. */
 async function releaseTagAt(ref: string): Promise<string | null> {
     const result = await $`git describe --tags --abbrev=0 --match ${`${tagPrefix}[0-9]*`} ${ref}`
         .cwd(ROOT)
@@ -190,7 +159,6 @@ async function preflight(): Promise<void> {
     }
 }
 
-/** A new root `scripts` entry changes no server, so --fast looks past it. */
 async function serverChangedSince(tag: string): Promise<boolean> {
     const paths = SERVER_PATHS.filter((path) => path !== 'package.json');
     if (!(await gitSucceeds('diff', '--quiet', tag, 'HEAD', '--', ...paths))) return true;
@@ -201,7 +169,6 @@ async function serverChangedSince(tag: string): Promise<boolean> {
     return (await manifest(tag)) !== (await manifest('HEAD'));
 }
 
-/** Opens the release in CHANGELOG.md and commits it, so the tag carries its notes. */
 async function cutRelease(version: string): Promise<void> {
     const today = new Date().toLocaleDateString('en-CA');
     let cut: string | null;
@@ -223,11 +190,6 @@ async function cutRelease(version: string): Promise<void> {
     say(`Moved [Unreleased] under ${version} and committed it.`);
 }
 
-/**
- * Builds the server, sends it, restarts it (`play app`, which leaves the
- * releases out), then sends the staged releases. The server goes first, so no
- * phone is offered an update ahead of the server it needs.
- */
 async function deploy(): Promise<void> {
     const tag = await releaseTagAt('HEAD');
     if (!tag) fail(`no ${tagPrefix}X.Y.Z tag at or before HEAD. Ship one first.`);

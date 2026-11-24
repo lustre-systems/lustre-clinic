@@ -7,16 +7,6 @@ import { patientService } from '../../src/modules/patient/patient.service.ts';
 import { procedureService } from '../../src/modules/procedure/procedure.service.ts';
 import { visitService } from '../../src/modules/visit/visit.service.ts';
 
-/**
- * The fixtures every DB-backed suite books against, in one place so the files
- * agree on what "the clinic" is. Prices are piastres throughout (§9).
- *
- * `slot()` is tomorrow at 09:00 UTC, shifted by `offsetMinutes` — a booking
- * made here is always in the future (never missed) and always picks the same
- * clinic day regardless of when the suite runs. `expectAppError` fails if the
- * call resolves: the point is that the rule fired.
- */
-
 export const CHECKUP_PRICE = 30_000;
 export const ROOT_CANAL_PRICE = 270_000;
 const XRAY_PRICE = 5_000;
@@ -82,11 +72,6 @@ export function slot(offsetMinutes = 0): string {
     return new Date(at.getTime() + offsetMinutes * 60_000).toISOString();
 }
 
-/**
- * Today at 00:30 UTC, shifted by `offsetMinutes`. Check-in is refused off the
- * appointment's own clinic day and `slot()` is tomorrow, so anything a test
- * checks in is booked here. It may be in the past, which check-in does not mind.
- */
 export function todaySlot(offsetMinutes = 0): string {
     const at = new Date();
     at.setUTCHours(0, 30, 0, 0);

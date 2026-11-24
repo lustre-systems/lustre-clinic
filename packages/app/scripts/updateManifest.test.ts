@@ -2,12 +2,6 @@ import { describe, expect, test } from 'bun:test';
 import { createVerify, generateKeyPairSync } from 'node:crypto';
 import { base64UrlSha256, manifestFor, signManifest } from './updateManifest';
 
-/**
- * The phone checks every download against `hash`, stores it under `key`, and
- * refuses a manifest whose signature does not verify, so each of those is a way
- * for a published update to reach nobody without an error anywhere.
- */
-
 const bytes = (text: string) => new TextEncoder().encode(text);
 
 const ID = '0f6e2b8a-6a8e-4d49-9a0a-6f3b8b8e0d11';

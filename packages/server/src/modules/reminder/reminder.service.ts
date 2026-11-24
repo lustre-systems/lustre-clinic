@@ -1,16 +1,3 @@
-/**
- * SPEC §11. No automated sending: a row is created on booking, the screen lists
- * what is pending, and the user marks each one sent or skipped after opening
- * WhatsApp. Delivery cannot be confirmed, so nothing here may depend on whether
- * the message actually went out.
- *
- * `scheduleFor` runs inside the booking transaction so an appointment can never
- * exist without its reminder. A cancelled appointment's reminder is marked
- * skipped rather than deleted — the row is the record that no message was owed,
- * and `appointment_id` is UNIQUE so a later reinstatement reuses it. Message
- * times are shifted into the clinic's local day before formatting, because
- * `startsAt` is UTC. An unknown `{{placeholder}}` is left visible, not dropped.
- */
 import {
     callerWallClock,
     type LabStatus,
@@ -39,10 +26,8 @@ interface PendingReminder {
     ref: string;
     patient: { id: string; name: string; phone: string };
     whatsAppUrl: string;
-    /** The app the appointment's branch messages from. */
     whatsappApp: WhatsAppApp;
     message: string;
-    /** `pending` means the visit's lab work is not back yet: confirm it before the patient. */
     labStatus: LabStatus | null;
 }
 
@@ -72,13 +57,6 @@ export const reminderService = {
             .where(eq(reminders.appointmentId, appointmentId));
     },
 
-    /**
-     * A new lead time applied to the reminders already booked. Bounded to what
-     * the pending list is actually made of — pending, on an appointment still
-     * booked — and to appointments still ahead: an appointment already past is
-     * a message that was owed at the old lead and either went out or did not,
-     * and moving its `due_at` would only rewrite that history.
-     */
     async rescheduleAllPending(executor: Executor, leadHours: number): Promise<void> {
         await executor
             .update(reminders)
@@ -196,7 +174,6 @@ export const reminderService = {
         return settingsService.dismissRemindersFor(input.date);
     },
 
-    /** Undoes `dismissToday` for `date`, and only for it: another day's dismissal is left alone. */
     async resumeToday(input: DismissTodayInput) {
         return settingsService.resumeRemindersFor(input.date);
     },

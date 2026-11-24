@@ -1,7 +1,3 @@
-// Loading, failed, and data renderings for the money screens. The rule: an
-// error replaces the data — a stale figure that failed to refresh must never
-// sit above current-looking numbers, because acting on a balance that has
-// moved is worse than a screen that says it is broken.
 import type { ErrorCode } from '@lustre/shared';
 import type { ReactNode } from 'react';
 // biome-ignore lint/style/noRestrictedImports: drives the skeleton's `Animated.loop` imperatively, and stops it on cleanup
@@ -63,12 +59,6 @@ export function SkeletonCard({ height = 132 }: { height?: number }) {
     );
 }
 
-/**
- * The hero's own placeholder. A white `Card` under a card that is black flashes
- * the wrong surface for as long as the summary takes, then repaints — so this
- * borrows the hero's ground, radius and padding and tints its blocks with the
- * value that card already uses for the bar track behind the collected figure.
- */
 export function SkeletonHeroCard({ height = 132 }: { height?: number }) {
     return (
         <View style={[styles.heroCard, { minHeight: height }]}>
@@ -111,8 +101,6 @@ const styles = StyleSheet.create({
     block: { backgroundColor: color.surface2, borderRadius: radius.sm },
     blockOnDark: { backgroundColor: color.onDarkTrack },
     cardLines: { gap: space[2.5] },
-    // The hero's own geometry (`HeroCollectionCard`), minus the gradient and
-    // the lift: a placeholder should hold the shape, not advertise itself.
     heroCard: {
         alignSelf: 'stretch',
         justifyContent: 'center',

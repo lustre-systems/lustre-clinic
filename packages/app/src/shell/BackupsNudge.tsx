@@ -12,11 +12,6 @@ const MESSAGE: Record<LocalBackupWarning, string> = {
     behind: 'Backups are behind. The newest records are only on this phone.',
 };
 
-/**
- * The strip that says a clinic kept on one phone has no working backup. Over the
- * day it can be put away for a while (`bannerSnoozeStore`), as it names something
- * still wrong; on the settings index, where it is fixed, it stays.
- */
 export function BackupsNudge({ onOpen, snoozable = false }: { onOpen: () => void; snoozable?: boolean }) {
     const t = useT();
     const trpc = useTRPC();

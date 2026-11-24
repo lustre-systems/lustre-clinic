@@ -2,12 +2,6 @@ import { beforeAll, beforeEach, describe, expect, test } from 'bun:test';
 import { settingsService } from '../src/modules/settings/settings.service.ts';
 import { setupDatabase, truncateAll } from './helpers/db.ts';
 
-/**
- * The doctor's Finish asks whether the procedures need editing first. The clinic
- * expects to outgrow the question, so it is a setting: on until someone turns
- * it off, and off stays off.
- */
-
 beforeAll(async () => {
     await setupDatabase();
 });

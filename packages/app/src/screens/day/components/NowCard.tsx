@@ -1,12 +1,3 @@
-/**
- * The chair, at the top of the screen — the black card from
- * `day-view-schedule.html`. The list answers "what does today look like"; this
- * answers "what is happening right now", and it has three states because the
- * clinic has three: someone in the chair or at the desk, someone due next, and
- * nobody. The bar under the chair is `ChairProgress`, which is its own
- * component because it runs its own per-second clock and this card must not
- * re-render at that rate.
- */
 import { Pressable, StyleSheet, View } from 'react-native';
 import { Button, Dot } from '../../../components/ui';
 import { useLocale, useT } from '../../../i18n';
@@ -22,7 +13,6 @@ export type NowCardProps = {
     next: Appointment | null;
     nowMinutes: number;
     procedure?: string;
-    /** `in_chair_at` — where the bar counts from. Absent for whoever is at the desk. */
     seatedAt?: string;
     onCheckIn: (appointment: Appointment) => void;
     onOpen: (appointment: Appointment) => void;
@@ -30,16 +20,6 @@ export type NowCardProps = {
     checkingInId: string | null;
 };
 
-/**
- * The card is its own button. For whoever is in the chair or at the desk it
- * does what the button at its foot does; for whoever is next it opens the
- * appointment instead — cancel, no-show, reschedule — because the day list
- * leaves that row out and the card is the only way to it, while checking in
- * already has its button. The name sits over it either way: a person's name is
- * a way to that person. `accessible={false}` keeps the card out of the screen
- * reader's way, because the controls inside already announce themselves — which
- * leaves the next patient's appointment a touch target only.
- */
 function Card({ onPress, children }: { onPress?: () => void; children: React.ReactNode }) {
     if (!onPress) return <View style={styles.card}>{children}</View>;
 
@@ -54,7 +34,6 @@ function Card({ onPress, children }: { onPress?: () => void; children: React.Rea
     );
 }
 
-/** The patient's name, which opens their record wherever it is drawn. */
 function Name({
     appointment,
     onOpenRecord,
@@ -105,9 +84,6 @@ export function NowCard({
 
         return (
             <Card onPress={() => onOpen(active)}>
-                {/* The dot holds still. Nothing on this card blinks: the
-                    seconds in the bar's label change once a second, which is
-                    the one honest sign the visit is running. */}
                 <View style={styles.eyebrowRow}>
                     <Dot tone={inChair ? 'live' : 'due'} size={7} />
                     <Text variant="eyebrow" tone={inChair ? 'live' : 'due'}>
@@ -207,15 +183,10 @@ const styles = StyleSheet.create({
         backgroundColor: color.ink,
         borderRadius: radius.xl3,
     },
-    // A lift off `ink`, not a wash over it: the card is already the darkest
-    // thing on the screen, so the press has nowhere to go but up.
     cardPressed: { backgroundColor: color.ink2 },
     empty: { gap: space[1], padding: space[5] },
     eyebrowRow: { flexDirection: 'row', alignItems: 'center', gap: space[2] },
     startedAt: { marginStart: 'auto' },
-    // `flex-start` so the target is the name's own width: stretched across the
-    // card, the gap beside a short name would open the record instead of doing
-    // what the rest of the card does.
     name: { alignSelf: 'flex-start', maxWidth: '100%', marginTop: space[3.5] },
     namePressed: { opacity: 0.6 },
     detail: { flexDirection: 'row', alignItems: 'center', gap: space[1.5], marginTop: space[1.5] },

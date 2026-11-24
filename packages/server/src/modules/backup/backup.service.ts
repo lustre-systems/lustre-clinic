@@ -1,18 +1,3 @@
-/**
- * SPEC §16 read back for the app, and the one write it allows.
- *
- * The backup job's own state lives in two files beside the dumps — a success
- * marker and, when the Drive grant is gone, the note `runBackup` leaves — so
- * this reads files, like `release`, and never the database. `status` never
- * throws: a missing marker is a clinic that has not backed up yet, which is
- * what every fresh install looks like.
- *
- * `linkDrive` is the exception, and the only unauthenticated write in the
- * codebase that sets where patient data goes. That exposure is accepted
- * deliberately (§1) on the grounds that a tailnet peer already
- * reads every record — but the phone confirms before calling it, and the code
- * it sends is single-use and worthless without the verifier that made it.
- */
 import { ERROR_CODE, WS_EVENT } from '@lustre/shared';
 import {
     createDriveFolder,
@@ -29,17 +14,12 @@ import { broadcast } from '../../ws/index.ts';
 
 interface BackupStatus {
     lastSuccessAt: string | null;
-    /** No successful run inside `BACKUP_STALE_AFTER_HOURS` — the §17 alert's threshold. */
     stale: boolean;
     staleAfterHours: number;
     offsite: {
-        /** Drive or S3 is fully configured. False means local dumps only. */
         configured: boolean;
-        /** When set, the doctor's Google grant is gone and only a person can fix it. */
         reauthorizationRequiredSince: string | null;
-        /** The account the phone last linked, so Settings can name it. */
         account: string | null;
-        /** Whether the phone can run the sign-in at all. */
         canSignIn: boolean;
     };
 }
@@ -76,7 +56,6 @@ export const backupService = {
         };
     },
 
-    /** What the phone needs to build the consent URL. No secret exists to leak. */
     signInConfig(): DriveSignInConfig {
         if (!config.BACKUP_DRIVE_ANDROID_CLIENT_ID) {
             throw new AppError(
@@ -106,8 +85,6 @@ export const backupService = {
                 redirectUri,
             });
 
-            // Reuse the folder the clinic already backs up to when there is one,
-            // so re-linking does not scatter dumps across two folders.
             const existing = await readDriveGrant();
             const folderId = existing?.folderId ?? (await createDriveFolder(tokens.accessToken, FOLDER_NAME));
 
@@ -121,8 +98,6 @@ export const backupService = {
             await writeDriveGrant(grant);
             broadcast(WS_EVENT.SETTINGS_UPDATED);
 
-            // No token, no account, no folder id: this line is the audit trail and
-            // §4 keeps identifiers out of it.
             logger.info('drive grant linked from the app');
             return { folderId, account: input.account ?? null };
         } catch (err) {

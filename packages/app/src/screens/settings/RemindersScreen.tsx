@@ -1,33 +1,3 @@
-/**
- * Settings → Reminders. Three timings and one message.
- *
- * The two halves answer different questions and the mockup keeps them apart:
- * "Remind before" is about the patient — how many days before an appointment the
- * reminder becomes due — while "Notify me at" and "Repeat every" are about this
- * phone, the daily nudge that the pending list still has things in it. Mixing
- * them is how a clinic ends up messaging patients at 6 AM.
- *
- * The preview is not decoration either: the template is the only place in the
- * app where a typo reaches every patient, so the pane renders the message as it
- * will actually be sent, with sample values substituted for the tokens. It does
- * that through the senders' own `renderReminderTemplate`, and the chips offer
- * the senders' own `REMINDER_TOKENS`: a pane holding a second opinion about
- * either is how `{name}` came to be offered while only `{{name}}` was ever
- * substituted, and patients were messaged the placeholder.
- *
- * That is also why the two halves commit differently. A stepper tap is a whole
- * decision and writes immediately. The template is composed rather than picked,
- * so it has an explicit Save: it used to write on blur, which on Android is a
- * blur that never comes if the pane is left by the header or the back gesture —
- * the edit was simply lost, with nothing on screen having claimed otherwise.
- * Saved is only shown once the server's own read has come back with the new
- * message, never on the strength of the local edit.
- *
- * Two shapes are the pane's own and are converted at this edge, in
- * `data/reminders`: the stepper steps minutes from midnight while the column is
- * a `time`, and the 320-character limit is the mockup's, tighter than the 1000
- * the server accepts.
- */
 import { leadDaysOf, leadHoursOf, REMINDER_LEAD_MAX_DAYS, REMINDER_TOKENS } from '@lustre/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
@@ -82,9 +52,6 @@ export function RemindersScreen({ onBack }: { onBack: () => void }) {
 
     const refetchSettings = () => queryClient.invalidateQueries(trpc.settings.pathFilter());
 
-    // Two mutations over the one procedure, because they report to different
-    // controls: a stepper mid-write must not put the template's Save button
-    // into a spinner, and a failed template save must not disable the steppers.
     const saveTiming = useMutation(trpc.settings.update.mutationOptions({ onSuccess: refetchSettings }));
     const saveTemplate = useMutation(trpc.settings.update.mutationOptions({ onSuccess: refetchSettings }));
 
@@ -97,18 +64,8 @@ export function RemindersScreen({ onBack }: { onBack: () => void }) {
     const text = draft.text;
     const notifyAt = data ? minutesFromTime(data.reminderNotifyAt) : 0;
 
-    // The edit is dropped when the refetch comes back carrying it, rather than
-    // when the mutation resolves. Dropping it on the response would fall back
-    // to the cached settings for the frame before the refetch lands, which is
-    // the old wording flashing into the field the moment it was saved.
     if (template !== null && data?.reminderTemplate === template.trim()) setTemplate(null);
 
-    // Between that response and that refetch the draft still differs from the
-    // cache, so the button would read as unsaved again for a moment. It is the
-    // value we sent and it landed, so it is still saving until confirmed.
-    // Every edit goes through here so a failure cannot outlive the text that
-    // caused it: the mutation holds its error until the next attempt, which
-    // left "Not saved" standing over a draft that had never been sent.
     function editTemplate(next: string) {
         if (saveTemplate.isError) saveTemplate.reset();
         setTemplate(next);
@@ -116,13 +73,6 @@ export function RemindersScreen({ onBack }: { onBack: () => void }) {
 
     const sent = saveTemplate.variables?.reminderTemplate;
     const confirming = saveTemplate.isSuccess && sent !== undefined && sent === template?.trim();
-    /**
-     * The steppers are disabled while a timing write is in flight, but `isPending`
-     * is state: a second tap in the same frame still gets through, and the second
-     * write is computed from the value the first one has not replaced yet. The
-     * template Save is behind the same kind of ref, one per control so a stepper
-     * mid-write never refuses the template — they report to different buttons.
-     */
     const timing = usePendingAction((input: Parameters<typeof saveTiming.mutateAsync>[0]) =>
         saveTiming.mutateAsync(input),
     );
@@ -154,12 +104,6 @@ export function RemindersScreen({ onBack }: { onBack: () => void }) {
                         </Callout>
                     ) : null}
 
-                    {/* A time set here cannot take effect while the OS is
-                        blocking the app, and the pane would otherwise read back
-                        perfectly against a phone that stays silent — which is
-                        the whole failure this pane is meant to be the front of.
-                        Said once, above the settings it disables, not as a
-                        badge on each. */}
                     {allowed === 'blocked' ? (
                         <Callout tone="warning" title="Notifications are off for this app">
                             The daily reminder will not appear until notifications are turned on for Lustre
@@ -213,9 +157,6 @@ export function RemindersScreen({ onBack }: { onBack: () => void }) {
                         </Card>
                     </View>
 
-                    {/* This phone's, not the clinic's: not written to the
-                        server, and applied to the next arm without a save.
-                        Only where the native alarm is built in. */}
                     {alarmsAvailable ? <AlarmSection /> : null}
 
                     <View style={styles.section}>
@@ -262,18 +203,12 @@ export function RemindersScreen({ onBack }: { onBack: () => void }) {
                             </Callout>
                         ) : null}
 
-                        {/* Only once the refetch above has brought the new
-                            wording back: until then the edit is on this phone
-                            and nowhere else, and saying otherwise is the bug
-                            this pane had. */}
                         {!draft.dirty && saveTemplate.isSuccess ? (
                             <Callout tone="reassurance" title="Saved">
                                 Patients will get this wording from the next reminder on.
                             </Callout>
                         ) : null}
 
-                        {/* Shown from the first edit rather than always, so a
-                            pane nobody has typed in offers nothing to press. */}
                         {draft.dirty || savingTemplate ? (
                             <Button
                                 label="Save message"
@@ -353,8 +288,6 @@ function AlarmSection() {
                 </View>
             </Card>
 
-            {/* Android 14 can take full-screen alarms away. It still rings, as
-                a banner, so this is a warning and not a block. */}
             {alarm.enabled && lockScreen === 'blocked' ? (
                 <>
                     <Callout tone="warning" title="The alarm can't fill the lock screen">
@@ -370,8 +303,6 @@ function AlarmSection() {
                 </>
             ) : null}
 
-            {/* Rings whether or not the switch is on: it is how someone decides
-                whether to turn it on. */}
             {demo ? (
                 <>
                     <Button
@@ -457,7 +388,6 @@ const styles = StyleSheet.create({
     channel: { flex: 1, opacity: 0.5 },
     sendAt: { opacity: 0.4 },
 
-    // A received bubble: square on the corner it grows from, round elsewhere.
     bubble: {
         marginTop: space[3],
         paddingVertical: space[3],

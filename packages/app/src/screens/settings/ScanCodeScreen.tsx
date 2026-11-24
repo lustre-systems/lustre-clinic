@@ -1,18 +1,3 @@
-/**
- * Scanning an admin's role code — the only way this phone's role changes.
- *
- * The camera looks for QR codes only, and anything that is not a Lustre code is
- * refused here without asking the server. A Lustre code is redeemed once:
- * whatever the server says, the scanner stays shut until the person asks to
- * scan again, so a code held in front of the lens is not sent twice a frame.
- *
- * In demo mode there is no second phone to show a code, so the demo offers its
- * roles as buttons instead (`becomeInDemo`). The rules the demo then applies are
- * the server's, checked against the role those buttons give it.
- *
- * A dev build has the same buttons above the camera, asking the dev server for
- * the role (`device.devRole`) so a developer needs no second phone either.
- */
 import { ERROR_CODE, grantCodeOf, ROLES, type Role } from '@lustre/shared';
 import { useMutation } from '@tanstack/react-query';
 import { CameraView, useCameraPermissions } from 'expo-camera';
@@ -39,7 +24,6 @@ const DEV_ROLES = picksDevRole(BUILD_VARIANT);
 
 export type ScanCodeScreenProps = {
     onBack: () => void;
-    /** The phone has its new role. The caller says so and closes this. */
     onGranted: (role: Role) => void;
 };
 
@@ -49,11 +33,7 @@ export function ScanCodeScreen({ onBack, onGranted }: ScanCodeScreenProps) {
     const demo = useDemoMode();
     const [permission, requestPermission] = useCameraPermissions();
     const [problem, setProblem] = useState<string | null>(null);
-    // Closed from the first read until the person asks again, so one code
-    // held up to the lens is one request, not one per frame.
     const [scanning, setScanning] = useState(true);
-    // The camera reports a code on every frame it sees it, faster than React
-    // commits `scanning`; this is what actually lets only the first through.
     const latched = useRef(false);
 
     const redeem = useMutation(trpc.device.redeem.mutationOptions());

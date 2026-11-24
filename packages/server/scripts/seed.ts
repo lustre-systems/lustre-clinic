@@ -1,45 +1,3 @@
-/**
- * Development seed exercising every state the UI renders. Destructive — deletes
- * every domain row before inserting, and refuses non-local databases unless
- * `--force` is passed. Prices are piastres (30_000 = 300 EGP). Times are
- * clinic-local via a fixed offset (CLINIC_OFFSET_MINUTES, Africa/Cairo summer);
- * omitting `visit.chargedTotal` charges the computed total (no discount).
- * Deletes run child-first; inserts put categories before their children for the
- * self-referencing `parent_id`.
- *
- * The hand-written bookings are the interesting ones — the awkward states the
- * UI has to render. A deterministic PRNG then fills the rest of the calendar so
- * the month reads like a working clinic: every open day of the current month
- * carries a full column, past ones settled, future ones booked with reminders
- * pending, and a few in next month so the calendar pages forward. The previous
- * month is generated too, and it is the only reason the money dashboard's
- * month-relative reads divide at all: a part-paid visit from last month whose
- * balance arrives in this one is exactly what `summary.olderCollected` counts,
- * and the ones that never come good are what `settle` allocates against. The
- * extra patient roster exists so lists paginate, search has to disambiguate,
- * and the revenue figures come from more than a handful of rows. The clinic
- * keeps the same hours everywhere, so a booking written for a wall-clock time
- * is inside opening hours whichever weekday the seed happens to run on, and a
- * booking's branch is whichever one is open that day rather than the one
- * written down.
- *
- * Today is the exception and is written against the clock rather than the wall
- * (`ago`). A state that means "right now" — in the chair, at the desk, waiting —
- * is a lie at any fixed hour but the one the seed happens to be run at, and the
- * lie is not harmless: a check-in stamped for later today gives the chair a
- * progress bar that cannot start and a queue ordered by a time that has not
- * come. Today's generated column divides at the clock too, so the morning is
- * settled and the afternoon is still booked whenever you run it.
- *
- * A booking's planned procedures (§7) come from `plan`; `type` is the
- * one-procedure shorthand the older fixtures use. A tooth-specific procedure
- * needs a tooth to satisfy §5, so the shorthand reuses the tooth the visit
- * actually recorded — the plan and the outcome agree — and falls back to a
- * fixed tooth for bookings that never reached the chair.
- *
- *   bun packages/server/scripts/seed.ts
- */
-
 import {
     type AppointmentChannel,
     type AppointmentStatus,
@@ -91,46 +49,16 @@ function at(dayOffset: number, hhmm: string): Date {
     );
 }
 
-/** The whole minute the seed was run in, which today is measured back from. */
 const seedMinute = Math.floor(Date.now() / 60_000) * 60_000;
 
-/**
- * A time relative to the moment the seed runs, rounded to the minute.
- *
- * Today's live fixtures — the patient in the chair, the one at the desk, the one
- * still waiting — cannot be written as wall-clock times. `at(0, '10:58')` seeded
- * at half past eight is a check-in two hours in the future, which is a state the
- * clinic cannot produce and the app has no sensible way to draw: a bar that
- * cannot start, a queue ordered by a clock that has not struck. It cost two
- * false bug reports before anyone looked at the seed.
- *
- * So the live end of today is written as "twenty minutes ago" and lands wherever
- * the seed happens to run. Negative goes forwards, for the things that have not
- * happened yet.
- */
 function ago(minutes: number): Date {
     return new Date(seedMinute - minutes * 60_000);
 }
 
-/**
- * The same, snapped to the five-minute grid the desk books on.
- *
- * `ago` inherits whatever minute the seed was run at, which is right for things
- * that *happened* — a check-in at 09:33 is a fact — and wrong for a slot, which
- * is a time somebody said out loud on the phone. Run at 09:39 the plain helper
- * books people at 09:54 and 10:24, and because the generated column steps over
- * the hand-written rows the skew spreads: the whole afternoon lands on 10:17,
- * 11:22, 12:07. Nobody says twenty-two past eleven.
- *
- * So slots round and stamps do not. The exception is a walk-in, which is not a
- * slot anyone chose — `makeRoomForWalkIn` gives it the exact end of whatever is
- * in the chair, and the fixture copies that rather than rounding.
- */
 function slotAgo(minutes: number): Date {
     return new Date(Math.round((seedMinute - minutes * 60_000) / 300_000) * 300_000);
 }
 
-/** Minutes since local midnight at the moment the seed runs. */
 const nowLocalMinutes = Math.floor((Date.now() - todayLocalMidnight.getTime()) / 60_000);
 
 function isLocalDatabase(url: string): boolean {
@@ -149,9 +77,6 @@ if (!isLocalDatabase(config.DATABASE_URL) && !process.argv.includes('--force')) 
     process.exit(1);
 }
 
-// `db` is local by the check above, and it is also the production database's
-// hostname inside the clinic stack. The marker on the database is what tells
-// them apart, and no flag overrides it.
 if ((await databaseEnvironment(sql)) === 'production') {
     logger.error('refusing to seed the production database: the seed deletes every row');
     await sql.end();
@@ -204,8 +129,6 @@ const proc = (
     parentId: parent.id,
     name,
     defaultPrice,
-    // About a third of the price in whole pounds, so the stats screen has a
-    // margin to show.
     cost: Math.round((defaultPrice * 35) / 100 / 100) * 100,
     hasQuantity: opts.quantity ?? false,
     isToothSpecific: opts.tooth ?? false,
@@ -276,8 +199,6 @@ const questions = [
         sortOrder: 2,
         active: true,
     },
-    // The rest are English-only, as a real clinic's back half usually is —
-    // they exercise the fallback in `resolveLabel` on an Arabic phone.
     {
         id: id(),
         key: 'last_visit_elsewhere',
@@ -310,9 +231,6 @@ const questions = [
     },
 ];
 
-// Seeded patients are numbered the way the service numbers them, and the
-// settings row below is left pointing at the number after the last of them, so
-// the first patient registered after a seed carries on from there.
 let lastPatientRef = 0;
 
 function seedPatientRef(): string {
@@ -468,29 +386,9 @@ interface Booking {
     status: AppointmentStatus;
     channel?: AppointmentChannel;
     note?: string;
-    /**
-     * Built by `seedService` through the real services instead of inserted.
-     *
-     * Only today's live states carry this — in the chair, at the desk, waiting.
-     * They stay in this array so the generator still reserves their slots and
-     * routes around them, and are skipped when the rows are written.
-     *
-     * They carry no `visit`, deliberately. Check-in builds it, including the
-     * lines it copies off the plan, and a `visit` sitting here would be dead
-     * data that reads like the source of truth — which is how a checked-in
-     * patient ended up with a booking that planned a Consultation and a visit
-     * that recorded nothing. `status` is what `reach` should produce, and is
-     * the interface's, not this walk's.
-     */
     live?: { reach: 'waiting' | 'chair' | 'desk'; arrivedAgo: number; seatedAgo?: number };
     visit?: {
         checkedInAt: Date;
-        /**
-         * When they reached the chair. Left out means they walked into an empty
-         * one and it is the arrival; `null` means they are still queueing, which
-         * only the hand-written fixtures need — the generated days never put two
-         * patients in the chair at once.
-         */
         inChairAt?: Date | null;
         completedAt?: Date;
         chargedTotal?: number;
@@ -500,8 +398,6 @@ interface Booking {
     reminder?: { status: 'pending' | 'sent' | 'skipped'; sentAt?: Date };
 }
 
-// The chair's booked span today, named because the walk-in behind it is defined
-// as its end rather than as a time of its own.
 const CHAIR_STARTS_AT = slotAgo(40);
 const CHAIR_MINUTES = 45;
 
@@ -617,15 +513,6 @@ const bookings: Booking[] = [
         note: 'Cancelled the night before, travelling.',
     },
 
-    // Today's live end, written relative to the moment the seed runs (`ago`).
-    // Read down and it is one morning in order: Mona has been and gone, Nour is
-    // at the desk paying, Kareem is in the chair she got up from, Laila walked
-    // in and is waiting, and three more are still to come.
-    //
-    // The three states in the middle are the ones worth having: `in_chair_at`
-    // differs from `checked_in_at` on Kareem (he queued behind Nour) and is null
-    // on Laila (she has arrived and is not seated). Both are invisible on a
-    // fixture where everyone walks into an empty chair.
     {
         patient: mona,
         branch: mainBranch,
@@ -658,25 +545,16 @@ const bookings: Booking[] = [
         type: rootCanal,
         status: 'checked_in',
         note: 'Session 2 of 2.',
-        // Twenty minutes of waiting room before the chair, so the bar reads
-        // twelve minutes rather than thirty-two. This is the fixture
-        // `in_chair_at` exists for.
         live: { reach: 'chair', arrivedAgo: 32, seatedAgo: 12 },
     },
     {
         patient: laila,
         branch: mainBranch,
-        // Only a slot reservation: `walkIn` works out the real time — the
-        // moment she arrives, or the end of whatever is in the chair — and
-        // cascades anything it displaces. Holding the space here just keeps the
-        // generated column from filling it and being pushed straight back out.
         startsAt: new Date(CHAIR_STARTS_AT.getTime() + CHAIR_MINUTES * 60_000),
         durationMinutes: 20,
         type: consultation,
         status: 'checked_in',
         channel: 'walk_in',
-        // Second in the queue behind Kareem: arrived, not seated, and the one
-        // fixture that leaves `in_chair_at` null.
         live: { reach: 'waiting', arrivedAgo: 6 },
     },
     {
@@ -838,12 +716,6 @@ const generatedRange = (() => {
 
 const isOpen = (dayOffset: number) => days.some((d) => d.weekday === localWeekday(dayOffset));
 
-/**
- * When a balance carried over from last month was actually handed across the
- * desk: an open day of the current month, at or before today, inside opening
- * hours. Dating it in the future would still fall inside the month `summary`
- * asks for, and would read as money the clinic has not been given yet.
- */
 function latePaymentDate(): Date {
     const span = -generatedRange.first;
     let offset = generatedRange.first + Math.floor(random() * (span + 1));
@@ -876,23 +748,15 @@ const cashMethods: PaymentMethod[] = ['cash', 'cash', 'visa', 'instapay'];
 function generateDay(dayOffset: number, dense = false, maxBookings = Number.POSITIVE_INFINITY): void {
     const weekday = localWeekday(dayOffset);
     const day = days.find((d) => d.weekday === weekday);
-    if (!day) return; // Friday and Saturday: shut.
+    if (!day) return;
 
     const branch = day.branchId === mainBranch.id ? mainBranch : secondBranch;
     const [openHour] = day.opensAt.split(':').map(Number);
     const [closeHour] = day.closesAt.split(':').map(Number);
     const past = dayOffset < 0;
 
-    /**
-     * Today divides at the clock, not at midnight. A 10:00 slot seeded at three
-     * in the afternoon is not something the clinic is still expecting — leaving
-     * the whole of today `booked` drew a column of appointments hours overdue
-     * and a "before this" section with nothing in it.
-     */
     const settledBy = (endMinute: number) => past || (dayOffset === 0 && endMinute <= nowLocalMinutes);
 
-    // Days don't all start dead on the hour, but the desk books on a five-minute
-    // grid — a 10:41 start is a time nobody would say out loud.
     let minute = (openHour ?? 10) * 60 + (dense || dayOffset === 0 ? 0 : Math.floor(random() * 6) * 5);
     const closingMinute = (closeHour ?? 18) * 60;
 
@@ -907,9 +771,6 @@ function generateDay(dayOffset: number, dense = false, maxBookings = Number.POSI
 
     let placed = 0;
     while (minute + 20 <= closingMinute && placed < maxBookings) {
-        // The start can land inside a booking that began earlier — the jittered
-        // opening, or a hand-written appointment mid-visit. `nextTaken` only
-        // sees slots starting from here on, so step over that one first.
         const covering = takenSlots.find((slot) => slot.start <= minute && minute < slot.end);
         if (covering) {
             minute = covering.end;
@@ -980,11 +841,6 @@ function generateDay(dayOffset: number, dense = false, maxBookings = Number.POSI
                           ]
                         : [];
 
-                // The balance on a visit from before this month, handed over
-                // inside it. This is the whole of `summary.olderCollected`:
-                // payment date in the range, visit date before it. The third
-                // that is never settled is what the outstanding report carries
-                // and what `settle` fills first.
                 if (dayOffset < generatedRange.first && paid < charged && random() < 0.66) {
                     visitPayments.push({
                         amount: charged - paid,
@@ -1060,17 +916,10 @@ for (
     if (bookings.length > before) scheduledNextMonth += 1;
 }
 
-// Last, deliberately: the PRNG is a single stream, so generating the previous
-// month here rather than in date order leaves every day already in the seed
-// byte-for-byte what it was before this month straddled the boundary.
 for (let offset = generatedRange.previousFirst; offset <= generatedRange.previousLast; offset += 1) {
     generateDay(offset);
 }
 
-// A year before that, thinner than the two months the screens open on, so the
-// stats screen has months, weeks and a previous year to compare. Each month
-// takes a different cap on its days so the line has a shape rather than a
-// plateau. After everything else for the same reason as the month above.
 const HISTORY_DAYS = 335;
 const MONTHLY_CAP = [6, 4, 7, 5, 8, 6, 3, 7, 5, 8, 6, 4];
 for (let back = 1; back <= HISTORY_DAYS; back += 1) {
@@ -1102,10 +951,6 @@ const paymentRows: (typeof payments.$inferInsert)[] = [];
 const reminderRows: (typeof reminders.$inferInsert)[] = [];
 
 for (const booking of bookings) {
-    // The live ones are reached, not written — `seedService` walks them through
-    // check-in after this transaction lands. They stayed in `bookings` so the
-    // generator would route its column around their slots, and that is all they
-    // were needed for.
     if (booking.live) continue;
 
     const appointmentId = id();
@@ -1252,15 +1097,6 @@ await db.transaction(async (tx) => {
         });
 });
 
-/**
- * Today's queue, after the rest of the day is in place.
- *
- * Written last on purpose. `seedService` calls `appointment.create`, which
- * checks the exclusion constraint against the day as it stands, so the column
- * these four have to fit into must already exist. Arrival order is the array's
- * order — longest wait first — because that is what the promotion inside
- * `awaitPayment` reads when the chair empties.
- */
 const liveBookings = bookings
     .filter((booking) => booking.live !== undefined)
     .sort((a, b) => (b.live?.arrivedAgo ?? 0) - (a.live?.arrivedAgo ?? 0));
@@ -1290,15 +1126,7 @@ const live = await seedService.liveDay(
     })),
 );
 
-// Which day the fixtures actually landed on, and where. Everything here is
-// relative to the moment the seed runs, so a database seeded yesterday has an
-// empty today — and because a booking's branch is whichever one is open that
-// weekday (`branchOpenOn`), today's work moves between Nasr City and Maadi as
-// the week turns. Both of those read as "the app is broken" from the day view,
-// so the seed says out loud what it just made.
 const todayStart = todayLocalMidnight.getTime();
-// `live` is counted separately: those rows were created by the services after
-// this array was built, so they are not in it.
 const todayRows = appointmentRows.filter((row) => {
     const startsAt = (row.startsAt as Date).getTime();
     return startsAt >= todayStart && startsAt < todayStart + 86_400_000;
@@ -1320,8 +1148,6 @@ logger.info(
         visits: visitRows.length,
         payments: paymentRows.length,
         reminders: reminderRows.length,
-        // Shifted back into clinic-local before formatting: local midnight is
-        // 21:00 UTC the day before, so a bare toISOString names the wrong day.
         today: new Date(todayStart + CLINIC_OFFSET_MINUTES * 60_000).toISOString().slice(0, 10),
         todayBranch: openToday,
         todayAppointments: todayRows.length + live.length,

@@ -1,11 +1,3 @@
-/**
- * "After this" — the rest of the doctor's day. The same rows the secretary
- * sees, with the check-in button taken off them: checking a patient in is the
- * desk's job, and what the doctor needs from a row is where the patient is —
- * a badge, the same one the patient's record draws. Today that is two states, because after the chair there
- * are only two: they are here, or they are not yet. Any other day the list is
- * the whole day, so each row says what became of it.
- */
 import { StyleSheet, View } from 'react-native';
 import { StatusBadge } from '../../../components/domain';
 import { useT } from '../../../i18n';
@@ -40,7 +32,6 @@ export function AfterThis({ appointments, relativeToNow, onSelect }: AfterThisPr
                     appointment={appointment}
                     procedure={rowSummary(appointment)}
                     onPress={() => onSelect(appointment)}
-                    // Today the chair is drawn above, so every `checked_in` row here is behind it.
                     trailing={
                         <StatusBadge
                             status={appointment.status}

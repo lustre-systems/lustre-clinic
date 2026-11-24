@@ -3,11 +3,6 @@ import { useEffect } from 'react';
 import { AppState } from 'react-native';
 import { backUpIfDue } from '../api';
 
-/**
- * The daily backup when the app is open, since Android may hold the background
- * task back for days on a phone it is saving battery on. A failure says nothing
- * here: the Backups row reports how old the last one is.
- */
 export function useDailyDriveBackup(local: boolean): void {
     useEffect(() => {
         if (!local) return;

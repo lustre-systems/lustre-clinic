@@ -1,18 +1,3 @@
-/**
- * The track is `outline`, not `surface2`. `surface2` (#f0f0f3) on `canvas`
- * (#f4f4f6) is four values apart and effectively invisible, and the empty bar
- * is the case that matters: at `0 of 4` the track *is* the whole control, with
- * no fill to infer it from, so a vanishing track takes the "four to go" signal
- * with it. `outline` is what every other hairline on `canvas` already uses, and
- * it holds on `surface` too.
- *
- * The fill eases to a new `value` rather than jumping, so a change reads as an
- * event instead of as the screen having always looked that way. `width` is a
- * layout property, which means this animation cannot use the native driver —
- * and nothing else may be animated on this node with it. Putting a native
- * `opacity` on the same view hands the node to the native driver, after which
- * the width tween throws `animated node that has been moved to "native"`.
- */
 // biome-ignore lint/style/noRestrictedImports: an `Animated.timing` driven imperatively — the fill chases a prop and the tween has to be stopped on cleanup
 import { useEffect, useRef } from 'react';
 import { Animated, StyleSheet, View } from 'react-native';

@@ -1,15 +1,3 @@
-/**
- * Moves CHANGELOG.md's `[Unreleased]` entries under a release, the step `bun ship`
- * takes before it builds, so the tag it leaves carries its own notes
- * (`.github/workflows/release.yml` refuses a tag without them). Pure, so it is
- * tested without a file or a repository.
- */
-
-/**
- * The changelog with `## [version] - date` opened under `## [Unreleased]` and the
- * compare links moved on, or null when `version` already has a section: a
- * `bun ship` run again after a failed build keeps the section it cut.
- */
 export function cutChangelog(source: string, version: string, date: string): string | null {
     if (source.includes(`\n## [${version}]`)) return null;
 

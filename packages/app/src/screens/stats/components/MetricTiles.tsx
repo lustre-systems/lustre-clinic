@@ -1,8 +1,3 @@
-// The four figures under the chart, two by two. Tapping one puts it on the
-// chart. Not selected, a tile is its soft ground lifted off the page; selected,
-// its solid colour with white text and a lift in the same colour, and the hint
-// says it is the one being charted. A press sinks the tile a little, so it
-// answers the finger before the chart redraws.
 import { useRef } from 'react';
 import { Animated, Pressable, StyleSheet, View } from 'react-native';
 import { useReducedMotion } from '../../../components/ui';
@@ -13,7 +8,6 @@ import { isMoney, METRIC_LABEL, METRICS, type Metric } from '../stats';
 import { SKIN } from './skin';
 
 const PRESSED = 0.96;
-/** Width over height, from the design's tiles (174 × 120 on a 390-wide phone). */
 const TILE_RATIO = 1.45;
 
 export type MetricTilesProps = {
@@ -126,9 +120,6 @@ function Tile({
 const styles = StyleSheet.create({
     grid: { flexDirection: 'row', flexWrap: 'wrap', gap: space[2.5] },
     cell: { flexBasis: '45%', flexGrow: 1 },
-    // The design's shape, held whatever the phone's width: two to a row, a
-    // wider screen only makes each tile wider, and without a ratio they turn
-    // into strips. The figure and the hint sit at the ends.
     tile: {
         aspectRatio: TILE_RATIO,
         justifyContent: 'space-between',

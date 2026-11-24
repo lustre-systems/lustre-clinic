@@ -1,19 +1,3 @@
-/**
- * The copy of today and tomorrow that outlives the clinic server (PRODUCT.md,
- * "Offline is expected"). A power cut takes the clinic PC down and leaves the
- * phones on, and the schedule is the one thing the desk still needs: who is
- * coming, when, and the number to ring them on. The shell's disconnected route
- * draws it read-only under the offline card, stamped with when it was taken —
- * it is a record of what the server last said, never a live day.
- *
- * Pure, so `bun test` reaches it. `savedScheduleStore` keeps it on disk;
- * `useSavedScheduleWriter` decides when to take one.
- *
- * Cancelled rows are dropped: the desk is not ringing them. A snapshot belongs
- * to the server it came from, so a phone pointed at another clinic never draws
- * the first one's patients, and days before today are dropped on the way in —
- * yesterday's list on a morning without power reads as today's.
- */
 import type { AppointmentStatus } from '@lustre/shared';
 import { rowSummary } from './agenda';
 import type { Appointment, Branch } from './data/types';
@@ -74,10 +58,6 @@ export function takeSchedule(input: {
     };
 }
 
-/**
- * What can be drawn from what was stored: null for nothing, a parse that
- * fails, an older shape, another server, or no day left from today on.
- */
 export function usableSchedule(
     raw: string | null,
     server: string | null,
@@ -110,7 +90,6 @@ function isSchedule(value: unknown): value is SavedSchedule {
     );
 }
 
-/** Which server a snapshot is for. The tailnet address outlives a change of wifi. */
 export function serverIdentity(addresses: { lan: string | null; tailscale: string | null }): string | null {
     return addresses.tailscale ?? addresses.lan;
 }

@@ -1,26 +1,3 @@
-/**
- * The header from `day-view-schedule.html`: a branch pill and a date pill. It
- * replaces a centred `Today` between two arrows — the date pill
- * is the only way off today and opens the calendar, carrying the weekday
- * whenever the screen is not on today, so the fact the arrows made obvious is
- * still written down. The branch menu anchors to the pill's start edge via
- * physical left; in RTL the window width less the pill's far edge is the same
- * distance measured the other way.
- *
- * The name scrolls over when `branchId` changes under it, because it is not
- * always the user who changed it: picking a day in the calendar moves the day
- * view to the branch that day is busiest in, and a branch name that quietly
- * rewrites itself in the corner is how someone reads the wrong branch's day.
- * The outgoing name is held in state for the length of the slide and drawn
- * over the incoming one, so what reads is one name pushing the other out
- * rather than a word swapping. It travels the way the branch list runs — a
- * branch further down enters from the end edge — and `I18nManager` flips that
- * with the writing direction, since the list reads the other way in Arabic.
- * The clip is what makes it a slide instead of a name wandering across the
- * header, and the accent wash under it says the change came from elsewhere.
- * Only a change animates, never the first branch to arrive; reduced motion
- * runs it at duration 0, so the name lands without travelling.
- */
 // biome-ignore lint/style/noRestrictedImports: runs the branch-change slide `Animated.timing` and clears the outgoing name on its completion callback
 import { type ReactNode, useEffect, useRef, useState } from 'react';
 import { Animated, Dimensions, Pressable, StyleSheet, View } from 'react-native';
@@ -38,7 +15,6 @@ import type { Branch } from '../data';
 import { formatDate, formatDatePill, relativeDayLabel } from '../time';
 import { CalendarIcon, PinIcon } from './icons';
 
-/** How far a name travels on its way in, and the one leaving on its way out. */
 const SLIDE = space[7];
 
 export type DayHeaderProps = {
@@ -47,7 +23,6 @@ export type DayHeaderProps = {
     branchId: string | null;
     onPickBranch: (branchId: string) => void;
     onOpenCalendar: () => void;
-    /** The "Last done" button, in the space between the two pills, against the date (`DayLastDone`). */
     history?: ReactNode;
 };
 
@@ -159,8 +134,6 @@ export function DayHeader({
                     </Pressable>
                 </View>
 
-                {/* The space between the two pills is the button's whole
-                    room: it opens out inside it and never over either pill. */}
                 {history ? <View style={styles.gap}>{history}</View> : null}
 
                 <Pressable

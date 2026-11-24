@@ -1,12 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import { applyReleaseVersionCode, EPOCH_MS, STEP_MS, versionCodeAt } from './withReleaseVersionCode';
 
-/**
- * A number that ever goes backwards blocks the install, and one that stands
- * still hides a build from the Settings banner, which offers only a strictly
- * higher number. Both are silent until the clinic visit.
- */
-
 describe('release versionCode', () => {
     test('counts from 2026-01-01 UTC', () => {
         expect(new Date(EPOCH_MS).toISOString()).toBe('2026-01-01T00:00:00.000Z');
@@ -25,7 +19,6 @@ describe('release versionCode', () => {
     });
 
     test('numbers new builds above every build made under the old per-minute scheme', () => {
-        // 369409 is the highest code the per-minute scheme produced on 14 Sep 2026.
         expect(versionCodeAt(Date.UTC(2026, 8, 14, 13, 0))).toBeGreaterThan(369_409);
     });
 

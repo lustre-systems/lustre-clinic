@@ -1,11 +1,3 @@
-/**
- * An appointment's status as a small tinted badge with a dot — the patient
- * record's pill, drawn the same in every row that names a status. `StatusPill`
- * is the louder outlined tag for a sheet or a visit head; this is for a list.
- *
- * `label` and `tone` override the status for a row that is not quite one: the
- * record's opening balance and imported work.
- */
 import type { AppointmentStatus } from '@lustre/shared';
 import { StyleSheet, View } from 'react-native';
 import { useT } from '../../i18n';

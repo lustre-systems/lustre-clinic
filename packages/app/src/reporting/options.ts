@@ -1,21 +1,5 @@
-/**
- * Whether this build reports, and the SDK options that say what it collects.
- * Pure, so `bun test` reaches it; `reporting.ts` hands these to `Sentry.init`
- * along with the allow-list.
- *
- * The DSN is baked in at build time (`app.config.ts`, `LUSTRE_GLITCHTIP_DSN`)
- * and points at GlitchTip on the clinic server's MagicDNS name (§17). With no
- * DSN nothing is initialised at all, which is the state of every dev machine.
- * A demo build never reports: its patients are invented, and GlitchTip would
- * fill with crashes from a register nobody works in.
- */
 import type { BuildVariant } from '../api/variant';
 
-/**
- * The trail keeps about a hundred steps. The SDK is told twice that: on Android
- * each crumb reaches the event twice, once from JS and once from its native
- * copy, before `beforeSend` drops the copy (`privacy.ts`).
- */
 export const TRAIL_LENGTH = 100;
 export const MAX_BREADCRUMBS = TRAIL_LENGTH * 2;
 
@@ -40,18 +24,11 @@ export function sdkOptions(dsn: string | null, variant: BuildVariant) {
         sendDefaultPii: false,
         attachScreenshot: false,
         attachViewHierarchy: false,
-        // GlitchTip keeps no sessions and has thin tracing support (§17): errors only.
         enableAutoSessionTracking: false,
         enableAutoPerformanceTracing: false,
         enableUserInteractionTracing: false,
         enableCaptureFailedRequests: false,
         enableLogs: false,
-        // A native (Java/NDK) crash is captured and sent by the Android SDK with
-        // no JS `beforeSend` in between, and its message can quote anything the
-        // native code held, an intent URL with a phone number in it included.
-        // Until there is a native-side allow-list those events are not made at
-        // all. JS events still go through the native transport, which keeps them
-        // on disk while GlitchTip is unreachable.
         enableNativeCrashHandling: false,
         enableNdk: false,
         sampleRate: 1,

@@ -1,7 +1,3 @@
-/**
- * What a write reads as in "Last done", and how long it stays: the last 30 or
- * the last seven days, whichever is fewer, and only a write that answered.
- */
 import { beforeEach, describe, expect, it, mock } from 'bun:test';
 
 const stored = new Map<string, string>();

@@ -1,13 +1,3 @@
-/**
- * `server/src/modules/visit/visit.service.ts`. A visit is what happened, as
- * opposed to what was scheduled.
- *
- * Check-in creates it and seeds its lines: one per procedure the booking
- * planned, each priced at the catalogue price on the day rather than at
- * booking, and nothing else — the checkup is picked like any other line, as on
- * the server. Pricing is not a prerequisite for
- * checkout, and zero paid is a valid checkout, because the balance is derived.
- */
 import { canTransition, ERROR_CODE, WS_EVENT } from '@lustre/shared';
 import type { RouterInput, RouterOutput } from '../../types';
 import { getDb, type PaymentRow, save, type VisitProcedureRow, type VisitRow } from '../db';
@@ -55,12 +45,6 @@ function recompute(visitId: string): number {
     return computedTotal;
 }
 
-/**
- * "In the chair" is a stamp, not a position in a queue: `inChairAt` set and the
- * appointment still `checked_in`. Once they go to the desk or are checked out
- * the status moves on and the chair reads empty again. Asked of one clinic day,
- * so a patient nobody checked out yesterday does not hold today's chair.
- */
 function chairIsTaken(branchId: string, day: ClinicDay): boolean {
     const db = getDb();
     return db.visits.some((visit) => {
@@ -74,15 +58,6 @@ function chairIsTaken(branchId: string, day: ClinicDay): boolean {
     });
 }
 
-/**
- * Move the longest-waiting patient into the chair the moment it empties.
- *
- * Called from both ways out of the chair — to the desk (`awaitPayment`) and
- * straight to checkout — because the patient who has been waiting since 08:24
- * began their visit when the person ahead of them got up, not when they
- * arrived. The day view's bar measures from `inChairAt` for exactly this. The
- * queue is the leaving appointment's own day, never an earlier day's leftovers.
- */
 export function seatNextInChair(branchId: string, day: ClinicDay, now: Date): void {
     const db = getDb();
 
@@ -102,7 +77,6 @@ export function seatNextInChair(branchId: string, day: ClinicDay, now: Date): vo
     next.inChairAt = now;
 }
 
-/** The one place a payment row is written, shared with `balance.settle`. */
 export function insertPayment(
     visitId: string,
     amount: number,
@@ -152,7 +126,6 @@ function readVisit(id: string): Visit {
     const paidTotal = payments.reduce((sum, payment) => sum + payment.amount, 0);
 
     const nextProcedures = nextOf(row);
-    // Only while it still stands: a cancelled or missed booking leaves them owed.
     const nextAppointmentId = takenBy(visit.nextAppointmentId);
 
     return {
@@ -188,10 +161,6 @@ export const visitHandlers = {
         const now = new Date();
         const today = clinicDayOf(now, input.offsetMinutes ?? 0);
 
-        // Only on the day they are booked for. From another day's list it is a
-        // mis-tap, and the visit would sit checked in with nobody to close it.
-        // A walk-in is checked in by the call that creates it, and a queue
-        // running past midnight can start it on the next day, so it is exempt.
         if (appointment.channel !== 'walk_in' && !onDay(appointment.startsAt, today)) {
             throw new DemoError(
                 ERROR_CODE.CHECK_IN_NOT_TODAY,
@@ -200,8 +169,6 @@ export const visitHandlers = {
             );
         }
 
-        // Walking into an empty chair is the common case at a quiet clinic, and
-        // it is the one where arriving and being seated are the same moment.
         const waiting = chairIsTaken(appointment.branchId, today);
 
         const visit: VisitRow = {
@@ -275,7 +242,6 @@ export const visitHandlers = {
             db.procedureTypes,
             db.settings.clinicType === 'general',
         );
-        // `visitService.setProcedures`: 1.10's single `nextProcedure` is a list of one.
         const asked =
             input.nextProcedures ??
             (input.nextProcedure === undefined
@@ -292,7 +258,6 @@ export const visitHandlers = {
                       db.settings.clinicType === 'general',
                   ).map((line) => ({ procedureId: line.procedure.id, tooth: line.tooth }));
 
-        // `visitService.setProcedures`: a line keeps the cost it was first priced at.
         const savedCost = new Map(
             db.visitProcedures
                 .filter((line) => line.visitId === visit.id)
@@ -314,7 +279,6 @@ export const visitHandlers = {
         }
 
         const computedTotal = recompute(visit.id);
-        // The charged total tracks the computed one until someone has edited it.
         if (!visit.pricedAt) visit.chargedTotal = computedTotal;
 
         const booked = next === undefined ? null : setNext(visit, next, new Date());
@@ -361,8 +325,6 @@ export const visitHandlers = {
         const appointment = db.appointments.find((row) => row.id === visit.appointmentId);
         if (!appointment) throw DemoError.notFound('appointment');
 
-        // As the server: an ordinary visit needs a line to be closed, and an
-        // opening balance never has one.
         if (!appointment.isOpeningBalance && linesOf(visit.id).length === 0) {
             throw new DemoError(
                 ERROR_CODE.VISIT_HAS_NO_PROCEDURES,
@@ -371,8 +333,6 @@ export const visitHandlers = {
             );
         }
 
-        // Closing a visit that was reopened to be corrected: the appointment
-        // never left `done`, so there is no transition to make.
         const reclosing = appointment.status === 'done';
 
         if (!reclosing && !canTransition(appointment.status, 'done')) {
@@ -386,8 +346,6 @@ export const visitHandlers = {
         const now = new Date();
         const paidTotal = input.paidTotal ?? 0;
 
-        // As the server: the desk's phone clamps to what is owed, a doctor's is
-        // not shown what was already paid, so the rule is here too.
         if (paidTotal > 0 && paidTotal > input.chargedTotal - collectedOn(visit.id)) {
             throw new DemoError(
                 ERROR_CODE.PAYMENT_EXCEEDS_BALANCE,
@@ -409,9 +367,6 @@ export const visitHandlers = {
             appointment.status = 'done';
             appointment.updatedAt = now;
 
-            // Reclosing a corrected visit does not empty the chair — that
-            // patient left long ago, and seating someone off it would restart a
-            // bar that is already running.
             if (wasInChair) {
                 seatNextInChair(
                     appointment.branchId,
@@ -427,16 +382,6 @@ export const visitHandlers = {
         return readVisit(visit.id);
     },
 
-    /**
-     * Correct what a visit was paid, in total. What is written is the
-     * difference, as a payment row of its own — a refund is a negative payment,
-     * dated the day the correction was made. Nothing is edited and nothing is
-     * deleted, because the original row is still a true record of what was
-     * entered at the time.
-     *
-     * Raising the total past the charge is refused, as on the server; lowering
-     * it never is, because that is the refund of a charge that came down.
-     */
     setPaid(input: RouterInput['visit']['setPaid']): Visit {
         const visit = requireVisit(input.visitId);
 
@@ -455,12 +400,6 @@ export const visitHandlers = {
         return readVisit(visit.id);
     },
 
-    /**
-     * Say again how the money on a visit was paid without changing how much,
-     * as on the server: each other method's net is given back in that method
-     * and taken again in `method`. `other` is told apart by its note. Already
-     * all in `method`, it writes nothing.
-     */
     setPaidMethod(input: RouterInput['visit']['setPaidMethod']): Visit {
         const visit = requireVisit(input.visitId);
         const methodNote = input.method === 'other' ? (input.methodNote?.trim() ?? null) : null;
@@ -505,13 +444,6 @@ export const visitHandlers = {
         return readVisit(visit.id);
     },
 
-    /**
-     * Unlock a finished visit so it can be corrected. The *appointment* is not
-     * touched — the patient came, was seen and went home, and someone fixing
-     * the paperwork three weeks later does not undo that. `pricedAt` is cleared
-     * with `completedAt`, or `setProcedures` would recompute around a pinned
-     * `chargedTotal` and the bill would not follow the lines.
-     */
     reopen(input: RouterInput['visit']['reopen']): Visit {
         const visit = requireVisit(input.visitId);
 
@@ -542,9 +474,6 @@ export const visitHandlers = {
         db.visits = db.visits.filter((row) => row.id !== visit.id);
 
         const now = new Date();
-        // Read before the branch below rewrites it: `appointment` is the row
-        // itself here, not a copy, so setting it to `booked` would make the
-        // chair check under it false for every desk booking.
         const heldTheChair = appointment.status === 'checked_in' && visit.inChairAt !== null;
 
         if (appointment.channel === 'walk_in' || appointment.isOpeningBalance) {

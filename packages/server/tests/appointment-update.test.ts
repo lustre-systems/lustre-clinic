@@ -10,20 +10,6 @@ import { visitService } from '../src/modules/visit/visit.service.ts';
 import { setupDatabase, truncateAll } from './helpers/db.ts';
 import { bookedAppointment, clinic, expectAppError, slot, todaySlot } from './helpers/factories.ts';
 
-/**
- * SPEC §7 — rescheduling and manual resolution. `appointment.update` is the one
- * call that can move an appointment in time, and it carries three things nothing
- * else does: the overlap constraint applies to an UPDATE as well as an INSERT,
- * the reminder has to follow the new time, and `no_show` is the only status the
- * client sets through this route. `overlap.test.ts` proves Postgres refuses a
- * colliding UPDATE; this proves the service turns that refusal into
- * SLOT_OVERLAP rather than an opaque 23P01.
- *
- * Key invariants: `ref` keeps the booking date (never reissued), `no_show`
- * frees the slot and skips the reminder, and the transition table is guarded so
- * a stray edit cannot quietly re-open a closed transition.
- */
-
 async function reminderFor(appointmentId: string) {
     const [row] = await db.select().from(reminders).where(eq(reminders.appointmentId, appointmentId));
     return row;

@@ -1,9 +1,3 @@
-/**
- * There is no renderer under `bun test`, so what is tested here is the part of
- * the screen that is not React: which day is closed, where a block lands, and —
- * the one that matters — what the secretary is told when Postgres refuses a
- * double booking.
- */
 import { describe, expect, it } from 'bun:test';
 import { type AppointmentStatus, COPY_AR, ERROR_CODE, type Tooth } from '@lustre/shared';
 import { computeTotal } from '../../api/demo/rules';
@@ -127,9 +121,6 @@ describe('the agenda', () => {
         expect(upcoming.map((row) => row.id)).toEqual(['stale', 'later']);
     });
 
-    // The fold is relative to now, so only today has one. A past day is every
-    // row settled, and folding them all away drew nothing at all under a tab
-    // pill that went on counting them.
     it('folds nothing off today, and still puts the day in order', () => {
         const { past, upcoming } = splitDay(
             [at('later', '13:00', 'done'), at('done', '09:30', 'done'), at('missed', '10:00', 'no_show')],
@@ -172,8 +163,6 @@ describe('the agenda', () => {
         expect(procedureLabel(planned('Consultation', 'Zirconia crown'))).toBe(
             'Consultation · Zirconia crown',
         );
-        // Nothing planned is not "unknown procedure" — the row falls back to
-        // the duration alone, as it did when `type_id` was null.
         expect(procedureLabel(planned())).toBeUndefined();
     });
 });
@@ -198,8 +187,6 @@ describe('the visit note', () => {
         expect(noteDraft(undefined)).toBe('');
     });
 
-    // Blank is not a note. A field cleared to spaces is the desk removing what
-    // it wrote, and the column has to end up null rather than holding '   '.
     it('sends a cleared field as no note at all', () => {
         expect(noteValue('')).toBeNull();
         expect(noteValue('   \n ')).toBeNull();
@@ -208,24 +195,17 @@ describe('the visit note', () => {
 
     it('writes only what the edit changed', () => {
         expect(noteChanged('Bring the X-rays.', 'Bring the X-rays.')).toBe(false);
-        // Whitespace either side of the same words is not an edit.
         expect(noteChanged('Bring the X-rays.', '  Bring the X-rays. ')).toBe(false);
         expect(noteChanged(null, '')).toBe(false);
         expect(noteChanged(null, '   ')).toBe(false);
-        // A note stored with stray spaces, opened and left alone, is not an edit.
         expect(noteChanged(' Bring the X-rays. ', ' Bring the X-rays. ')).toBe(false);
 
         expect(noteChanged(null, 'Anxious about the drill.')).toBe(true);
         expect(noteChanged('Bring the X-rays.', 'Bring the panoramic.')).toBe(true);
-        // Clearing one is an edit, and the one that has to reach the server as
-        // null rather than as nothing to do.
         expect(noteChanged('Bring the X-rays.', '')).toBe(true);
         expect(noteValue('')).toBeNull();
     });
 
-    // The chair and the now card have always read the note over the plan. A
-    // schedule row that showed the plan instead is how the same visit says two
-    // different things on two screens.
     it('says the note on the row where there is one, and the plan where there is not', () => {
         expect(rowSummary(with_('Bring the X-rays.'))).toBe('Bring the X-rays.');
         expect(rowSummary(with_(null))).toBe('Consultation');
@@ -340,9 +320,6 @@ describe("the doctor's day", () => {
         expect(splitDeskDay([at('paid', '09:30', 'done')]).card).toBeNull();
     });
 
-    // The trap `standingFor` exists for: `awaiting_payment` means standing at
-    // the desk today, and a visit never settled on a day gone by. The date
-    // tells them apart.
     it('calls an unsettled visit from another day finished, not at the desk', () => {
         const old = at('old', '11:05', 'awaiting_payment');
 
@@ -354,14 +331,9 @@ describe("the doctor's day", () => {
         expect(standingFor(at('closed', '11:05', 'done'), '2026-08-10')).toBe('finished');
     });
 
-    // Seconds matter here: the count is a stopwatch, and the stamp it starts
-    // from carries them.
     const stamp = (time: string, seconds = 0) =>
         `2026-08-10T${time}:${String(seconds).padStart(2, '0')}+03:00`;
 
-    // The bar measures the visit, so it starts when the patient was checked in
-    // rather than when the slot was booked. A patient the card calls IN THE
-    // CHAIR reads zero only at the moment they are seated.
     it('runs the booked duration from the check-in, not the booked start', () => {
         const appointment = at('chair', '12:00', 'checked_in');
         const seated = minutesOfDay(stamp('08:47'));
@@ -371,10 +343,6 @@ describe("the doctor's day", () => {
         expect(slotProgress(appointment, seated + 15, stamp('08:47')).value).toBe(0.5);
     });
 
-    // The `0 / 223 min` regression. It came from the denominator — the old rule
-    // set it to `bookedEnd - checkedInAt` — and not from the start point, so
-    // starting at the check-in is safe as long as the whole stays the booked
-    // duration.
     it('never lets an early arrival stretch the denominator', () => {
         const appointment = at('chair', '12:00', 'checked_in');
         const seated = minutesOfDay(stamp('08:47'));
@@ -383,9 +351,6 @@ describe("the doctor's day", () => {
         expect(slotProgress(appointment, seated, stamp('08:47')).label).not.toContain('223');
     });
 
-    // Deliberate, and the other half of measuring the visit: someone seated
-    // half an hour late still needs the whole procedure, so the bar gives them
-    // the whole slot. Running late is the day's problem, and `dayDelay` has it.
     it('gives a patient seated late their full slot', () => {
         const appointment = at('chair', '11:00', 'checked_in');
         const seated = minutesOfDay(stamp('11:30'));
@@ -403,8 +368,6 @@ describe("the doctor's day", () => {
         expect(slotProgress(appointment, seated + 45, stamp('11:00')).label).toBe('15:00 over');
     });
 
-    // Whoever is at the desk has no arrival to measure from — the card draws
-    // them without a bar, and the fallback keeps the window honest anyway.
     it('falls back to the booked slot with no check-in to hand', () => {
         const appointment = at('chair', '11:00', 'checked_in');
         const start = minutesOfDay(appointment.startsAt);
@@ -416,7 +379,6 @@ describe("the doctor's day", () => {
         );
     });
 
-    // Both halves of the label read in hours past the hour, not `105 min`.
     it('reads a long slot in hours and minutes', () => {
         const appointment = { ...at('chair', '11:00', 'checked_in'), durationMinutes: 90 };
         const seated = minutesOfDay(stamp('11:00'));
@@ -426,11 +388,6 @@ describe("the doctor's day", () => {
         expect(slotProgress(appointment, seated + 153, stamp('11:00')).label).toBe('1:03:00 over');
     });
 
-    // The counter skipped seconds on the device, and the timer was not why.
-    // `nowMinutes` carries a fraction of a minute, and converting it back with
-    // `* 60` lands just under the integer in binary — `(587 + 23/60 - 560) * 60`
-    // is 1642.9999999999995, whose floor is a second nobody ever sees. Over ten
-    // minutes of counting it swallowed 160 of them.
     it('never skips a second, over a run long enough to catch the float', () => {
         const appointment = at('chair', '11:00', 'checked_in');
         const seated = stamp('10:47', 23);
@@ -442,8 +399,6 @@ describe("the doctor's day", () => {
         }
     });
 
-    // The same bug from the other side: every step is exactly one second, so a
-    // run of labels has no duplicates and no gaps either.
     it('advances by exactly one second per second', () => {
         const appointment = at('chair', '11:00', 'checked_in');
         const seated = stamp('10:47', 23);
@@ -457,9 +412,6 @@ describe("the doctor's day", () => {
         expect(new Set(counts).size).toBe(counts.length);
     });
 
-    // `minutesOfDay` truncates, which is right for placing a row on a schedule
-    // and wrong for the stamp a stopwatch starts from: seated at :23 and read
-    // half a minute later, the count used to say a full minute had gone.
     it('counts from the second the patient was seated, not the minute', () => {
         const appointment = at('chair', '11:00', 'checked_in');
         const seated = stamp('10:47', 30);
@@ -468,8 +420,6 @@ describe("the doctor's day", () => {
         expect(slotProgress(appointment, secondsOfDay(seated) / 60, seated).count).toBe('0:00');
     });
 
-    // The label is split so only the half that changes has to be redrawn — and
-    // rejoining the two has to give back exactly what the strip draws.
     it('splits the count from what it is counted against', () => {
         const appointment = at('chair', '11:00', 'checked_in');
         const seated = stamp('11:00');
@@ -486,11 +436,6 @@ describe("the doctor's day", () => {
         expect(late.label).toBe('15:00 over');
     });
 
-    // The readout stays English in Arabic. The digits are Latin everywhere in
-    // the app (§7.11), and here the word beside them is Latin too: this is one
-    // mono column read as a stopwatch, and half-translating it puts a second
-    // script inside a figure — which is also what let the whole thing be laid
-    // out right to left and come out as `91:5`.
     it('keeps the readout in English when the app is in Arabic', () => {
         const appointment = at('chair', '11:00', 'checked_in');
         const long = { ...appointment, durationMinutes: 90 };
@@ -511,8 +456,6 @@ describe("the doctor's day", () => {
         }
     });
 
-    // Latin digits and Latin letters, the whole way down a slot. An Arabic
-    // character anywhere in the readout is the bug.
     it('draws no Arabic in the readout, at any point in the slot', () => {
         const appointment = at('chair', '11:00', 'checked_in');
         const seated = stamp('11:00');
@@ -570,9 +513,6 @@ describe('the month', () => {
     });
 
     it('still counts a day that has been worked through', () => {
-        // Checkout frees the slot for rebooking, but the day was still full —
-        // so the bar has to survive it. Counting only the live statuses left
-        // every past month drawing empty once its days had been worked.
         const loads = loadsFrom(
             [SATURDAY],
             [[at('a', 'maadi', 'done'), at('b', 'maadi', 'awaiting_payment'), at('c', 'maadi', 'no_show')]],
@@ -629,14 +569,10 @@ describe('an empty day', () => {
         expect(past.glyph).toBe('none');
     });
 
-    // A past day is a fact whoever booked it can no longer change, so it reads
-    // the same to the desk and to the doctor.
     it('says the same thing about a past day to both screens', () => {
         expect(emptyDay(true, false)).toEqual(emptyDay(true, true));
     });
 
-    // `EmptyState` puts these through `t`, but they are object fields in a
-    // plain module, so the catalogue test's source scan never sees them.
     it('has Arabic for everything it says', () => {
         for (const [past, canBook] of [
             [false, true],
@@ -655,7 +591,6 @@ describe('money', () => {
     it('formats piastres as whole pounds, grouped', () => {
         expect(formatMoney(260_000)).toBe('EGP 2,600');
         expect(formatMoney(0)).toBe('EGP 0');
-        // §7.13 — the symbol trails in Arabic, and it is the Arabic symbol that trails.
         expect(formatMoney(260_000, { language: 'ar' })).toBe('2,600 ج.م');
     });
 
@@ -749,16 +684,10 @@ describe('dates', () => {
         expect(clockToMinutes('09:05')).toBe(545);
     });
 
-    // Formatting itself is `domain/clock`'s, and tested there. What this holds
-    // is that the cluster still reaches it through `./time`.
     it('re-exports the twelve-hour clock', () => {
         expect(clock12(13 * 60)).toEqual({ time: '1:00', meridiem: 'PM' });
     });
 
-    // The booking flow used to lowercase the meridiem at two call sites, so its
-    // slots read "12:15 pm" against "12:15 PM" everywhere else. Asserted against
-    // `clock12` rather than against 'PM': the meridiem is localized, and a
-    // literal here would pass in Arabic however the casing drifted.
     it('says the time the way the formatter says it, not re-cased', () => {
         const { time, meridiem } = clock12(12 * 60 + 15);
 
@@ -813,8 +742,6 @@ describe('a patient who is new here', () => {
         expect(birthDateIso('16082026', TODAY)).toBe('2026-08-16');
     });
 
-    // An entry in progress is not yet wrong — the error would fire on the first
-    // keystroke and stay up until the last.
     it('says nothing about an empty field, and asks for the rest of a half-typed one', () => {
         expect(birthDateError('', TODAY)).toBeNull();
         expect(birthDateError('0511', TODAY)).not.toBeNull();
@@ -867,7 +794,6 @@ describe('a patient who is new here', () => {
         });
     });
 
-    // Sending it as blank would throw away what she was in the middle of writing.
     it('holds the booking while a detail is half-written', () => {
         const half = {
             ...EMPTY_PATIENT_DRAFT,
@@ -917,8 +843,6 @@ describe('booking slots', () => {
     const SCHEDULE = [{ weekday: 1, branchId: 'b', opensAt: '10:00', closesAt: '12:00' }];
     const MONDAY = '2026-08-10';
 
-    // `isoAt` rather than a hand-written `+03:00`: `bun test` runs in UTC, and a
-    // fixed offset would put 10:30 Cairo outside the clinic's morning there.
     const booked = (minutes: number, durationMinutes: number, status: AppointmentStatus): Appointment =>
         ({
             id: String(minutes),
@@ -944,15 +868,10 @@ describe('booking slots', () => {
         expect(slots.every((slot) => slot.state === 'free')).toBe(true);
     });
 
-    // A desk does not say "five fifty-three" to anyone. Offering the moment each
-    // booking ends would squeeze a start into every gap at the cost of a grid
-    // full of times nobody would agree to out loud. An overrunning day is real,
-    // but it is absorbed by the day running late (`delay.ts`), not booked.
     it('stops at closing and keeps every time on the grid', () => {
         const slots = slotsFor({
             dateKey: MONDAY,
             schedule: SCHEDULE,
-            // Seen at 11:00 for 23 minutes: out at 11:23, off any grid.
             appointments: [booked(660, 23, 'checked_in')],
             branchId: null,
             durationMinutes: 30,
@@ -993,10 +912,6 @@ describe('booking slots', () => {
         expect(timesFor(45)).toEqual([600, 645, 690]);
     });
 
-    // A clinic that runs Maadi on Thursday and Nasr City on Wednesday has no
-    // clinic-wide hours: drawing the branch's grid out of another branch's day
-    // offered a full Nasr City Thursday, then found no Nasr City bookings in it
-    // and called every hour free.
     it('draws no grid for a branch that does not work that day', () => {
         const slots = slotsFor({
             dateKey: MONDAY,
@@ -1042,8 +957,6 @@ describe('booking slots', () => {
             nowMinutes: null,
         });
 
-        // 10:15–10:45 is booked. A 30-minute visit at 10:00 runs into it, and so
-        // does one at 10:30 — both ends. 11:00 is the first that clears it.
         expect(at(slots, 600)?.state).toBe('taken');
         expect(at(slots, 630)?.state).toBe('taken');
         expect(at(slots, 660)?.state).toBe('free');
@@ -1106,11 +1019,6 @@ describe('booking slots', () => {
     });
 });
 
-/**
- * The fortnight both booking flows offer — the full page and the book-next
- * sheet — so a day is only ever offered by one rule, and the sheet cannot come
- * to disagree with the page about which Thursday is still free.
- */
 describe('the fortnight a booking is offered', () => {
     const SCHEDULE = [{ weekday: 1, branchId: 'b', opensAt: '10:00', closesAt: '12:00' }];
     const MONDAY = '2026-08-10';
@@ -1141,9 +1049,6 @@ describe('the fortnight a booking is offered', () => {
         expect(workingDaysIn(MONDAY, 14, SCHEDULE, 'other')).toEqual([]);
     });
 
-    // `slotsFor([])` says every hour is free, so a day still being read must not
-    // be treated as an empty one — that is how a grid offers a slot someone else
-    // is already in.
     it('offers nothing at all until the rows are in hand', () => {
         const pending = fortnight(undefined);
 
@@ -1167,8 +1072,6 @@ describe('the fortnight a booking is offered', () => {
         expect(slotsByDay.get(MONDAY)?.[0]?.state).toBe('free');
     });
 
-    // Both backends let a row move into its own span, so the appointment being
-    // rescheduled must not hold its own time against itself.
     it('frees the time held by the appointment being moved, and only that one', () => {
         const moving = booked(MONDAY, 600, 'b');
         const other = booked(MONDAY, 660, 'b');
@@ -1178,12 +1081,6 @@ describe('the fortnight a booking is offered', () => {
         expect(withoutAppointment(undefined, moving.id)).toBeUndefined();
     });
 
-    /**
-     * A check-up six months out is an ordinary thing to ask for at the desk, and
-     * the strip's window is not the limit on how far ahead the clinic can book —
-     * a day past it is reached by name and joins the days offered, rather than
-     * widening the window to a quarter of a year to reach one day of it.
-     */
     describe('a day past the strip window', () => {
         const MARCH_MONDAY = '2027-03-01';
 
@@ -1201,7 +1098,6 @@ describe('the fortnight a booking is offered', () => {
         });
 
         it('is not offered on a day the branch is shut', () => {
-            // A Sunday: the schedule only has weekday 1.
             expect(daysOffered(MONDAY, 14, '2027-03-07', SCHEDULE, 'b')).toEqual([MONDAY, NEXT_MONDAY]);
         });
 
@@ -1214,12 +1110,6 @@ describe('the fortnight a booking is offered', () => {
         });
     });
 
-    /**
-     * The day a booking sits on once the strip has been worked out. The case
-     * that matters is a date picked from the calendar that has no room: it used
-     * to be swapped for the first open day during render, so the booking went
-     * ahead on a date the desk never chose.
-     */
     describe('which day the booking settles on', () => {
         const MARCH_MONDAY = '2027-03-01';
         const WORKING = [MONDAY, NEXT_MONDAY, MARCH_MONDAY];
@@ -1268,13 +1158,6 @@ describe('the fortnight a booking is offered', () => {
     });
 });
 
-/**
- * The book-next sheet asks and does not book. It used to carry its own day strip,
- * time grid and `appointment.create`, which made it a second booking flow, and
- * with it a second copy of the double-booking refusal. Both went: the prompt's
- * answer is `BookingScreen`, so that screen's refusal is the only one, and there
- * is no longer a `book-next` surface for `describeError` to have an opinion on.
- */
 describe('book-next after a check-in', () => {
     it('sends a refused time to the booking screen’s wording, not a sheet’s', () => {
         const overlap = new RequestError(ERROR_CODE.SLOT_OVERLAP, 'that slot overlaps another appointment');
@@ -1284,8 +1167,6 @@ describe('book-next after a check-in', () => {
         expect(booking.body).toContain('reloaded');
     });
 
-    // The sheet's own wording sent the desk to a grid directly under the
-    // message. There is no grid now, so nothing may still say there is one.
     it('no longer tells anyone the times above have been reloaded', () => {
         const overlap = new RequestError(ERROR_CODE.SLOT_OVERLAP, 'that slot overlaps another appointment');
 
@@ -1334,7 +1215,6 @@ describe('the procedure plan', () => {
     it('offers the child teeth after the permanent ones in every quadrant', () => {
         const upperRight = QUADRANTS.find((quadrant) => quadrant.key === 'UR');
 
-        // Upper right counts towards the midline, so it starts at the wisdom tooth.
         expect(upperRight?.codes[0]).toBe('UR8');
         expect(upperRight?.codes[7]).toBe('UR1');
         expect(upperRight?.codes.slice(8)).toEqual(['URA', 'URB', 'URC', 'URD', 'URE']);
@@ -1345,8 +1225,6 @@ describe('the procedure plan', () => {
         expect(totalOf([])).toBe(0);
     });
 
-    // A catalogue price stays behind: the visit snapshots the catalogue's at
-    // check-in, so a price change in between reaches the bill.
     it('sends every line of the plan, with its tooth and without a catalogue price', () => {
         expect(bookedProcedures([line('a', 'UL6', 900_00), line('b', null, 400_00)])).toEqual([
             { procedureId: 'proc-a', tooth: 'UL6' },
@@ -1446,8 +1324,6 @@ describe('the procedure plan', () => {
             expect(bookedProcedures(restored)[0]).toEqual({ procedureId: 'proc-a', tooth: 'UL6' });
         });
 
-        // The catalogue moved up to meet the quote. Editing another line must
-        // not turn the quote back into "whatever the catalogue says".
         it('keeps a quote the catalogue has caught up with', () => {
             const [first, second] = planFrom(booked(900_00), catalogue);
             if (!first || !second) throw new Error('plan lost a line');
@@ -1467,11 +1343,6 @@ describe('the procedure plan', () => {
     });
 });
 
-/**
- * A clinic day slips for two reasons — the chair overruns, and walk-ins are
- * taken — and both push the booked day along. Nothing is written: the booked
- * time is what the patient was told, and the projection is what it means now.
- */
 describe('a day running late', () => {
     const MONDAY = '2026-08-10';
 
@@ -1499,25 +1370,14 @@ describe('a day running late', () => {
         expect(delayLabel(delay)).toBeNull();
     });
 
-    // The overrun is counted to the minute and reported to the minute, but what
-    // the day *slides* by is rounded up to a slot: "6:17" claims to know when
-    // the chair empties, and a column of odd minutes is harder to read than a
-    // column of clean ones while saying less.
     it('counts the overrun to the minute and slides by the slot', () => {
-        // Seen at 10:00 for 30 minutes, and it is 10:42.
         const delay = dayDelay([row('a', 600, 30, 'checked_in')], 642);
 
         expect(delay.fromChair).toBe(12);
         expect(delay.minutes).toBe(15);
-        // The headline is the overrun itself; only the slide is rounded.
         expect(delayLabel(delay)).toBe('12 min late');
     });
 
-    // Taking the walk-in already moved the booked day: the server seated it at
-    // 10:10 and pushed everyone it ran into past 10:30, so those 20 minutes are
-    // inside their `startsAt` before this function ever sees them. Counting
-    // them here too would put every projection below 20 minutes further out
-    // than the day actually is.
     it('does not count a waiting walk-in, whose minutes are already in the layout', () => {
         const delay = dayDelay(
             [row('chair', 600, 30, 'checked_in'), row('walk', 610, 20, 'checked_in', 'walk_in')],
@@ -1547,9 +1407,6 @@ describe('a day running late', () => {
         expect(delayLabel(delay)).toBe('12 min late');
     });
 
-    // The reviewer's case, as the desk sees it: the chair is on time and ends
-    // at 12:30, the walk-in has 12:30–13:00, and the booked patient the server
-    // already pushed reads 13:00. At 12:15 that 13:00 must not project to 13:30.
     it('leaves a pushed booking reading the time the server moved it to', () => {
         const appointments = [
             row('chair', 720, 30, 'checked_in'),
@@ -1569,8 +1426,6 @@ describe('a day running late', () => {
         expect(projectedStart(appointments[2] as Appointment, delay, 735)).toBe(780);
     });
 
-    // A booked patient waiting their turn already owns a slot further down the
-    // day. Counting them would count that time twice.
     it('does not count a booked patient who is merely waiting', () => {
         const delay = dayDelay(
             [row('chair', 600, 30, 'checked_in'), row('early', 610, 30, 'checked_in')],
@@ -1589,7 +1444,6 @@ describe('a day running late', () => {
         const later = row('later', 720, 30, 'booked');
         const done = row('done', 540, 30, 'done');
 
-        // Booked 12:00, the day is 15 minutes behind: 12:15, on the grid.
         expect(projectedStart(later, delay, 642)).toBe(735);
         expect(isProjected(later, delay)).toBe(true);
 
@@ -1599,14 +1453,10 @@ describe('a day running late', () => {
 
     it('never projects a time into the past', () => {
         const delay = dayDelay([row('chair', 600, 30, 'checked_in')], 700);
-        // Booked 10:15, delay is 70 minutes, so the projection lands at 11:25 —
-        // but it is 11:40 and they have not been seen, so they are next, not late.
         expect(projectedStart(row('missed', 615, 30, 'booked'), delay, 700)).toBe(700);
     });
 
     it('keeps every projection on the slot grid, whatever the odd minute', () => {
-        // 10:00 for 30 minutes, and it is 10:37: seven minutes over, so the day
-        // slides by ten and nothing lands on a 6:17.
         const delay = dayDelay([row('chair', 600, 30, 'checked_in')], 637);
 
         expect(delay.minutes).toBe(10);
@@ -1620,16 +1470,6 @@ describe('a day running late', () => {
     });
 });
 
-/**
- * The bug this covers: the chair and the desk summed every line, including the
- * checkup the server had already waived, so "Running total" read one checkup
- * higher than the confirmation screen — which spends `chargedTotal` and is
- * therefore right. Wrong money, shown to the patient who is about to pay it.
- *
- * `computeTotal` is imported straight from the demo server so the two cannot
- * drift apart again without a red test; it is the same rule as the real
- * server's `util/money.ts`.
- */
 describe('the total the chair and the desk show', () => {
     const filling = { unitPrice: 220_000, quantity: 1, isCheckup: false };
     const checkup = { unitPrice: 15_000, quantity: 1, isCheckup: true };
@@ -1654,9 +1494,6 @@ describe('the total the chair and the desk show', () => {
         expect(totalOfList([{ unitPrice: 220_000, quantity: 3, isCheckup: false }, checkup])).toBe(660_000);
     });
 
-    // The groups are struck under the visit's waiver, not under their own, or a
-    // checkup sitting alone in the no-tooth group would still charge for itself
-    // and the groups would not add up to the strip.
     it('strikes the waived checkup out of its own tooth group too', () => {
         const waived = checkupIsWaived([filling, checkup]);
 
@@ -1696,27 +1533,18 @@ describe('what the catalogue offers', () => {
             })),
         }) as ProcedureCategory;
 
-    // A tooth was named, so mouth-level work cannot go on it — the server
-    // refuses that pairing, and a plan built here but not bookable is a dead end
-    // found at the confirm step with a patient waiting.
     it('offers only tooth work once a tooth is chosen', () => {
         const offered = offeredFor([category('extraction', true), category('scaling', false)], true);
 
         expect(offered.map((row) => row.id)).toEqual(['extraction']);
     });
 
-    // The other direction is not symmetric: without a tooth the sheet is the
-    // whole catalogue, and the tooth is asked for after the pick. Mirroring the
-    // strict match here is what hid every uncategorised tooth-specific
-    // procedure behind a button that just said "Add procedure".
     it('offers the whole catalogue when no tooth is assigned', () => {
         const offered = offeredFor([category('extraction', true), category('scaling', false)], false);
 
         expect(offered.map((row) => row.id)).toEqual(['extraction', 'scaling']);
     });
 
-    // General procedures: the catalogue keeps its flags on the server, and the
-    // phone reads every row as mouth-level work, so nothing asks for a tooth.
     it('asks no tooth of a clinic on general procedures', () => {
         const catalogue = [
             category('extraction', true),

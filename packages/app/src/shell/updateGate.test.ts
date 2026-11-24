@@ -25,7 +25,6 @@ describe('isMinorUpdate', () => {
         expect(isMinorUpdate('2.0.0', '1.9.0')).toBe(false);
     });
 
-    // The quiet path cannot cost anyone a half-typed booking.
     it('treats a number it cannot read as a patch', () => {
         expect(isMinorUpdate(null, '1.6.0')).toBe(false);
         expect(isMinorUpdate('1.5.2', null)).toBe(false);
@@ -58,13 +57,11 @@ describe('manifestWantsScreen', () => {
 });
 
 describe('reloadOnReturn', () => {
-    // Back from WhatsApp, the lock screen, or reopened after a swipe away.
     it('restarts into a downloaded update on any return to the app', () => {
         expect(reloadOnReturn(true, 0, false)).toBe(true);
         expect(reloadOnReturn(true, RELOAD_WINDOW_MS - 1, false)).toBe(true);
     });
 
-    // By then someone may be typing.
     it('leaves an update that lands later to the next return', () => {
         expect(reloadOnReturn(true, RELOAD_WINDOW_MS, false)).toBe(false);
     });

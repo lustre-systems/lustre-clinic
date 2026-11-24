@@ -9,12 +9,6 @@ const RECHECK_MS = 5 * 60_000;
 
 void hydrateClinicZone();
 
-/**
- * Keeps the app on the clinic's time (`clinicTime`): measures how far the
- * server's clock is from this phone's, and takes the clinic zone's offsets
- * from the server. Nothing is shown. The phone's zone no longer matters, and
- * its clock only through the skew, so there is nothing at the desk to fix.
- */
 export function useClinicClock(): void {
     const check = useQuery({
         queryKey: ['clock-check'],
@@ -24,7 +18,6 @@ export function useClinicClock(): void {
             const received = clockSample();
             const skew = clockSkew(server.now, sent, received);
             if (skew !== null) noteServerClock(skew, received);
-            // Absent on a server from before `clinicTime`, which leaves the stored or bundled table.
             adoptClinicZone(server.zone);
             return skew;
         },
